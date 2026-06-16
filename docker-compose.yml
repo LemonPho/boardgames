@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: boardgames-db
+    environment:
+      POSTGRES_DB: boardgamesdb
+      POSTGRES_USER: boardgames_user
+      POSTGRES_PASSWORD: boardgames_pass
+    ports:
+      - "5433:5433"
+    volumes:
+      - boardgames_data:/var/lib/postgresql/data
+
+volumes:
+  boardgames_data:
