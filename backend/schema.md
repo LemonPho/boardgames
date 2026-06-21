@@ -129,6 +129,14 @@ erDiagram
     timestamp created_at
   }
 
+  RefreshTokens {
+    uuid id PK
+    uuid user_id FK
+    string token
+    timestamp expires_at
+    timestamp created_at
+  }
+
   Games ||--o{ Rooms : "played as"
   Rooms ||--o{ RoomsUsers : "has"
   Users ||--o{ RoomsUsers : "joins"
@@ -149,4 +157,5 @@ erDiagram
   Users ||--o{ Notifications : "receives"
   Rooms ||--o{ RoomMessages : "has"
   Users ||--o{ RoomMessages : "sends"
+  Users ||--o{ RefreshTokens : "has"
 ```
