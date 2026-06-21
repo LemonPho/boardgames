@@ -1,21 +1,20 @@
 package com.motomutterers.boardgames.auth.services;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.motomutterers.boardgames.auth.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
+import com.motomutterers.boardgames.auth.dto.RefreshRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
 import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
+import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
 import com.motomutterers.boardgames.auth.models.RefreshToken;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
 import com.motomutterers.boardgames.user.UserRepository;
@@ -46,6 +45,11 @@ public class AuthService {
         this.jwtService = jwtService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
+    }
+
+    private RefreshToken getRefreshTokenByToken(String refreshToken){
+        return refreshTokenRepository.findByToken(refreshToken)
+            .orElseThrow(() -> new RefreshTokenExpiredException("Refresh token not found"));
     }
 
     public void register(RegisterRequest request){
@@ -90,11 +94,24 @@ public class AuthService {
         return response;
     }
 
-    public void logout(UUID userId){
-        User user = userService.getUserById(userId);
-        if(refreshTokenRepository.findByUser(user).isEmpty()){
-            throw new UserNotFoundException("User is not logged in");
+    public void logout(RefreshRequest request){
+        RefreshToken refreshToken = getRefreshTokenByToken(request.getRefreshToken());
+
+        refreshTokenRepository.deleteById(refreshToken.getId());
+    }
+
+    public AuthResponse refresh(RefreshRequest request){
+        RefreshToken refreshToken = getRefreshTokenByToken(request.getRefreshToken());
+        if(refreshToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RefreshTokenExpiredException("You must log in");
         }
-        refreshTokenRepository.deleteByUser(user);
+
+        User user = refreshToken.getUser();
+
+        String accessToken = jwtService.generateToken(user);
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration/1000));
+        refreshTokenRepository.save(refreshToken);
+
+        return new AuthResponse(accessToken, refreshToken.getToken());
     }
 }

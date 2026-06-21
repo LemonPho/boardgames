@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
+import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
+import com.motomutterers.boardgames.auth.exceptions.RefreshTokenNotFoundException;
 import com.motomutterers.boardgames.auth.exceptions.UserUnauthorizedException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 
@@ -45,6 +47,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<String> handleUserNotFound(UserNotFoundException e) {
+        return ResponseEntity.status(404).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RefreshTokenExpiredException.class)
+    public ResponseEntity<String> handleRefreshTokenExpired(RefreshTokenExpiredException e){
+        return ResponseEntity.status(403).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RefreshTokenNotFoundException.class)
+    public ResponseEntity<String> handleRefreshTokenNotFound(RefreshTokenNotFoundException e){
         return ResponseEntity.status(404).body(e.getMessage());
     }
 }

@@ -37,6 +37,10 @@ public class RefreshToken {
         this.createdAt = LocalDateTime.now();
     }
 
+    public UUID getId(){
+        return id;
+    }
+
     public User getUser(){
         return user;
     }
