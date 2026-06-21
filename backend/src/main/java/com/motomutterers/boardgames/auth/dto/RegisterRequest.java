@@ -6,8 +6,8 @@ import jakarta.validation.constraints.Pattern;
 
 public class RegisterRequest {
     @Pattern(
-        regexp = "^[a-zA-Z0-9 ._-]{3,12}$",
-        message = "Username must be 3-12 characters and can only contain letters, numbers, spaces, periods, underscores and hyphens"
+        regexp = "^[a-zA-Z0-9 ._-]{3,18}$",
+        message = "Username must be 3-18 characters and can only contain letters, numbers, spaces, periods, underscores and hyphens"
     )
     private String username;
 
