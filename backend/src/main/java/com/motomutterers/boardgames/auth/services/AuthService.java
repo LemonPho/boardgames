@@ -87,7 +87,7 @@ public class AuthService {
         String refreshToken = UUID.randomUUID().toString();
 
 
-        RefreshToken token = new RefreshToken(user, refreshToken, LocalDateTime.now().plusSeconds(refreshExpiration/1000));
+        RefreshToken token = new RefreshToken(user, refreshToken, LocalDateTime.now().plusSeconds(refreshExpiration));
         refreshTokenRepository.save(token);
         AuthResponse response = new AuthResponse(accessToken, refreshToken);
 
@@ -109,7 +109,7 @@ public class AuthService {
         User user = refreshToken.getUser();
 
         String accessToken = jwtService.generateToken(user);
-        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration/1000));
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration));
         refreshTokenRepository.save(refreshToken);
 
         return new AuthResponse(accessToken, refreshToken.getToken());

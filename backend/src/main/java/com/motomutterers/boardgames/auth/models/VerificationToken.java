@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.motomutterers.boardgames.user.model.User;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -12,9 +13,19 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+/*
+VerificationTokens {
+    uuid id
+    uuid user_id FK
+    string token
+    timestamp expires_at
+    timestamp created_at
+  }
+*/
+
 @Entity
-@Table(name = "refresh_tokens")
-public class RefreshToken {
+@Table(name = "verification_tokens")
+public class VerificationToken {
     @Id
     @GeneratedValue
     private UUID id;
@@ -22,13 +33,13 @@ public class RefreshToken {
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
     private String token;
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
 
-    public RefreshToken(){}
-
-    public RefreshToken(
+    public VerificationToken(){}
+    public VerificationToken(
         User user,
         String token,
         LocalDateTime expiresAt
@@ -57,9 +68,5 @@ public class RefreshToken {
 
     public LocalDateTime getCreatedAt(){
         return createdAt;
-    }
-
-    public void setExpiresAt(LocalDateTime expiresAt){
-        this.expiresAt = expiresAt;
     }
 }
