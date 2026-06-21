@@ -1,4 +1,4 @@
-package com.motomutterers.boardgames.auth;
+package com.motomutterers.boardgames.auth.repositories;
 
 import java.util.Optional;
 import java.util.UUID;

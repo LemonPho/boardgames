@@ -26,9 +26,11 @@ public class User {
     private boolean verified = false;
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "user_status")
     private UserStatus status = UserStatus.PENDING_VERIFICATION;
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "user_role")
     private UserRole role = UserRole.USER;
 
     private LocalDateTime createdAt;

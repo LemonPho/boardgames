@@ -8,14 +8,20 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.motomutterers.boardgames.auth.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RefreshRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
 import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
+import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredException;
+import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
 import com.motomutterers.boardgames.auth.models.RefreshToken;
+import com.motomutterers.boardgames.auth.models.VerificationToken;
+import com.motomutterers.boardgames.auth.repositories.RefreshTokenRepository;
+import com.motomutterers.boardgames.auth.repositories.VerificationTokenRepository;
+import com.motomutterers.boardgames.email.EmailService;
+import com.motomutterers.boardgames.email.EmailTemplates;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
 import com.motomutterers.boardgames.user.UserRepository;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
@@ -28,28 +34,49 @@ public class AuthService {
     private final UserService userService;
     private final JwtService jwtService;    
     private final RefreshTokenRepository refreshTokenRepository;
+    private final VerificationTokenRepository verificationTokenRepository;
+    private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
+
+    @Value("${spring.mail.verification-expiration}")
+    private long verificationExpiration;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     public AuthService(
         UserRepository userRepository,
         UserService userService,
         JwtService jwtService,
         RefreshTokenRepository refreshTokenRepository,
+        VerificationTokenRepository verificationTokenRepository,
+        EmailService emailService,
         PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
         this.userService = userService;
         this.jwtService = jwtService;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.verificationTokenRepository = verificationTokenRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
+    }
+
+    private VerificationToken createVerificationToken(User user){
+        return new VerificationToken(user, UUID.randomUUID().toString(), LocalDateTime.now().plusSeconds(verificationExpiration));
     }
 
     private RefreshToken getRefreshTokenByToken(String refreshToken){
         return refreshTokenRepository.findByToken(refreshToken)
             .orElseThrow(() -> new RefreshTokenExpiredException("Refresh token not found"));
+    }
+
+    private VerificationToken getVerificationTokenByToken(String verificationToken){
+        return verificationTokenRepository.findByToken(verificationToken)
+            .orElseThrow(() -> new VerificationTokenNotFoundException("Verification toke not found"));
     }
 
     public void register(RegisterRequest request){
@@ -61,7 +88,13 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(request.getPassword());
         User user = new User(request.getEmail(), request.getUsername(), passwordHash);
         userRepository.save(user);
-        //EMAIL SERVICE FOR SENDING VERIFICATION EMAIL
+
+        VerificationToken verificationToken = createVerificationToken(user);
+        verificationTokenRepository.save(verificationToken);
+
+        String verificationLink = baseUrl + "api/auth/verify?token=" + verificationToken.getToken();
+        String html = EmailTemplates.verificationEmail(user.getUsername(), verificationLink);
+        emailService.sendEmail(user.getEmail(), "Verify your Boardgames account", html);
     }
 
     public AuthResponse login(LoginRequest request){
@@ -113,5 +146,16 @@ public class AuthService {
         refreshTokenRepository.save(refreshToken);
 
         return new AuthResponse(accessToken, refreshToken.getToken());
+    }
+
+    public void verifyEmail(String token){
+        VerificationToken verificationToken = getVerificationTokenByToken(token);
+        if(verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){
+            throw new VerificationTokenExpiredException("Verification token is expired, please resend a new verification email");
+        }
+
+        User user = verificationToken.getUser();
+        user.setIsActive();
+        userRepository.save(user);
     }
 }
