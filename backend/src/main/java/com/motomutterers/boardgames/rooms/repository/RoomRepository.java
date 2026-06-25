@@ -10,4 +10,5 @@ import com.motomutterers.boardgames.rooms.model.Room;
 public interface RoomRepository extends JpaRepository<Room, UUID> {
     Optional<Room> findById(UUID id);
     Optional<Room> findByName(String name);
+    boolean existsByName(String name);
 }

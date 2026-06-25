@@ -12,7 +12,8 @@ CREATE TYPE tracking_mode AS ENUM (
 
 CREATE TYPE rooms_user_role AS ENUM (
     'ADMIN',
-    'PLAYER'
+    'PLAYER',
+    'ANONYMOUS'
 );
 
 CREATE TABLE rooms (

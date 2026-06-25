@@ -103,7 +103,7 @@ erDiagram
     timestamp created_at
   }
 
-  RoomsUsers {
+  RoomUser {
     uuid id PK
     uuid room_id FK
     uuid user_id FK nullable
@@ -148,8 +148,8 @@ erDiagram
   }
 
   Games ||--o{ Rooms : "played as"
-  Rooms ||--o{ RoomsUsers : "has"
-  Users ||--o{ RoomsUsers : "joins"
+  Rooms ||--o{ RoomUser : "has"
+  Users ||--o{ RoomUser : "joins"
   Rooms ||--|| Sessions : "has"
   Sessions ||--o{ Teams : "has"
   Teams ||--o{ TeamsUsers : "contains"

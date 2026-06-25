@@ -1,0 +1,16 @@
+ALTER TABLE rooms ALTER COLUMN status DROP DEFAULT;
+ALTER TABLE rooms ALTER COLUMN tracking_mode DROP DEFAULT;
+
+ALTER TABLE rooms ALTER COLUMN status TYPE VARCHAR(50) USING status::text;
+ALTER TABLE rooms ALTER COLUMN tracking_mode TYPE VARCHAR(50) USING tracking_mode::text;
+
+ALTER TABLE rooms ALTER COLUMN status SET DEFAULT 'WAITING';
+ALTER TABLE rooms ALTER COLUMN tracking_mode SET DEFAULT 'ADMIN';
+
+ALTER TABLE rooms_users ALTER COLUMN role DROP DEFAULT;
+ALTER TABLE rooms_users ALTER COLUMN role TYPE VARCHAR(50) USING role::text;
+ALTER TABLE rooms_users ALTER COLUMN role SET DEFAULT 'PLAYER';
+
+DROP TYPE room_status;
+DROP TYPE tracking_mode;
+DROP TYPE rooms_user_role;

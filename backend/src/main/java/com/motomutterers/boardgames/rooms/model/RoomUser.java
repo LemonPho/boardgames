@@ -1,0 +1,94 @@
+package com.motomutterers.boardgames.rooms.model;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+import com.motomutterers.boardgames.user.model.User;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+
+/*
+  RoomUser {
+    uuid id PK
+    uuid room_id FK
+    uuid user_id FK nullable
+    string display_name
+    boolean is_anonymous
+    string role
+    timestamp joined_at
+  }
+*/
+
+@Entity
+@Table(name = "rooms_users")
+public class RoomUser {
+    @GeneratedValue
+    @Id
+    private UUID id;
+
+    @ManyToOne
+    @JoinColumn(name = "room_id", nullable = false)
+    private Room room;
+
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = true)
+    private User user;
+
+    @Column
+    private String displayName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", columnDefinition = "room_user_roles")
+    private RoomUserRoles role;
+
+    @Column(insertable = false, updatable = false)
+    private LocalDateTime joinedAt;
+
+    public RoomUser(){}
+
+    public RoomUser(User user, Room room, RoomUserRoles role){
+      this.user = user;
+      this.room = room;
+      this.role = role;
+    }
+
+    public RoomUser(String displayName, Room room, RoomUserRoles role){
+      this.displayName = displayName;
+      this.room = room;
+      this.role = role;
+    }
+
+    public UUID getId(){
+      return id;
+    }
+
+    public Room getRoom(){
+      return room;
+    }
+
+    public User getUser(){
+      return user;
+    }
+
+    public String getDisplayName(){
+      return displayName;
+    }
+
+    public RoomUserRoles getRole(){
+      return role;
+    }
+
+    public LocalDateTime getJoinedAt(){
+      return joinedAt;
+    }
+}

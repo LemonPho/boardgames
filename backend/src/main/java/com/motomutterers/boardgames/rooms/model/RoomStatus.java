@@ -6,3 +6,4 @@ public enum RoomStatus {
     COMPLETED,
     CANCELLED
 }
+

@@ -1,49 +1,15 @@
-package com.motomutterers.boardgames.games.model;
+package com.motomutterers.boardgames.games.dto;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import org.springframework.boot.jackson.autoconfigure.JacksonProperties.Json;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
-@Entity
-@Table(name = "games")
-public class Game {
-    @Id
-    @GeneratedValue
-    private UUID id;
-
-    @Column(nullable = false, unique = true)
+public class GameResponse {
     private String name;
-
-    @Column(nullable = false)
     private String type;
-
-    @Column(nullable = false)
-    private String gameConfig;
-
-    @Column(nullable = false)
-    private String scoringConfig;
-
-    @Column(nullable = false)
+    private Json gameConfig;
+    private Json scoringConfig;
     private int minPlayers;
-
-    @Column(nullable = false)
     private int maxPlayers;
-
     private String description;
-
-    @Column(nullable = false, insertable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    public Game(){}
-
-    public UUID getId(){
-        return id;
-    }
 
     public String getName(){
         return name;
@@ -53,11 +19,11 @@ public class Game {
         return type;
     }
 
-    public String getGameConfig(){
+    public Json getGameConfig(){
         return gameConfig;
     }
 
-    public String getScoringConfig(){
+    public Json getScoringConfig(){
         return scoringConfig;
     }
 
@@ -83,11 +49,11 @@ public class Game {
         this.type = type;
     }
 
-    public void setGameConfig(String gameConfig){
+    public void setGameConfig(Json gameConfig){
         this.gameConfig = gameConfig;
     }
 
-    public void setScoringConfig(String scoringConfig){
+    public void setScoringConfig(Json scoringConfig){
         this.scoringConfig = scoringConfig;
     }
 
