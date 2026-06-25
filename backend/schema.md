@@ -106,7 +106,9 @@ erDiagram
   RoomsUsers {
     uuid id PK
     uuid room_id FK
-    uuid user_id FK
+    uuid user_id FK nullable
+    string display_name
+    boolean is_anonymous
     string role
     timestamp joined_at
   }

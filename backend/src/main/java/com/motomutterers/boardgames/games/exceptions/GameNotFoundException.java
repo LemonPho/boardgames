@@ -1,0 +1,7 @@
+package com.motomutterers.boardgames.games.exceptions;
+
+public class GameNotFoundException extends RuntimeException{
+    public GameNotFoundException(String message){
+        super(message);
+    }
+}

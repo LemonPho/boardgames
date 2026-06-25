@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
-import com.motomutterers.boardgames.auth.dto.RegisterRequest;
-
 @Entity
 @Table(name = "users")
 public class User {
