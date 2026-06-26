@@ -11,6 +11,9 @@ import com.motomutterers.boardgames.user.UserRepository;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
+
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +24,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +37,7 @@ public class AuthServiceTest {
     @Mock private VerificationTokenRepository verificationTokenRepository;
     @Mock private EmailService emailService;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private HttpServletResponse httpServletResponse;
 
     @InjectMocks
     private AuthService authService;
@@ -63,7 +68,7 @@ public class AuthServiceTest {
 
         when(userRepository.findByEmail("unknown@test.com")).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> authService.login(request));
+        assertThrows(UserNotFoundException.class, () -> authService.login(request, httpServletResponse));
     }
 
     @Test
@@ -74,7 +79,7 @@ public class AuthServiceTest {
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongpassword", "hashedpassword")).thenReturn(false);
 
-        assertThrows(PasswordIncorrectException.class, () -> authService.login(request));
+        assertThrows(PasswordIncorrectException.class, () -> authService.login(request, httpServletResponse));
     }
 
     @Test
@@ -86,9 +91,9 @@ public class AuthServiceTest {
         when(passwordEncoder.matches("password1", "hashedpassword")).thenReturn(true);
         when(jwtService.generateToken(user)).thenReturn("jwt-token");
 
-        var response = authService.login(request);
+        var response = authService.login(request, httpServletResponse);
 
         assertNotNull(response.getAccessToken());
-        assertNotNull(response.getRefreshToken());
+        verify(httpServletResponse).addCookie(any());
     }
 }

@@ -1,10 +1,8 @@
 package com.motomutterers.boardgames.auth.controllers;
 
-import org.springframework.data.repository.query.Param;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,14 +10,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
-import com.motomutterers.boardgames.auth.dto.RefreshRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
 import com.motomutterers.boardgames.auth.services.AuthService;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class AuthController {
     private final AuthService authService;
 
@@ -36,21 +35,27 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request){
-        AuthResponse authResponse = authService.login(request);
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response){
+        AuthResponse authResponse = authService.login(request, response);
         return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshRequest request){
-        AuthResponse response = authService.refresh(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<AuthResponse> refresh(
+        HttpServletRequest request,
+        HttpServletResponse response
+    ){
+        AuthResponse authResponse = authService.refresh(request, response);
+        return ResponseEntity.ok(authResponse);
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(@RequestBody RefreshRequest request){
-        authService.logout(request);
-        return ResponseEntity.ok("Logged out");
+    public ResponseEntity<String> logout(
+        HttpServletRequest request,
+        HttpServletResponse response
+    ){
+        authService.logout(request, response);
+        return ResponseEntity.ok("");
     }
 
     @GetMapping("/verify")

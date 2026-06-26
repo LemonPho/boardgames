@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
-import com.motomutterers.boardgames.auth.dto.RefreshRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
 import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
@@ -27,6 +26,10 @@ import com.motomutterers.boardgames.user.UserRepository;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Service
 public class AuthService {
@@ -69,14 +72,51 @@ public class AuthService {
         return new VerificationToken(user, UUID.randomUUID().toString(), LocalDateTime.now().plusSeconds(verificationExpiration));
     }
 
-    private RefreshToken getRefreshTokenByToken(String refreshToken){
-        return refreshTokenRepository.findByToken(refreshToken)
-            .orElseThrow(() -> new RefreshTokenExpiredException("Refresh token not found"));
+    private RefreshToken getRefreshTokenByToken(String refreshTokenString){
+        Optional<RefreshToken> result = refreshTokenRepository.findByToken(refreshTokenString);
+        if(result.isEmpty()){
+            throw new RefreshTokenExpiredException("You need to login");
+        }
+
+        RefreshToken refreshToken = result.get();
+
+        if(refreshToken.getExpiresAt().isBefore(LocalDateTime.now())){
+            throw new RefreshTokenExpiredException("You need to login");
+        }
+
+        return refreshToken;
     }
 
     private VerificationToken getVerificationTokenByToken(String verificationToken){
         return verificationTokenRepository.findByToken(verificationToken)
             .orElseThrow(() -> new VerificationTokenNotFoundException("Verification toke not found"));
+    }
+
+    private HttpServletResponse createRefreshToken(User user, HttpServletResponse response){
+        String refreshToken = UUID.randomUUID().toString();
+        RefreshToken token = new RefreshToken(user, refreshToken, LocalDateTime.now().plusSeconds(refreshExpiration));
+        refreshTokenRepository.save(token);
+
+        Cookie cookie = new Cookie("refreshToken", refreshToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // change when going to https
+        cookie.setPath("/");
+        cookie.setMaxAge((int)(refreshExpiration));
+        response.addCookie(cookie);
+
+        return response;
+    }
+
+    private String getCookieValue(HttpServletRequest request, String name) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if (cookie.getName().equals(name)) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
     }
 
     public void register(RegisterRequest request){
@@ -97,7 +137,7 @@ public class AuthService {
         emailService.sendEmail(user.getEmail(), "Verify your Boardgames account", html);
     }
 
-    public AuthResponse login(LoginRequest request){
+    public AuthResponse login(LoginRequest request, HttpServletResponse response){
         Optional<User> result;
         String primaryKey = request.getPrimaryKey();
         if(request.getIsUsername()){
@@ -117,35 +157,35 @@ public class AuthService {
         }
                 
         String accessToken = jwtService.generateToken(user);
-        String refreshToken = UUID.randomUUID().toString();
+        response = createRefreshToken(user, response);
 
-
-        RefreshToken token = new RefreshToken(user, refreshToken, LocalDateTime.now().plusSeconds(refreshExpiration));
-        refreshTokenRepository.save(token);
-        AuthResponse response = new AuthResponse(accessToken, refreshToken);
-
-        return response;
+        return new AuthResponse(accessToken);
     }
 
-    public void logout(RefreshRequest request){
-        RefreshToken refreshToken = getRefreshTokenByToken(request.getRefreshToken());
+    public void logout(HttpServletRequest request, HttpServletResponse response){
+        String refreshTokenString = getCookieValue(request, "refreshToken");
+        RefreshToken refreshToken = getRefreshTokenByToken(refreshTokenString);
+        refreshTokenRepository.delete(refreshToken);
 
-        refreshTokenRepository.deleteById(refreshToken.getId());
+        Cookie cookie = new Cookie("refreshToken", "");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
     }
 
-    public AuthResponse refresh(RefreshRequest request){
-        RefreshToken refreshToken = getRefreshTokenByToken(request.getRefreshToken());
-        if(refreshToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RefreshTokenExpiredException("You must log in");
-        }
-
+    public AuthResponse refresh(HttpServletRequest request, HttpServletResponse response){
+        String refreshTokenString = getCookieValue(request, "refreshToken");
+        RefreshToken refreshToken = getRefreshTokenByToken(refreshTokenString);
         User user = refreshToken.getUser();
 
-        String accessToken = jwtService.generateToken(user);
-        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration));
-        refreshTokenRepository.save(refreshToken);
+        refreshTokenRepository.delete(refreshToken);
 
-        return new AuthResponse(accessToken, refreshToken.getToken());
+        String accessToken = jwtService.generateToken(user);
+        response = createRefreshToken(user, response);
+
+        return new AuthResponse(accessToken);
     }
 
     public void verifyEmail(String token){

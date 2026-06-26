@@ -6,6 +6,13 @@ public class CreateRoomRequest {
     private String gameName;
     private TrackingMode trackingMode;
 
+    public CreateRoomRequest () {}
+
+    public CreateRoomRequest(String gameName, TrackingMode trackingMode){
+        this.gameName = gameName;
+        this.trackingMode = trackingMode;
+    }
+
     public String getGameName(){
         return gameName;
     }
