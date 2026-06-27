@@ -1,4 +1,4 @@
-import { useUIContext } from '../UIContext'
+import { useUIContext } from '../../context/UIContext'
 
 interface DropdownProps {
   id: string
@@ -8,7 +8,6 @@ interface DropdownProps {
 export default function Dropdown({ id, children }: DropdownProps) {
   const { activePanel } = useUIContext()
   const isOpen = activePanel === id
-  console.log(activePanel + " == " + id);
 
   if (!isOpen) return null
 

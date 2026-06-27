@@ -146,14 +146,18 @@ public class AuthService {
             result = userRepository.findByEmail(primaryKey);
         }
 
+        ValidationBuilder validationBuilder = new ValidationBuilder();
+
         if(result.isEmpty()){
-            throw new UserNotFoundException("User was not found");
+            validationBuilder.addError(true, "userExists", "User wasn't found");
+            validationBuilder.validate();
         }
 
         User user = result.get();
 
         if(!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
-            throw new PasswordIncorrectException("Password is incorrect, try again.");
+            validationBuilder.addError(true, "password", "Password is incorrect");
+            validationBuilder.validate();
         }
                 
         String accessToken = jwtService.generateToken(user);

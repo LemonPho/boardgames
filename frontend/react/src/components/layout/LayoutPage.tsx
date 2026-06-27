@@ -1,27 +1,25 @@
-import { Outlet, useNavigate } from 'react-router-dom'
-import { Bell, User } from 'lucide-react'
-import { logout } from '../../api/auth'
-import { useUIContext } from '../UIContext';
-import Dropdown from '../util/Dropdown';
+import { Outlet } from 'react-router-dom'
+import { useUIContext } from '../../context/UIContext';
 import Header from './Header';
+import { useAuthenticationContext } from '../../context/AuthenticationContext';
+import { useEffect } from 'react';
 
 export default function LayoutPage() {
-  const { closePanel, togglePanel } = useUIContext();
-
-  const navigate = useNavigate();
-
-  const handleLogout = async (): Promise<void> => {
-    const response = await logout();
-
-    if(response){
-      navigate("/");
-    }
-  }
+  const { closePanel } = useUIContext();
+  const { csrfInit } = useAuthenticationContext();
 
   const handleGeneralClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     event.stopPropagation();
     closePanel();
   }
+
+  useEffect(() => {
+    const fetchData = async (): Promise<void> => {
+      await csrfInit();
+    }
+
+    fetchData();
+  }, []);
   
 
   return (
@@ -38,8 +36,6 @@ export default function LayoutPage() {
       <footer className="border-t border-gray-200 bg-white px-6 py-4 text-center text-sm text-gray-400">
         Boardgames © {new Date().getFullYear()}
       </footer>
-
-      <button onClick={handleLogout}></button>
 
     </div>
   )

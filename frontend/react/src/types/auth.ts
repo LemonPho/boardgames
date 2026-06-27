@@ -12,7 +12,12 @@ export interface LoginRequest{
 
 export interface AuthResponse{
     accessToken: string,
-    refreshToken: string
+}
+
+export interface CsrfResponse {
+    headerName: string,
+    parameterName: string,
+    token: string
 }
 
 export interface AuthProps{

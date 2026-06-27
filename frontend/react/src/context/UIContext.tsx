@@ -12,7 +12,6 @@ export function UIProvider({ children }: { children: ReactNode}){
     const [activePanel, setActivePanel] = useState<string | null>(null);
 
     const togglePanel = (panel: string): void => {
-        console.log("Panel: " + panel + " toggled");
         if(activePanel == panel){
             closePanel();
             return;

@@ -1,6 +1,8 @@
 package com.motomutterers.boardgames.auth.controllers;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,7 +33,7 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request){
         authService.register(request);
-        return ResponseEntity.ok("Check your email to verify your account");
+        return new ResponseEntity<String>("Account created, check your email to verify", HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
@@ -62,5 +64,10 @@ public class AuthController {
     public ResponseEntity<String> verify(@RequestParam String token){
         authService.verifyEmail(token);
         return ResponseEntity.ok("Email verified");
+    }
+
+    @GetMapping("/csrf")
+    public ResponseEntity<CsrfToken> csrf(CsrfToken csrfToken) {
+        return ResponseEntity.ok(csrfToken);
     }
 }

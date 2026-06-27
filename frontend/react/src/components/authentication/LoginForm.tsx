@@ -1,16 +1,22 @@
 import { useState } from 'react'
-import { login } from '../../api/auth'
 import type { LoginRequest } from '../../types/auth'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuthenticationContext } from '../../context/AuthenticationContext'
+import type { LoginErrors } from '../../types/components-types/auth';
+import { useAlertsContext } from '../../context/AlertsContext';
 
 export default function LoginForm() {
+  const { errorMessage } = useAlertsContext();
+  const { loginUser } = useAuthenticationContext();
+
   const [form, setForm] = useState<LoginRequest>({
     primaryKey: '',
     password: '',
     isUsername: false
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const navigate = useNavigate()
+  const [errors, setErrors] = useState<LoginErrors | null>(null);
+
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -18,33 +24,20 @@ export default function LoginForm() {
 
   const setIsUsername = (value: boolean) => {
     setForm({
-        ...form,
-        isUsername: value
+      ...form,
+      isUsername: value
     })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrors({})
+    setErrors(null);
 
     const inputIsUsername = !form.primaryKey.includes("@");
     setIsUsername(inputIsUsername);
 
-    console.log(form);
-
-    try {
-      await login(form)
-      navigate('/')
-    } catch (error: any) {
-      if (error.response?.data) {
-        const data = error.response.data
-        if (typeof data === 'string') {
-          setErrors({ general: data })
-        } else {
-          setErrors(data)
-        }
-      }
-    }
+    await loginUser(form, setErrors);
+    navigate("/");
   }
 
   return (
@@ -54,9 +47,9 @@ export default function LoginForm() {
         <p className="text-sm text-gray-400 mt-1">Sign in to your account</p>
       </div>
 
-      {errors.general && (
+      {errorMessage && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg">
-          {errors.general}
+          {errorMessage}
         </div>
       )}
 
@@ -71,7 +64,7 @@ export default function LoginForm() {
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
-          {errors.primaryKey && <p className="text-xs text-red-500">{errors.primaryKey}</p>}
+          {errors && errors.userExists && <p className="text-xs text-red-500">{errors.userExists}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -86,7 +79,7 @@ export default function LoginForm() {
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
-          {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+          {errors && errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
         </div>
 
         <button

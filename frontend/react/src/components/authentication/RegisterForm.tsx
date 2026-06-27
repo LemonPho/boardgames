@@ -1,39 +1,32 @@
 import { useState } from 'react'
-import { register } from '../../api/auth'
 import type { RegisterRequest } from '../../types/auth'
 import { Link } from 'react-router-dom'
+import { useAlertsContext } from '../../context/AlertsContext'
+import { useAuthenticationContext } from '../../context/AuthenticationContext';
+import type { RegisterErrors } from '../../types/components-types/auth';
 
 export default function RegisterForm() {
+  const { errorMessage, setSuccessMessage, successMessage } = useAlertsContext();
+  const { registerUser } = useAuthenticationContext();
+
+  const [errors, setErrors] = useState<RegisterErrors | null>(null);
   const [form, setForm] = useState<RegisterRequest>({
     email: '',
     username: '',
     password: ''
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [success, setSuccess] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrors({})
-    setSuccess(null)
+    e.preventDefault();
+    e.stopPropagation();
+    setErrors(null);
 
-    try {
-      const message = await register(form)
-      setSuccess(message)
-    } catch (error: any) {
-      if (error.response?.data) {
-        const data = error.response.data
-        if (typeof data === 'string') {
-          setErrors({ general: data })
-        } else {
-          setErrors(data)
-        }
-      }
-    }
+    await registerUser(form, setErrors);
+    setSuccessMessage("Account created successfully, check your email to validate.");
   }
 
   return (
@@ -43,15 +36,15 @@ export default function RegisterForm() {
         <p className="text-sm text-gray-400 mt-1">Start tracking your games today</p>
       </div>
 
-      {success && (
+      {successMessage && (
         <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">
-          {success}
+          {successMessage}
         </div>
       )}
 
-      {errors.general && (
+      {errorMessage && (
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-lg">
-          {errors.general}
+          {errorMessage}
         </div>
       )}
 
@@ -66,7 +59,7 @@ export default function RegisterForm() {
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
-          {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+          {errors && errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -79,7 +72,7 @@ export default function RegisterForm() {
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
-          {errors.username && <p className="text-xs text-red-500">{errors.username}</p>}
+          {errors && errors.username && <p className="text-xs text-red-500">{errors.username}</p>}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -92,7 +85,7 @@ export default function RegisterForm() {
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
-          {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
+          {errors && errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
         </div>
 
         <button
