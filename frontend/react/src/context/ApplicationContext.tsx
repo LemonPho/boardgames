@@ -1,9 +1,9 @@
 import { createContext, useContext, useState } from "react";
-import type { User } from "../types/user";
+import type { UserResponse } from "../types/user";
 import { useAlertsContext } from "./AlertsContext";
 
 interface ApplicationContextType{
-    user: User | null,
+    user: UserResponse | null,
 }
 
 const ApplicationContext = createContext<ApplicationContextType | null>(null);
@@ -11,7 +11,7 @@ const ApplicationContext = createContext<ApplicationContextType | null>(null);
 export function ApplicationContextProvider({ children }: { children: React.ReactNode}){
     const { setErrorMessage } = useAlertsContext();
 
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<UserResponse | null>(null);
 
     return(
         <ApplicationContext.Provider 

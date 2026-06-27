@@ -1,15 +1,27 @@
 package com.motomutterers.boardgames.games.dto;
 
-import org.springframework.boot.jackson.autoconfigure.JacksonProperties.Json;
+import com.motomutterers.boardgames.games.model.Game;
 
 public class GameResponse {
     private String name;
     private String type;
-    private Json gameConfig;
-    private Json scoringConfig;
+    private String gameConfig;
+    private String scoringConfig;
     private int minPlayers;
     private int maxPlayers;
     private String description;
+
+    public GameResponse(){}
+
+    public GameResponse(Game game){
+        this.name = game.getName();
+        this.type = game.getType();
+        this.gameConfig = game.getGameConfig();
+        this.scoringConfig = game.getScoringConfig();
+        this.minPlayers = game.getMinPlayers();
+        this.maxPlayers = game.getMaxPlayers();
+        this.description = game.getDescription();
+    }
 
     public String getName(){
         return name;
@@ -19,11 +31,11 @@ public class GameResponse {
         return type;
     }
 
-    public Json getGameConfig(){
+    public String getGameConfig(){
         return gameConfig;
     }
 
-    public Json getScoringConfig(){
+    public String getScoringConfig(){
         return scoringConfig;
     }
 
@@ -49,11 +61,11 @@ public class GameResponse {
         this.type = type;
     }
 
-    public void setGameConfig(Json gameConfig){
+    public void setGameConfig(String gameConfig){
         this.gameConfig = gameConfig;
     }
 
-    public void setScoringConfig(Json scoringConfig){
+    public void setScoringConfig(String scoringConfig){
         this.scoringConfig = scoringConfig;
     }
 

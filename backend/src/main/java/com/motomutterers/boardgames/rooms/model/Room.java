@@ -8,7 +8,6 @@ import java.util.UUID;
 import com.motomutterers.boardgames.games.model.Game;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;

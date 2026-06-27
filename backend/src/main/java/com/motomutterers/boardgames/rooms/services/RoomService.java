@@ -12,14 +12,18 @@ import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.model.Room;
 import com.motomutterers.boardgames.rooms.model.RoomUser;
 import com.motomutterers.boardgames.rooms.model.RoomUserRoles;
-import com.motomutterers.boardgames.rooms.model.TrackingMode;
 import com.motomutterers.boardgames.rooms.repository.RoomRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomUserRepository;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class RoomService {
+    private static final Logger logger = LoggerFactory.getLogger(RoomService.class);
+
+
     private final RoomRepository roomRepository;
     private final RoomUserRepository roomUserRepository;
     private final GameService gameService;
@@ -56,7 +60,7 @@ public class RoomService {
 
         int suffix = 2;
         while (true) {
-            String candidate = baseName + " #" + suffix;
+            String candidate = baseName + " " + suffix;
             if (!roomRepository.existsByName(candidate)) {
                 return candidate;
             }
@@ -65,6 +69,8 @@ public class RoomService {
     }
 
     public RoomResponse createRoom(CreateRoomRequest request, UUID userId){
+        logger.info("Creating room with request: {}", request.toString());
+        
         RoomResponse response;
 
         Game game = gameService.getGameByName(request.getGameName());
@@ -77,6 +83,17 @@ public class RoomService {
         roomRepository.save(room);
         roomUserRepository.save(roomUser);
 
+        response = new RoomResponse(room);
+
+        return response;
+    }
+
+    public RoomResponse getRoom(String name) {
+        logger.info("Getting room with name: {}", name);
+
+        RoomResponse response;
+
+        Room room = getRoomByName(name);
         response = new RoomResponse(room);
 
         return response;

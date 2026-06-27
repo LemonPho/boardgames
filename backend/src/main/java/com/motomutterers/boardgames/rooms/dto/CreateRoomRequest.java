@@ -1,6 +1,6 @@
 package com.motomutterers.boardgames.rooms.dto;
 
-import com.motomutterers.boardgames.rooms.model.TrackingMode;
+import com.motomutterers.boardgames.rooms.model.TrackingMode;   
 
 public class CreateRoomRequest {
     private String gameName;
@@ -13,11 +13,24 @@ public class CreateRoomRequest {
         this.trackingMode = trackingMode;
     }
 
+    public void setGameName(String gameName){
+        this.gameName = gameName;
+    }
+
+    public void setTrackingMode(TrackingMode trackingMode){
+        this.trackingMode = trackingMode;
+    }
+
     public String getGameName(){
         return gameName;
     }
 
     public TrackingMode getTrackingMode(){
         return trackingMode;
+    }
+
+    @Override
+    public String toString() {
+        return "CreateRoomRequest{gameName=" + gameName + ", trackingMode=" + trackingMode + "}";
     }
 }

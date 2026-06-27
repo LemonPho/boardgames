@@ -184,10 +184,8 @@ public class AuthService {
         RefreshToken refreshToken = getRefreshTokenByToken(refreshTokenString);
         User user = refreshToken.getUser();
 
-        refreshTokenRepository.delete(refreshToken);
-
+        refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration));
         String accessToken = jwtService.generateToken(user);
-        response = createRefreshToken(user, response);
 
         return new AuthResponse(accessToken);
     }

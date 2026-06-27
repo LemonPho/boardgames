@@ -20,4 +20,25 @@ public class RoomUserResponse {
         this.role = roomUser.getRole();
         this.joinedAt = roomUser.getJoinedAt();
     }
+
+    public void setUser(UserResponse user){
+        this.user = user;
+    }
+
+    public void setDisplayName(String displayName){
+        this.displayName = displayName;
+    }
+
+    public void setRole(RoomUserRoles role){
+        this.role = role;
+    }
+
+    public void setJoinedAt(LocalDateTime joinedAt){
+        this.joinedAt = joinedAt;
+    }
+
+    public UserResponse getUser() {return this.user;}
+    public String getDisplayName() {return this.displayName;}
+    public RoomUserRoles getRole() {return this.role;}
+    public LocalDateTime getJoinedAt() {return this.joinedAt;}
 }

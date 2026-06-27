@@ -53,7 +53,6 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
     if (response) setAccessToken(response.accessToken);
   }
 
-
   const deleteAccessToken = (): void => {
     setAccessToken(null);
   }
@@ -64,14 +63,14 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
 
   useEffect(() => {
     const fetchData = async (): Promise<void> => {
-      await csrfInit();
-      await restoreSession();
-    
       setupInterceptors(
         () => tokenRef.current,
         setAccessToken,
         logoutUser
       );
+
+      await csrfInit();
+      await restoreSession();
     }
 
     fetchData();
