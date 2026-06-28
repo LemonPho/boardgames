@@ -17,7 +17,7 @@ export interface RoomResponse {
     game: SimpleGameResponse,
     status: RoomStatus,
     trackingMode: TrackingMode,
-    users: Array<RoomUserResponse>,
+    players: Array<RoomUserResponse>,
     startedAt: Date,
     endedAt: Date,
     createdAt: Date
