@@ -3,21 +3,15 @@ package com.motomutterers.boardgames.user.services;
 import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.Set;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import com.motomutterers.boardgames.auth.exceptions.UserUnauthorizedException;
 import com.motomutterers.boardgames.exceptions.BadActionException;
-import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
-import com.motomutterers.boardgames.rooms.repository.RoomUserRepository;
 import com.motomutterers.boardgames.user.UserRepository;
-import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
 import com.motomutterers.boardgames.user.dto.UserResponse;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 import com.motomutterers.boardgames.user.model.User;
@@ -26,13 +20,11 @@ import com.motomutterers.boardgames.user.model.UserStatus;
 @Service
 public class UserService {
     private final UserRepository userRepository;
-    private final RoomUserRepository roomUserRepository;
 
     public UserService(
-            UserRepository userRepository,
-            RoomUserRepository roomUserRepository) {
+        UserRepository userRepository
+    ) {
         this.userRepository = userRepository;
-        this.roomUserRepository = roomUserRepository;
     }
 
     public User getUserById(UUID id) {
@@ -74,18 +66,6 @@ public class UserService {
                 .collect(Collectors.toList());
 
         return response;
-    }
-
-    public List<UserAvailabilityResponse> matchAllByUsernameAvailability(String username) {
-        List<User> users = findAllUserContainingUsername(username);
-
-        Set<User> occupiedUsers = roomUserRepository.findOccupiedUsers(
-                users,
-                List.of(RoomStatus.WAITING, RoomStatus.IN_PROGRESS));
-
-        return users.stream()
-                .map(u -> new UserAvailabilityResponse(u, occupiedUsers.contains(u)))
-                .toList();
     }
 
     @Transactional

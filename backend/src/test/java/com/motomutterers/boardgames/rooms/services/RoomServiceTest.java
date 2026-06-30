@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +38,9 @@ public class RoomServiceTest {
 
     @InjectMocks
     private RoomService roomService;
+
+    @InjectMocks
+    private RoomsUtilityService roomsUtilityService;
 
     // helpers
     private User mockUser() {
@@ -55,7 +59,7 @@ public class RoomServiceTest {
         Room room = new Room(mockGame(), "testuser's Skull King Room", TrackingMode.ADMIN);
         when(roomRepository.findById(id)).thenReturn(Optional.of(room));
 
-        Room result = roomService.getRoomById(id);
+        Room result = roomsUtilityService.getRoomById(id);
 
         assertEquals(room, result);
     }
@@ -65,7 +69,7 @@ public class RoomServiceTest {
         UUID id = UUID.randomUUID();
         when(roomRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThrows(RoomNotFoundException.class, () -> roomService.getRoomById(id));
+        assertThrows(RoomNotFoundException.class, () -> roomsUtilityService.getRoomById(id));
     }
 
     @Test
@@ -73,7 +77,7 @@ public class RoomServiceTest {
         Room room = new Room(mockGame(), "testuser's Skull King Room", TrackingMode.ADMIN);
         when(roomRepository.findByName("testuser's Skull King Room")).thenReturn(Optional.of(room));
 
-        Room result = roomService.getRoomByName("testuser's Skull King Room");
+        Room result = roomsUtilityService.getRoomByName("testuser's Skull King Room");
 
         assertEquals(room, result);
     }
@@ -82,7 +86,7 @@ public class RoomServiceTest {
     void getRoomByName_roomNotFound_throwsRoomNotFoundException() {
         when(roomRepository.findByName("unknown")).thenReturn(Optional.empty());
 
-        assertThrows(RoomNotFoundException.class, () -> roomService.getRoomByName("unknown"));
+        assertThrows(RoomNotFoundException.class, () -> roomsUtilityService.getRoomByName("unknown"));
     }
 
     @Test

@@ -1,0 +1,1 @@
+alter table rooms add column last_updated TIMESTAMP;

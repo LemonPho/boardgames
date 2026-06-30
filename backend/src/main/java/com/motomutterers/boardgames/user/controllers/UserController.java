@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
 import com.motomutterers.boardgames.user.dto.UserResponse;
 import com.motomutterers.boardgames.user.services.UserService;
 
@@ -36,12 +35,5 @@ public class UserController {
         @RequestParam String username
     ){
         return ResponseEntity.ok(userService.matchAllByUsername(username));
-    }
-
-    @GetMapping("/username/match-all-availability")
-    public ResponseEntity<List<UserAvailabilityResponse>> matchAllByUsernameAvailability(
-        @RequestParam String username
-    ) {
-        return ResponseEntity.ok(userService.matchAllByUsernameAvailability(username));
     }
 }

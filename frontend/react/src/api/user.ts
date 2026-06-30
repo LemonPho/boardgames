@@ -23,12 +23,3 @@ export const searchByUsername = async (username: string, setErrorMessage: (messa
     }
 }
 
-export const searchByUsernameAvailability = async(username: string, setErrorMessage: (message: string) => void): Promise<Array<UserAvailabilityResponse>> => {
-    try{
-        const response = await api.get(`/users/username/match-all-availability?username=${username}`);
-        return response.data as Array<UserAvailabilityResponse>;
-    } catch(error) {
-        setAxiosError(error, setErrorMessage);
-        throw error;
-    }
-}

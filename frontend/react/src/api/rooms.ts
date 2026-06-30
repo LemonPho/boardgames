@@ -2,6 +2,7 @@ import axios from "axios";
 import type { CreateRoomRequest, InvitationErrorResponse, RoomResponse, TrackingMode } from "../types/rooms";
 import { setAxiosError } from "../util/api";
 import { api } from "./axiosSetup";
+import type { UserAvailabilityResponse } from "../types/user";
 
 export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<RoomResponse | null> => {
   try {
@@ -45,6 +46,26 @@ export const invitePlayerToRoom = async (username: string, roomName: string, set
       };
       setErrors(invitationErrorResponse);
     }
+    throw error;
+  }
+}
+
+export const searchUsersAvailability = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<Array<UserAvailabilityResponse>> => {
+  try {
+    const response = await api.get(`/rooms/search-users?username=${username}&roomName=${roomName}`);
+    return response.data as Array<UserAvailabilityResponse>;
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<string> => {
+  try{
+    const response = await api.put(`/rooms/accept?token=${token}`);
+    return response.data;
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
     throw error;
   }
 }

@@ -10,10 +10,11 @@ import { AlertsContextProvider } from './context/AlertsContext'
 import { UserContextProvider } from './context/UserContext'
 import { AuthenticationContextProvider } from './context/AuthenticationContext'
 import GamePage from './components/games/GamePage'
-import WaitingRoom from './components/rooms/WaitingRoom'
+import WaitingRoom from './components/rooms/waiting-room/WaitingRoom'
 import GameSession from './components/rooms/GameSession'
 import FinalScoreboard from './components/rooms/FinalScoreboard'
 import RoomPage from './components/rooms/RoomPage'
+import AcceptInvitePage from './components/rooms/waiting-room/AcceptInvitePage'
 
 export default function App() {
 
@@ -29,6 +30,7 @@ export default function App() {
                   <Route path="register" element={<AuthPage tab="register"/>} />
                   <Route path="login" element={<AuthPage tab="login"/>}/>
                   <Route path="games/:name" element={<GamePage/>}/>
+                  <Route path="/rooms/accept" element={<AcceptInvitePage />} />
                   <Route path="rooms/:name" element={<RoomPage/>}>
                     <Route path="waiting" element={<WaitingRoom/>}/>
                     <Route path="in-progress" element={<GameSession/>}/>

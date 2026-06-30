@@ -48,6 +48,8 @@ public class Room {
 
     private LocalDateTime endedAt;
 
+    private LocalDateTime lastUpdated;
+
     @Column(insertable = false, updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
@@ -62,6 +64,7 @@ public class Room {
         this.name = name;
         this.trackingMode = trackingMode;
         this.status = RoomStatus.WAITING;
+        this.lastUpdated = LocalDateTime.now();
     }
 
     public UUID getId(){
@@ -96,6 +99,10 @@ public class Room {
         return endedAt;
     }
 
+    public LocalDateTime getLastUpdated(){
+        return lastUpdated;
+    }
+
     public LocalDateTime getCreatedAt(){
         return createdAt;
     }
@@ -126,5 +133,9 @@ public class Room {
 
     public void setEndedAt(LocalDateTime endedAt){
         this.endedAt = endedAt;
+    }
+
+    public void setLastUpdated(LocalDateTime lastUpdated){
+        this.lastUpdated = lastUpdated;
     }
 }

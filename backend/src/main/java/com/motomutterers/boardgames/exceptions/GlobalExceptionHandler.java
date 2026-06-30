@@ -15,6 +15,9 @@ import com.motomutterers.boardgames.auth.exceptions.UserUnauthorizedException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
 import com.motomutterers.boardgames.games.exceptions.GameNotFoundException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenExpiredException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
@@ -87,6 +90,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(UserInActiveRoomException.class)
     public ResponseEntity<String> handleUserInActiveRoomException(UserInActiveRoomException e){
+        return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomExpiredException.class)
+    public ResponseEntity<String> handleRoomExpiredException(RoomExpiredException e){
+        return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomInvitationTokenNotFoundException.class)
+    public ResponseEntity<String> handleRoomInvitationTokenNotFoundException(RoomInvitationTokenNotFoundException e){
+        return ResponseEntity.status(404).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomInvitationTokenExpiredException.class)
+    public ResponseEntity<String> handleRoomInvitationTokenExpiredException(RoomInvitationTokenExpiredException e){
         return ResponseEntity.status(400).body(e.getMessage());
     }
 }

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { useRoomContext } from "../../context/RoomContext";
-import { useUserContext } from "../../context/UserContext";
-import type { InvitationErrorResponse, RoomUserResponse } from "../../types/rooms";
-import { useUIContext } from "../../context/UIContext";
-import { searchByUsernameAvailability } from "../../api/user";
-import { useAlertsContext } from "../../context/AlertsContext";
-import Modal from "../util/Modal";
-import type { UserAvailabilityResponse } from "../../types/user";
-import { invitePlayerToRoom } from "../../api/rooms";
+import { useRoomContext } from "../../../context/RoomContext";
+import { useUserContext } from "../../../context/UserContext";
+import type { InvitationErrorResponse, RoomUserResponse } from "../../../types/rooms";
+import { useUIContext } from "../../../context/UIContext";
+import { useAlertsContext } from "../../../context/AlertsContext";
+import Modal from "../../util/Modal";
+import type { UserAvailabilityResponse } from "../../../types/user";
+import { invitePlayerToRoom, searchUsersAvailability } from "../../../api/rooms";
+import UserSearchResult from "./UserSearchResult";
 
 const INVITE_PLAYERS_PANEL = "invite-players-room";
 
@@ -34,8 +34,12 @@ export default function WaitingRoom() {
       setUsernameMatches([]);
       return;
     }
-    const response = await searchByUsernameAvailability(usernameInput, setErrorMessage);
+
+    if (room == undefined || room == null) return;
+
+    const response = await searchUsersAvailability(usernameInput, room.name, setErrorMessage);
     if (response) setUsernameMatches(response);
+    
   }
 
   const handleInviteUserToRoom = async (username: string, event: React.MouseEvent): Promise<void> => {
@@ -45,6 +49,13 @@ export default function WaitingRoom() {
     
     await invitePlayerToRoom(username, room.name, setErrors, setErrorMessage);
     setSuccessMessage("User invited");
+    setUsernameMatches(prev => 
+      prev.map(match => 
+        match.username === username 
+          ? { ...match, invited: true } 
+          : match
+      )
+    );
   }
 
   useEffect(() => {
@@ -137,43 +148,8 @@ export default function WaitingRoom() {
                     {usernameMatches.length > 0 && (
                       <div className="flex flex-col gap-1 mt-1">
                         {usernameMatches.map((match) => (
-                          (match.username != user?.username &&
-                            (match.inGame ? (
-                              <div
-                                key={match.username}
-                                className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100 opacity-60"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-                                    {match.username[0].toUpperCase()}
-                                  </div>
-                                  <span className="text-sm text-gray-800">{match.username}</span>
-                                </div>
-                                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                                  In game
-                                </span>
-                              </div>
-                            ) : (
-                              <div
-                                key={match.username}
-                                className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100 hover:border-gray-300 transition-colors"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-                                    {match.username[0].toUpperCase()}
-                                  </div>
-                                  <span className="text-sm text-gray-800">{match.username}</span>
-                                </div>
-                                <button 
-                                  className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:border-gray-400 transition-colors"
-                                  onClick={(event) => {handleInviteUserToRoom(match.username, event)}}
-                                >
-                                  Invite
-                                </button>
-                              </div>
-                            ))
-
-                          )))}
+                          <UserSearchResult user={match} handleInviteUserToRoom={handleInviteUserToRoom}/>
+                          ))}
                       </div>
                     )}
                   </div>
