@@ -1,0 +1,1 @@
+ALTER TABLE room_invitations_tokens ADD COLUMN status VARCHAR(32) NOT NULL;

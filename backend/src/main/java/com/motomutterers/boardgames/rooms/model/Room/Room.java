@@ -1,4 +1,4 @@
-package com.motomutterers.boardgames.rooms.model;
+package com.motomutterers.boardgames.rooms.model.Room;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;

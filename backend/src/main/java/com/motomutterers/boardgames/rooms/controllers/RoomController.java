@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
+import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
 import com.motomutterers.boardgames.rooms.services.RoomService;
 
@@ -34,6 +35,13 @@ public class RoomController {
         UUID userId = UUID.fromString(authentication.getName());
         RoomResponse roomResponse = roomService.createRoom(request, userId);
         return ResponseEntity.ok(roomResponse);
+    }
+
+    @PostMapping("/invite")
+    public ResponseEntity<String> invitePlayer(
+        @RequestBody RoomInvitationRequest request
+    ) {
+        return ResponseEntity.ok(roomService.invitePlayer(request));
     }
 
     @GetMapping("/{name}")

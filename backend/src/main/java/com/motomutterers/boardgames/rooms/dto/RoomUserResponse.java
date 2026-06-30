@@ -2,8 +2,8 @@ package com.motomutterers.boardgames.rooms.dto;
 
 import java.time.LocalDateTime;
 
-import com.motomutterers.boardgames.rooms.model.RoomUser;
-import com.motomutterers.boardgames.rooms.model.RoomUserRoles;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.user.dto.UserResponse;
 
 public class RoomUserResponse {

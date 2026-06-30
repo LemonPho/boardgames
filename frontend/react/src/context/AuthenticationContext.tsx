@@ -4,6 +4,7 @@ import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth"
 import { useAlertsContext } from "./AlertsContext";
 import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
 import { ACCESS_TOKEN, setupInterceptors } from "../api/axiosSetup";
+import { useUserContext } from "./UserContext";
 
 interface AuthenticationContextType {
   accessToken: string | null,
@@ -20,6 +21,7 @@ export const AuthenticationContext = createContext<AuthenticationContextType | n
 
 export function AuthenticationContextProvider({ children }: { children: React.ReactNode }) {
   const { setErrorMessage } = useAlertsContext();
+  const { retrieveCurrentUser } = useUserContext();
 
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const tokenRef = useRef(accessToken);
@@ -58,7 +60,13 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   }
 
   useEffect(() => {
+    const fetchData = async (): Promise<void> => {
+      if(accessToken) await retrieveCurrentUser();
+    }
+
+    fetchData();
     tokenRef.current = accessToken;
+
   }, [accessToken]);
 
   useEffect(() => {

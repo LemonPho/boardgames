@@ -12,4 +12,14 @@ public class EmailTemplates {
                 <p>If you did not create an account, you can ignore this email.</p>
                 """.formatted(username, verificationLink);
     }
+
+    public static String roomInvitationEmail(String username, String roomInvitationLink) {
+        return """
+                <h2>You've been invited to a room!</h2>
+                <p>Hi %s,</p>
+                <p>You can accept the invitation clinking the link below:</p>
+                <a href="%s">Accept invitation</a>
+                <p>This link expires in 10 minutes.</p>
+                """.formatted(username, roomInvitationLink);
+    }
 }

@@ -7,7 +7,7 @@ import LayoutPage from './components/layout/LayoutPage'
 
 import { UIProvider } from './context/UIContext'
 import { AlertsContextProvider } from './context/AlertsContext'
-import { ApplicationContextProvider } from './context/ApplicationContext'
+import { UserContextProvider } from './context/UserContext'
 import { AuthenticationContextProvider } from './context/AuthenticationContext'
 import GamePage from './components/games/GamePage'
 import WaitingRoom from './components/rooms/WaitingRoom'
@@ -19,8 +19,8 @@ export default function App() {
 
   return (
     <AlertsContextProvider>
-      <AuthenticationContextProvider>
-        <ApplicationContextProvider>
+      <UserContextProvider>
+        <AuthenticationContextProvider>
           <UIProvider>
             <BrowserRouter>
               <Routes>
@@ -38,8 +38,8 @@ export default function App() {
               </Routes>
             </BrowserRouter>
           </UIProvider>
-        </ApplicationContextProvider>
-      </AuthenticationContextProvider>
+        </AuthenticationContextProvider>
+      </UserContextProvider>
     </AlertsContextProvider>
   )
 }

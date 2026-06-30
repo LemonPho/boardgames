@@ -16,6 +16,7 @@ import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredExce
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
 import com.motomutterers.boardgames.games.exceptions.GameNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
+import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 
 @RestControllerAdvice
@@ -82,5 +83,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RoomNotFoundException.class)
     public ResponseEntity<String> handleRoomNotFoundException(RoomNotFoundException e){
         return ResponseEntity.status(404).body(e.getMessage());
+    }
+
+    @ExceptionHandler(UserInActiveRoomException.class)
+    public ResponseEntity<String> handleUserInActiveRoomException(UserInActiveRoomException e){
+        return ResponseEntity.status(400).body(e.getMessage());
     }
 }

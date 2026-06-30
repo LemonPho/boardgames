@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
-import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
@@ -23,13 +22,13 @@ import com.motomutterers.boardgames.email.EmailService;
 import com.motomutterers.boardgames.email.EmailTemplates;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
 import com.motomutterers.boardgames.user.UserRepository;
-import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.transaction.Transactional;
 
 @Service
 public class AuthService {
@@ -119,6 +118,7 @@ public class AuthService {
         return null;
     }
 
+    @Transactional
     public void register(RegisterRequest request){
         new ValidationBuilder()
             .addError(userRepository.findByEmail(request.getEmail()).isPresent(), "email", "Email is already taken")
@@ -137,6 +137,7 @@ public class AuthService {
         emailService.sendEmail(user.getEmail(), "Verify your Boardgames account", html);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request, HttpServletResponse response){
         Optional<User> result;
         String primaryKey = request.getPrimaryKey();
@@ -154,11 +155,12 @@ public class AuthService {
         }
 
         User user = result.get();
-
-        if(!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
-            validationBuilder.addError(true, "password", "Password is incorrect");
-            validationBuilder.validate();
-        }
+        validationBuilder.addError(!user.isActive(), "isActive", "You need to verify your email before logging in");
+        validationBuilder.addError(
+            !passwordEncoder.matches(request.getPassword(), user.getPasswordHash()),
+            "password", 
+            "Password is incorrect");
+        validationBuilder.validate();
                 
         String accessToken = jwtService.generateToken(user);
         response = createRefreshToken(user, response);
@@ -166,6 +168,7 @@ public class AuthService {
         return new AuthResponse(accessToken);
     }
 
+    @Transactional
     public void logout(HttpServletRequest request, HttpServletResponse response){
         String refreshTokenString = getCookieValue(request, "refreshToken");
         RefreshToken refreshToken = getRefreshTokenByToken(refreshTokenString);
@@ -179,17 +182,20 @@ public class AuthService {
         response.addCookie(cookie);
     }
 
+    @Transactional
     public AuthResponse refresh(HttpServletRequest request, HttpServletResponse response){
         String refreshTokenString = getCookieValue(request, "refreshToken");
         RefreshToken refreshToken = getRefreshTokenByToken(refreshTokenString);
         User user = refreshToken.getUser();
 
         refreshToken.setExpiresAt(LocalDateTime.now().plusSeconds(refreshExpiration));
+        refreshTokenRepository.save(refreshToken);
         String accessToken = jwtService.generateToken(user);
 
         return new AuthResponse(accessToken);
     }
 
+    @Transactional
     public void verifyEmail(String token){
         VerificationToken verificationToken = getVerificationTokenByToken(token);
         if(verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){

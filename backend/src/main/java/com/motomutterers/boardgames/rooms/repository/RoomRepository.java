@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.motomutterers.boardgames.rooms.model.Room;
+import com.motomutterers.boardgames.rooms.model.Room.Room;
 
 public interface RoomRepository extends JpaRepository<Room, UUID> {
     Optional<Room> findById(UUID id);

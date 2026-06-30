@@ -1,6 +1,6 @@
 package com.motomutterers.boardgames.rooms.dto;
 
-import com.motomutterers.boardgames.rooms.model.TrackingMode;   
+import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;   
 
 public class CreateRoomRequest {
     private String gameName;

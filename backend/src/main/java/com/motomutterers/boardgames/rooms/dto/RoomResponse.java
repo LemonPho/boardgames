@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.motomutterers.boardgames.games.dto.SimpleGameResponse;
-import com.motomutterers.boardgames.rooms.model.Room;
-import com.motomutterers.boardgames.rooms.model.RoomStatus;
-import com.motomutterers.boardgames.rooms.model.TrackingMode;
+import com.motomutterers.boardgames.rooms.model.Room.Room;
+import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
+import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;
 
 public class RoomResponse {
     private String name;

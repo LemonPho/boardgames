@@ -46,7 +46,7 @@ public class AdminService {
 
         User user = userService.getUserById(targetUserId);
         if(user.isAdmin()){
-            throw new UserUnauthorizedException("Admin cannot delete another admin");
+            throw new UserUnauthorizedException("Admin cannot ban another admin");
         }
 
         if(user.isTemporarilyBanned()){

@@ -1,4 +1,4 @@
-package com.motomutterers.boardgames.rooms.model;
+package com.motomutterers.boardgames.rooms.model.Room;
 
 public enum RoomStatus {
     WAITING,

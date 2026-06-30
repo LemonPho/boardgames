@@ -27,3 +27,9 @@ export interface CreateRoomRequest {
     gameName: string | undefined,
     trackingMode: TrackingMode
 }
+
+export interface InvitationErrorResponse {
+    inGame: string,
+    verified: string,
+    invited: string
+}
