@@ -4,7 +4,7 @@ import { useRoomContext } from "../../../context/RoomContext";
 import type { RoomUserResponse } from "../../../types/rooms";
 
 export default function InvitationsList({ currentPlayer }: { currentPlayer: RoomUserResponse | null }) {
-  const { room, setRoom } = useRoomContext();
+  const { room } = useRoomContext();
   const { setErrorMessage } = useAlertsContext();
 
   if (room == null) return;
@@ -15,8 +15,7 @@ export default function InvitationsList({ currentPlayer }: { currentPlayer: Room
 
     if(room == null) return;
 
-    const response = await revokeRoomInvite(username, room.name, setErrorMessage);
-    if (response) setRoom({ ...room, invitations: response });
+    await revokeRoomInvite(username, room.name, setErrorMessage);
   }
 
   return (

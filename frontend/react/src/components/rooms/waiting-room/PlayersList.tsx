@@ -6,7 +6,7 @@ import { useUserContext } from "../../../context/UserContext";
 import type { RoomUserResponse } from "../../../types/rooms";
 
 export default function PlayersList({ currentPlayer, INVITE_PLAYERS_PANEL }: { currentPlayer: RoomUserResponse | null, INVITE_PLAYERS_PANEL: string }) {
-  const { room, setRoom } = useRoomContext();
+  const { room } = useRoomContext();
   const { togglePanel } = useUIContext();
   const { user } = useUserContext();
   const { setErrorMessage } = useAlertsContext();
@@ -16,8 +16,7 @@ export default function PlayersList({ currentPlayer, INVITE_PLAYERS_PANEL }: { c
 
     if (room == null) return;
 
-    const response = await removePlayer(displayName, room.name, setErrorMessage);
-    if (response) setRoom({ ...room, players: response });
+    await removePlayer(displayName, room.name, setErrorMessage);
   }
 
   if(room == null) return;

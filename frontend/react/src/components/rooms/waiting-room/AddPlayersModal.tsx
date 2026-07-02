@@ -9,7 +9,7 @@ import type { RoomUserResponse } from "../../../types/rooms";
 import { useUserContext } from "../../../context/UserContext";
 
 export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYERS_PANEL: string}) {
-  const { room, setRoom } = useRoomContext();
+  const { room } = useRoomContext();
   const { setSuccessMessage, setErrorMessage } = useAlertsContext();
   const { user } = useUserContext();
 
@@ -28,17 +28,8 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
     if (room == null) return;
 
-    const response = await invitePlayerToRoom(username, room.name, setErrorMessage);
+    await invitePlayerToRoom(username, room.name, setErrorMessage);
     setSuccessMessage("User invited");
-    setUsernameMatches(prev =>
-      prev.map(match =>
-        match.username === username
-          ? { ...match, invited: true }
-          : match
-      )
-    );
-
-    room.invitations.push(response)
   }
 
   const handleDisplayNameInputChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
@@ -50,9 +41,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
     if (room == null) return;
 
-    const response: RoomUserResponse = await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
-    setAnonymousPlayers(prev => [...prev, response]);
-    room.players.push(response);
+    await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
   }
 
   const handleRemovePlayer = async (displayName: string, event: React.MouseEvent): Promise<void> => {
@@ -60,8 +49,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
     if (room == null) return;
 
-    const response = await removePlayer(displayName, room.name, setErrorMessage);
-    if (response) setRoom({ ...room, players: response });
+    await removePlayer(displayName, room.name, setErrorMessage);
   }
 
   const fetchUsernameMatches = async (): Promise<void> => {

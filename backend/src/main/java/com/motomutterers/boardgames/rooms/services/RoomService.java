@@ -4,9 +4,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +23,8 @@ import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
 import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
-import com.motomutterers.boardgames.rooms.dto.RoomInvitationResponse;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
-import com.motomutterers.boardgames.rooms.dto.RoomUserResponse;
+import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenCancelledException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedException;
@@ -55,6 +55,9 @@ public class RoomService {
     private final EmailService emailService;
     private final NotificationService notificationService;
     private final RoomInvitationTokenRepository roomInvitationTokenRepository;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Value("${room-invitation.expiration}")
     private int roomInvitationExpiration;
@@ -128,7 +131,7 @@ public class RoomService {
     }
 
     @Transactional
-    public String cancelRoom(String roomName, UUID userId){
+    public void cancelRoom(String roomName, UUID userId){
         logger.info("Starting cancel room {} from user {}", roomName, userId);
 
         User user = userService.getUserById(userId);
@@ -138,12 +141,12 @@ public class RoomService {
 
         roomsUtilityService.cancelRoom(room);
 
-        return "Cancelled";
 
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     @Transactional
-    public RoomUserResponse createAnonymousPlayer(CreateAnonymousPlayerRequest request){
+    public void createAnonymousPlayer(CreateAnonymousPlayerRequest request){
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
@@ -153,17 +156,15 @@ public class RoomService {
         roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(request.getDisplayName(), room);
 
         RoomUser anonymous = new RoomUser(request.getDisplayName(), room);
-        RoomUserResponse response = new RoomUserResponse(anonymous);
         roomUserRepository.save(anonymous);
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
-        return response;
-
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     @Transactional
-    public RoomUserResponse renameAnonymousPlayer(CreateAnonymousPlayerRequest request){
+    public void renameAnonymousPlayer(CreateAnonymousPlayerRequest request){
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
@@ -174,12 +175,13 @@ public class RoomService {
         RoomUser anonymous = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(request.getDisplayName(), room);
 
         anonymous = roomsUtilityService.renameAnonymousPlayer(anonymous, room);
-        return new RoomUserResponse(anonymous);
+
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     //works for both anonymous and players
     @Transactional
-    public List<RoomUserResponse> removePlayer(RemovePlayerRequest request){
+    public void removePlayer(RemovePlayerRequest request){
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
@@ -192,13 +194,7 @@ public class RoomService {
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
-        List<RoomUserResponse> users = room.getPlayers()
-            .stream()
-            .filter(p -> !p.getDisplayName().equals(request.getDisplayName()))
-            .map(RoomUserResponse::new)
-            .collect(Collectors.toList());
-
-        return users;    
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     public List<UserAvailabilityResponse> searchUsersAvailability(String username, String roomName) {
@@ -210,7 +206,7 @@ public class RoomService {
 
 
     @Transactional
-    public RoomInvitationResponse invitePlayer(RoomInvitationRequest request) {
+    public void invitePlayer(RoomInvitationRequest request) {
         User roomAdmin = userService.getUserById(request.getAdminId());
         
         String username = request.getUsername();
@@ -260,13 +256,11 @@ public class RoomService {
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
-        RoomInvitationResponse response = new RoomInvitationResponse(roomInvitationToken);
-        
-        return response;
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     @Transactional
-    public List<RoomInvitationResponse> revokeInvite(RoomInvitationRequest request){
+    public void revokeInvite(RoomInvitationRequest request){
         User roomAdmin = userService.getUserById(request.getAdminId());
         
         String username = request.getUsername();
@@ -287,15 +281,11 @@ public class RoomService {
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
-        List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING);
-        return invitations.stream()
-            .filter(i -> !i.getUser().getUsername().equals(user.getUsername()))
-            .map(RoomInvitationResponse::new)
-            .collect(Collectors.toList());
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     @Transactional
-    public String acceptInvite(String token, Authentication authentication){
+    public void acceptInvite(String token, Authentication authentication){
         UUID userId = UUID.fromString(authentication.getName());
         RoomInvitationToken roomInvitationToken = roomsUtilityService.getRoomInvitationTokenByToken(token);
     
@@ -330,8 +320,7 @@ public class RoomService {
         roomInvitationTokenRepository.save(roomInvitationToken);
 
         roomsUtilityService.updateRoomLastUpdated(room);
-
-        return room.getName();
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     @Transactional

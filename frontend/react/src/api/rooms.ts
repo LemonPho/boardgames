@@ -3,15 +3,13 @@ import { setAxiosError } from "../util/api";
 import { api } from "./axiosSetup";
 import type { UserAvailabilityResponse } from "../types/user";
 
-export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<RoomResponse | null> => {
+export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<void> => {
   try {
-    const response = await api.post("/rooms", {
+    await api.post("/rooms", {
       trackingMode: request.trackingMode,
       gameName: request.gameName
     });
 
-    const room = response.data as RoomResponse;
-    return room;
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;
@@ -29,51 +27,47 @@ export const getRoom = async (roomName: string, setErrorMessage: (message: strin
   }
 }
 
-export const invitePlayerToRoom = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomInvitationResponse> => {
+export const invitePlayerToRoom = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try {
-    const response = await api.post(`/rooms/${roomName}/invite`, {
+    await api.post(`/rooms/${roomName}/invite`, {
       username: username,
     });
 
-    return response.data as RoomInvitationResponse;
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;
   }
 }
 
-export const revokeRoomInvite = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<Array<RoomInvitationResponse>> => {
+export const revokeRoomInvite = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
-    const response = await api.post(`/rooms/${roomName}/revoke-invite`, {
+    await api.post(`/rooms/${roomName}/revoke-invite`, {
       username: username
     });
-    return response.data as Array<RoomInvitationResponse>;
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;
   }
 }
 
-export const createAnonymousPlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomUserResponse> => {
+export const createAnonymousPlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
-    const response = await api.post(`/rooms/${roomName}/create-anonymous`, {
+    await api.post(`/rooms/${roomName}/create-anonymous`, {
       displayName: displayName
     });
 
-    return response.data as RoomUserResponse;
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;
   }
 }
 
-export const removePlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomUserResponse[]> => {
+export const removePlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
-    const response = await api.post(`/rooms/${roomName}/remove-player`, {
+    await api.post(`/rooms/${roomName}/remove-player`, {
       displayName: displayName
     });
 
-    return response.data as RoomUserResponse[];
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;
@@ -90,20 +84,18 @@ export const searchUsersAvailability = async (username: string, roomName: string
   }
 }
 
-export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<string> => {
+export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
-    const response = await api.put(`/rooms/accept?token=${token}`);
-    return response.data;
+    await api.put(`/rooms/accept?token=${token}`);
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;
   }
 }
 
-export const cancelRoom = async (roomName: string, setErrorMessage: (message: string) => void): Promise<string> => {
+export const cancelRoom = async (roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
-    const response = await api.put(`/rooms/${roomName}/cancel`);
-    return response.data;
+    await api.put(`/rooms/${roomName}/cancel`);
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;

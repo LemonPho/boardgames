@@ -47,12 +47,13 @@ public class RoomController {
     }
 
     @PutMapping("/{roomName}/cancel")
-    public ResponseEntity<String> cancelRoom(
+    public ResponseEntity<Void> cancelRoom(
         @PathVariable String roomName,
         Authentication authentication
     ) {
         UUID userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(roomService.cancelRoom(roomName, userId));
+        roomService.cancelRoom(roomName, userId);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{roomName}/search-users")
@@ -64,7 +65,7 @@ public class RoomController {
     }
 
     @PostMapping("/{roomName}/invite")
-    public ResponseEntity<RoomInvitationResponse> invitePlayer(
+    public ResponseEntity<Void> invitePlayer(
         @RequestBody RoomInvitationRequest request,
         @PathVariable String roomName,
         Authentication authentication
@@ -72,11 +73,12 @@ public class RoomController {
         UUID userId = UUID.fromString(authentication.getName());
         request.setRoomName(roomName);
         request.setAdminId(userId);
-        return ResponseEntity.ok(roomService.invitePlayer(request));
+        roomService.invitePlayer(request);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("{roomName}/revoke-invite")
-    public ResponseEntity<List<RoomInvitationResponse>> revokeInvite(
+    public ResponseEntity<Void> revokeInvite(
         @RequestBody RoomInvitationRequest request,
         @PathVariable String roomName,
         Authentication authentication
@@ -84,11 +86,12 @@ public class RoomController {
         UUID adminId = UUID.fromString(authentication.getName());
         request.setRoomName(roomName);
         request.setAdminId(adminId);
-        return ResponseEntity.ok(roomService.revokeInvite(request));
+        roomService.revokeInvite(request);
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{roomName}/create-anonymous")
-    public ResponseEntity<RoomUserResponse> createAnonymousPlayer(
+    public ResponseEntity<Void> createAnonymousPlayer(
         @RequestBody CreateAnonymousPlayerRequest request,
         @PathVariable String roomName,
         Authentication authentication
@@ -96,12 +99,13 @@ public class RoomController {
         UUID adminId = UUID.fromString(authentication.getName());
         request.setAdminId(adminId);
         request.setRoomName(roomName);
+        roomService.createAnonymousPlayer(request);
 
-        return ResponseEntity.ok(roomService.createAnonymousPlayer(request));
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{roomName}/remove-player")
-    public ResponseEntity<List<RoomUserResponse>> removeAnonymousPlayer(
+    public ResponseEntity<Void> removeAnonymousPlayer(
         @RequestBody RemovePlayerRequest request,
         @PathVariable String roomName,
         Authentication authentication
@@ -109,23 +113,25 @@ public class RoomController {
         UUID adminId = UUID.fromString(authentication.getName());
         request.setAdminId(adminId);
         request.setRoomName(roomName);
+        roomService.removePlayer(request);
 
-        return ResponseEntity.ok(roomService.removePlayer(request));
+        return ResponseEntity.ok().build();
     }
 
     @PutMapping("/accept")
-    public ResponseEntity<String> acceptInvite(
+    public ResponseEntity<Void> acceptInvite(
         @RequestParam String token,
         Authentication authentication
     ) {
-        return ResponseEntity.ok(roomService.acceptInvite(token, authentication));
+        roomService.acceptInvite(token, authentication);
+
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{name}")
     public ResponseEntity<RoomResponse> getRoom(
         @PathVariable String name
     ) {
-        RoomResponse roomResponse = roomService.getRoom(name);
-        return ResponseEntity.ok(roomResponse);
+        return ResponseEntity.ok(roomService.getRoom(name));
     }   
 }
