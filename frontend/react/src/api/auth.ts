@@ -57,11 +57,13 @@ export const login = async (data: LoginRequest, setErrors: (errors: LoginErrors 
     
 }
 
-export const refresh = async(): Promise<AuthResponse> => {
+export const refresh = async(setLoading: (loading: boolean) => void): Promise<AuthResponse> => {
     try{
         const response = await auth.post("/refresh");
+        setLoading(false);
         return response.data
     } catch(error) {
+        setLoading(false);
         throw error;
     }
 }

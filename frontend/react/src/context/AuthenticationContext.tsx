@@ -3,7 +3,7 @@ import { csrf, login, logout, refresh, register } from "../api/auth";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
 import { useAlertsContext } from "./AlertsContext";
 import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
-import { ACCESS_TOKEN, setupInterceptors } from "../api/axiosSetup";
+import { setupInterceptors } from "../api/axiosSetup";
 import { useUserContext } from "./UserContext";
 
 interface AuthenticationContextType {
@@ -23,6 +23,8 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   const { setErrorMessage } = useAlertsContext();
   const { retrieveCurrentUser } = useUserContext();
 
+  const [loading, setLoading] = useState(true);
+
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const tokenRef = useRef(accessToken);
 
@@ -35,7 +37,6 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
     const response = await login(request, setErrors, setErrorMessage);
     if (response?.accessToken) {
       setAccessToken(response.accessToken);
-      localStorage.setItem(ACCESS_TOKEN, response.accessToken);
     }
 
     return response;
@@ -51,8 +52,10 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   }
 
   const restoreSession = async (): Promise<void> => {
-    const response = await refresh();
-    if (response) setAccessToken(response.accessToken);
+    const response = await refresh(setLoading);
+    if (response) {
+      setAccessToken(response.accessToken);
+    }
   }
 
   const deleteAccessToken = (): void => {
@@ -83,6 +86,8 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
 
     fetchData();
   }, []);
+
+  if(loading) return null;
 
   return (
     <AuthenticationContext.Provider

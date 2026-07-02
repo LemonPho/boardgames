@@ -3,12 +3,14 @@ import { setAxiosError } from "../util/api";
 import { api } from "./axiosSetup";
 import type { UserAvailabilityResponse } from "../types/user";
 
-export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<void> => {
+export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<RoomResponse> => {
   try {
-    await api.post("/rooms", {
+    const response = await api.post("/rooms", {
       trackingMode: request.trackingMode,
       gameName: request.gameName
     });
+
+    return response.data as RoomResponse;
 
   } catch (error) {
     setAxiosError(error, setErrorMessage);
@@ -84,9 +86,10 @@ export const searchUsersAvailability = async (username: string, roomName: string
   }
 }
 
-export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<void> => {
+export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<RoomResponse> => {
   try{
-    await api.put(`/rooms/accept?token=${token}`);
+    const response = await api.put(`/rooms/accept?token=${token}`);
+    return response.data
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;
@@ -97,6 +100,15 @@ export const cancelRoom = async (roomName: string, setErrorMessage: (message: st
   try{
     await api.put(`/rooms/${roomName}/cancel`);
   } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const leaveRoom = async(roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
+  try{
+    await api.put(`/rooms/${roomName}/leave`);
+  } catch(error){
     setAxiosError(error, setErrorMessage);
     throw error;
   }

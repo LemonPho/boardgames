@@ -56,6 +56,16 @@ public class RoomController {
         return ResponseEntity.ok().build();
     }
 
+    @PutMapping("/{roomName}/leave")
+    public ResponseEntity<Void> leaveRoom(
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID userId = UUID.fromString(authentication.getName());
+        roomService.leaveRoom(roomName, userId);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/{roomName}/search-users")
     public ResponseEntity<List<UserAvailabilityResponse>> searchUsersAvailability(
         @RequestParam String username,
@@ -119,13 +129,11 @@ public class RoomController {
     }
 
     @PutMapping("/accept")
-    public ResponseEntity<Void> acceptInvite(
+    public ResponseEntity<RoomResponse> acceptInvite(
         @RequestParam String token,
         Authentication authentication
     ) {
-        roomService.acceptInvite(token, authentication);
-
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(roomService.acceptInvite(token, authentication));
     }
 
     @GetMapping("/{name}")

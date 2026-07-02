@@ -3,7 +3,7 @@ import { useRoomContext } from "../../../context/RoomContext";
 import { useUserContext } from "../../../context/UserContext";
 import type { RoomUserResponse } from "../../../types/rooms";
 import { useAlertsContext } from "../../../context/AlertsContext";
-import { cancelRoom } from "../../../api/rooms";
+import { cancelRoom, leaveRoom } from "../../../api/rooms";
 import { useNavigate } from "react-router-dom";
 import PlayersList from "./PlayersList";
 import AddPlayersModal from "./AddPlayersModal";
@@ -27,6 +27,15 @@ export default function WaitingRoom() {
 
     await cancelRoom(room.name, setErrorMessage);
     setSuccessMessage("Room cancelled");
+    navigate("/");
+  }
+
+  const handleLeaveRoom = async (event: React.MouseEvent): Promise<void> => {
+    event.stopPropagation();
+
+    if(room == null) return;
+
+    await leaveRoom(room.name, setErrorMessage);
     navigate("/");
   }
 
@@ -81,7 +90,10 @@ export default function WaitingRoom() {
             </button>
           </>
         ) : (
-          <button className="flex-1 border border-gray-200 hover:border-gray-400 text-gray-600 text-sm font-medium py-3 rounded-xl transition-colors">
+          <button 
+            className="flex-1 border border-gray-200 hover:border-gray-400 text-gray-600 text-sm font-medium py-3 rounded-xl transition-colors"
+            onClick={(event) => {handleLeaveRoom(event)}}
+          >
             Leave room
           </button>
         )}

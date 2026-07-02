@@ -1,0 +1,1 @@
+ALTER TABLE rooms_users ADD CONSTRAINT unique_user_per_room UNIQUE (room_id, display_name);

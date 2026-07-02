@@ -96,6 +96,11 @@ public class RoomsUtilityService {
         if(result.isEmpty()) throw new BadActionException("You need to be the room admin to perform this action.");
     }
 
+    public void throwIfUserNotInRoom(Room room, User user){
+        roomUserRepository.findByDisplayNameAndRoom(user.getUsername(), room)
+            .orElseThrow(() -> new BadActionException("User not in room"));
+    }
+
     public void throwIfDisplayNameAlreadyExistsInRoom(String displayName, Room room){
         Optional<RoomUser> result = room.getPlayers()
             .stream()

@@ -146,6 +146,19 @@ public class RoomService {
     }
 
     @Transactional
+    public void leaveRoom(String roomName, UUID userId){
+        logger.info("Starting leave room {} for user {}", roomName, userId);
+
+        User user = userService.getUserById(userId);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+
+        RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(user.getUsername(), room);
+        roomUserRepository.delete(roomUser);
+
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
+    }
+
+    @Transactional
     public void createAnonymousPlayer(CreateAnonymousPlayerRequest request){
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
@@ -285,7 +298,7 @@ public class RoomService {
     }
 
     @Transactional
-    public void acceptInvite(String token, Authentication authentication){
+    public RoomResponse acceptInvite(String token, Authentication authentication){
         UUID userId = UUID.fromString(authentication.getName());
         RoomInvitationToken roomInvitationToken = roomsUtilityService.getRoomInvitationTokenByToken(token);
     
@@ -295,7 +308,7 @@ public class RoomService {
 
         if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
 
-        if(authenticatedUser.getId() != invitationUser.getId()){
+        if(!authenticatedUser.getId().equals(invitationUser.getId())){
             throw new BadActionException("A user cannot accept the invitation of another user for them!");
         }
 
@@ -321,6 +334,8 @@ public class RoomService {
 
         roomsUtilityService.updateRoomLastUpdated(room);
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
+
+        return new RoomResponse(room);
     }
 
     @Transactional

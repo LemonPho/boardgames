@@ -21,27 +21,27 @@ export default function App() {
   return (
     <AlertsContextProvider>
       <UserContextProvider>
-        <AuthenticationContextProvider>
-          <UIProvider>
-            <BrowserRouter>
+        <UIProvider>
+          <BrowserRouter>
+            <AuthenticationContextProvider>
               <Routes>
-                <Route path="/" element={<LayoutPage/>}>
-                  <Route path="" element={<HomePage />}/>
-                  <Route path="register" element={<AuthPage tab="register"/>} />
-                  <Route path="login" element={<AuthPage tab="login"/>}/>
-                  <Route path="games/:name" element={<GamePage/>}/>
+                <Route path="/" element={<LayoutPage />}>
+                  <Route path="" element={<HomePage />} />
+                  <Route path="register" element={<AuthPage tab="register" />} />
+                  <Route path="login" element={<AuthPage tab="login" />} />
+                  <Route path="games/:name" element={<GamePage />} />
                   <Route path="/rooms/accept" element={<AcceptInvitePage />} />
-                  <Route path="rooms/:name" element={<RoomPage/>}>
-                    <Route path="waiting" element={<WaitingRoom/>}/>
-                    <Route path="in-progress" element={<GameSession/>}/>
-                    <Route path="final" element={<FinalScoreboard />}/>
+                  <Route path="rooms/:name" element={<RoomPage />}>
+                    <Route path="waiting" element={<WaitingRoom />} />
+                    <Route path="in-progress" element={<GameSession />} />
+                    <Route path="final" element={<FinalScoreboard />} />
                   </Route>
                 </Route>
               </Routes>
-            </BrowserRouter>
-          </UIProvider>
-        </AuthenticationContextProvider>
+            </AuthenticationContextProvider>
+          </BrowserRouter>
+        </UIProvider>
       </UserContextProvider>
-    </AlertsContextProvider>
+    </AlertsContextProvider >
   )
 }
