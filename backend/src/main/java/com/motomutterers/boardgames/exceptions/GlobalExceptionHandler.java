@@ -16,9 +16,12 @@ import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredExce
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
 import com.motomutterers.boardgames.games.exceptions.GameNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenCancelledException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenNotFoundException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 
@@ -106,5 +109,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RoomInvitationTokenExpiredException.class)
     public ResponseEntity<String> handleRoomInvitationTokenExpiredException(RoomInvitationTokenExpiredException e){
         return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomInvitationTokenCancelledException.class)
+    public ResponseEntity<String> handleRoomInvitationTokenCancelledException(RoomInvitationTokenCancelledException e){
+        return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomInvitationTokenUsedException.class)
+    public ResponseEntity<String> handleRoomInvitationTokenUsedException(RoomInvitationTokenUsedException e){
+        return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(RoomUserNotFoundException.class)
+    public ResponseEntity<String> handleRoomUserNotFoundException(RoomUserNotFoundException e){
+        return ResponseEntity.status(404).body(e.getMessage());
     }
 }

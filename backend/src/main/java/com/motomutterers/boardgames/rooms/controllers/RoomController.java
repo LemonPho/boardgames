@@ -14,13 +14,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
+import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
+import com.motomutterers.boardgames.rooms.dto.RoomInvitationResponse;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
+import com.motomutterers.boardgames.rooms.dto.RoomUserResponse;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.services.RoomService;
 import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
-
-import jakarta.websocket.server.PathParam;
 
 @RestController
 @RequestMapping("/api/rooms")
@@ -43,19 +46,71 @@ public class RoomController {
         return ResponseEntity.ok(roomResponse);
     }
 
-    @GetMapping("/search-users")
+    @PutMapping("/{roomName}/cancel")
+    public ResponseEntity<String> cancelRoom(
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(roomService.cancelRoom(roomName, userId));
+    }
+
+    @GetMapping("/{roomName}/search-users")
     public ResponseEntity<List<UserAvailabilityResponse>> searchUsersAvailability(
         @RequestParam String username,
-        @RequestParam String roomName
+        @PathVariable String roomName
     ) {
         return ResponseEntity.ok(roomService.searchUsersAvailability(username, roomName));
     }
 
-    @PostMapping("/invite")
-    public ResponseEntity<String> invitePlayer(
-        @RequestBody RoomInvitationRequest request
+    @PostMapping("/{roomName}/invite")
+    public ResponseEntity<RoomInvitationResponse> invitePlayer(
+        @RequestBody RoomInvitationRequest request,
+        @PathVariable String roomName,
+        Authentication authentication
     ) {
+        UUID userId = UUID.fromString(authentication.getName());
+        request.setRoomName(roomName);
+        request.setAdminId(userId);
         return ResponseEntity.ok(roomService.invitePlayer(request));
+    }
+
+    @PostMapping("{roomName}/revoke-invite")
+    public ResponseEntity<List<RoomInvitationResponse>> revokeInvite(
+        @RequestBody RoomInvitationRequest request,
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID adminId = UUID.fromString(authentication.getName());
+        request.setRoomName(roomName);
+        request.setAdminId(adminId);
+        return ResponseEntity.ok(roomService.revokeInvite(request));
+    }
+
+    @PostMapping("/{roomName}/create-anonymous")
+    public ResponseEntity<RoomUserResponse> createAnonymousPlayer(
+        @RequestBody CreateAnonymousPlayerRequest request,
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID adminId = UUID.fromString(authentication.getName());
+        request.setAdminId(adminId);
+        request.setRoomName(roomName);
+
+        return ResponseEntity.ok(roomService.createAnonymousPlayer(request));
+    }
+
+    @PostMapping("/{roomName}/remove-player")
+    public ResponseEntity<List<RoomUserResponse>> removeAnonymousPlayer(
+        @RequestBody RemovePlayerRequest request,
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID adminId = UUID.fromString(authentication.getName());
+        request.setAdminId(adminId);
+        request.setRoomName(roomName);
+
+        return ResponseEntity.ok(roomService.removePlayer(request));
     }
 
     @PutMapping("/accept")

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.motomutterers.boardgames.games.dto.SimpleGameResponse;
+import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;
@@ -16,6 +17,7 @@ public class RoomResponse {
     private RoomStatus status;
     private TrackingMode trackingMode;
     private List<RoomUserResponse> players = new ArrayList<RoomUserResponse>();
+    private List<RoomInvitationResponse> invitations = new ArrayList<RoomInvitationResponse>();
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
     private LocalDateTime createdAt;
@@ -29,6 +31,22 @@ public class RoomResponse {
         this.trackingMode = room.getTrackingMode();
         this.players = room.getPlayers().stream()
             .map(RoomUserResponse::new)
+            .collect(Collectors.toList());
+        this.startedAt = room.getStartedAt();
+        this.endedAt = room.getEndedAt();
+        this.createdAt = room.getCreatedAt();
+    }
+
+    public RoomResponse(Room room, List<RoomInvitationToken> invitations){
+        this.name = room.getName();
+        this.game = new SimpleGameResponse(room.getGame());
+        this.status = room.getStatus();
+        this.trackingMode = room.getTrackingMode();
+        this.players = room.getPlayers().stream()
+            .map(RoomUserResponse::new)
+            .collect(Collectors.toList());
+        this.invitations = invitations.stream()
+            .map(RoomInvitationResponse::new)
             .collect(Collectors.toList());
         this.startedAt = room.getStartedAt();
         this.endedAt = room.getEndedAt();
@@ -53,6 +71,10 @@ public class RoomResponse {
 
     public List<RoomUserResponse> getPlayers(){
         return players;
+    }
+
+    public List<RoomInvitationResponse> getInvitations(){
+        return invitations;
     }
 
     public LocalDateTime getStartedAt(){

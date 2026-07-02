@@ -17,7 +17,7 @@ export default function Header() {
 
   return(
     <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-      <span className="font-semibold text-gray-800 text-lg">Boardgames</span>
+      <Link to={"/"} className="font-semibold text-gray-800 text-lg">Boardgames</Link>
 
       <div className="flex items-center gap-2">
       {/* Notification bell */}

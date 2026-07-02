@@ -15,7 +15,7 @@ public class RoomUserResponse {
     public RoomUserResponse(){}
 
     public RoomUserResponse(RoomUser roomUser){
-        this.user = new UserResponse(roomUser.getUser());
+        if(roomUser.getUser() != null) this.user = new UserResponse(roomUser.getUser());
         this.displayName = roomUser.getDisplayName();
         this.role = roomUser.getRole();
         this.joinedAt = roomUser.getJoinedAt();

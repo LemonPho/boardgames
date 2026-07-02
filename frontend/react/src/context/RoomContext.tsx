@@ -8,6 +8,7 @@ import { useAlertsContext } from "./AlertsContext";
 
 interface RoomContextType {
     room: RoomResponse | null;
+    setRoom: (room: RoomResponse) => void;
     loading: boolean;
 }
 
@@ -80,7 +81,7 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
     }, [name]);
 
     return (
-        <RoomContext.Provider value={{ room, loading }}>
+        <RoomContext.Provider value={{ room, setRoom, loading }}>
             {children}
         </RoomContext.Provider>
     );

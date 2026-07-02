@@ -2,24 +2,24 @@ package com.motomutterers.boardgames.rooms.dto;
 
 import java.util.UUID;
 
-public class RoomInvitationRequest {
-    private String username;
+public class CreateAnonymousPlayerRequest {
+    private String displayName;
     private String roomName;
     private UUID adminId;
 
-    public RoomInvitationRequest(){}
+    public CreateAnonymousPlayerRequest(){}
 
-    public RoomInvitationRequest(
-        String username
+    public CreateAnonymousPlayerRequest(
+        String displayName
     ) {
-        this.username = username;
+        this.displayName = displayName;
     }
 
-    public void setUsername(String username){this.username = username;}
+    public void setDisplayName(String displayName){this.displayName = displayName;}
     public void setRoomName(String roomName){this.roomName = roomName;}
     public void setAdminId(UUID adminId){this.adminId = adminId;}
 
-    public String getUsername(){return this.username;}
+    public String getDisplayName(){return this.displayName;}
     public String getRoomName(){return this.roomName;}
     public UUID getAdminId(){return this.adminId;}
 }

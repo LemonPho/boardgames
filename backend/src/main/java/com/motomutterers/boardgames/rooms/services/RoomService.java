@@ -2,7 +2,9 @@ package com.motomutterers.boardgames.rooms.services;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -14,15 +16,21 @@ import com.motomutterers.boardgames.email.EmailTemplates;
 import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.games.model.Game;
 import com.motomutterers.boardgames.games.services.GameService;
+import com.motomutterers.boardgames.notifications.dto.CreateRoomInvitationNotificationRequest;
+import com.motomutterers.boardgames.notifications.services.NotificationService;
+import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
+import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
+import com.motomutterers.boardgames.rooms.dto.RoomInvitationResponse;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
-import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
+import com.motomutterers.boardgames.rooms.dto.RoomUserResponse;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenCancelledException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenExpiredException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedException;
 import com.motomutterers.boardgames.rooms.model.Invitation.InvitationStatus;
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
-import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.rooms.repository.RoomInvitationTokenRepository;
@@ -45,6 +53,7 @@ public class RoomService {
     private final GameService gameService;
     private final UserService userService;
     private final EmailService emailService;
+    private final NotificationService notificationService;
     private final RoomInvitationTokenRepository roomInvitationTokenRepository;
 
     @Value("${room-invitation.expiration}")
@@ -66,7 +75,8 @@ public class RoomService {
         GameService gameService,
         UserService userService,
         RoomInvitationTokenRepository roomInvitationTokenRepository,
-        EmailService emailService
+        EmailService emailService,
+        NotificationService notificationService
     ){
         this.roomsUtilityService = roomsUtilityService;
         this.roomRepository = roomRepository;
@@ -75,6 +85,7 @@ public class RoomService {
         this.userService = userService;
         this.roomInvitationTokenRepository = roomInvitationTokenRepository;
         this.emailService = emailService;
+        this.notificationService = notificationService;
     }
 
     private String generateRoomName(String username, String gameName) {
@@ -116,6 +127,80 @@ public class RoomService {
         return response;
     }
 
+    @Transactional
+    public String cancelRoom(String roomName, UUID userId){
+        logger.info("Starting cancel room {} from user {}", roomName, userId);
+
+        User user = userService.getUserById(userId);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        logger.info("Players: {}", room.getPlayers().toString());
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+
+        roomsUtilityService.cancelRoom(room);
+
+        return "Cancelled";
+
+    }
+
+    @Transactional
+    public RoomUserResponse createAnonymousPlayer(CreateAnonymousPlayerRequest request){
+        User user = userService.getUserById(request.getAdminId());
+        Room room = roomsUtilityService.getRoomByName(request.getRoomName());
+
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(request.getDisplayName(), room);
+
+        RoomUser anonymous = new RoomUser(request.getDisplayName(), room);
+        RoomUserResponse response = new RoomUserResponse(anonymous);
+        roomUserRepository.save(anonymous);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+
+        return response;
+
+    }
+
+    @Transactional
+    public RoomUserResponse renameAnonymousPlayer(CreateAnonymousPlayerRequest request){
+        User user = userService.getUserById(request.getAdminId());
+        Room room = roomsUtilityService.getRoomByName(request.getRoomName());
+
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+
+        RoomUser anonymous = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(request.getDisplayName(), room);
+
+        anonymous = roomsUtilityService.renameAnonymousPlayer(anonymous, room);
+        return new RoomUserResponse(anonymous);
+    }
+
+    //works for both anonymous and players
+    @Transactional
+    public List<RoomUserResponse> removePlayer(RemovePlayerRequest request){
+        User user = userService.getUserById(request.getAdminId());
+        Room room = roomsUtilityService.getRoomByName(request.getRoomName());
+
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        
+        RoomUser player = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(request.getDisplayName(), room);
+        roomUserRepository.deleteByDisplayNameAndRoom(player.getDisplayName(), room);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+
+        List<RoomUserResponse> users = room.getPlayers()
+            .stream()
+            .filter(p -> !p.getDisplayName().equals(request.getDisplayName()))
+            .map(RoomUserResponse::new)
+            .collect(Collectors.toList());
+
+        return users;    
+    }
+
     public List<UserAvailabilityResponse> searchUsersAvailability(String username, String roomName) {
         List<User> users = userService.findAllUserContainingUsername(username);
         Room room = roomsUtilityService.getRoomByName(roomName);
@@ -125,7 +210,9 @@ public class RoomService {
 
 
     @Transactional
-    public String invitePlayer(RoomInvitationRequest request) {
+    public RoomInvitationResponse invitePlayer(RoomInvitationRequest request) {
+        User roomAdmin = userService.getUserById(request.getAdminId());
+        
         String username = request.getUsername();
         String roomName = request.getRoomName();
 
@@ -133,11 +220,26 @@ public class RoomService {
 
         User user = userService.getUserByUsername(username);
         Room room = roomsUtilityService.getRoomByName(roomName);
+
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
+
         if(roomsUtilityService.getIsUserInActiveRoom(user)) throw new BadActionException("User is in an active session");
         if(!user.isActive()) throw new BadActionException("User needs to verify their email to be able to play");
         if(roomInvitationTokenRepository.isUserAlreadyInvitedAndNotExpired(user, room, InvitationStatus.PENDING, LocalDateTime.now())) {
             throw new BadActionException("User is already invited");
         }
+
+        Optional<RoomInvitationToken> invitationResult = roomInvitationTokenRepository.findByRoomAndUser(room, user);
+        if(invitationResult.isPresent()){
+            RoomInvitationToken currentInvitation = invitationResult.get();
+            roomInvitationTokenRepository.delete(currentInvitation);
+        }
+
+        //check if anonymous player already has the same displayName, if so we rename the anonymous player
+        Optional<RoomUser> result = roomUserRepository.findByDisplayNameAndRoom(user.getUsername(), room);
+        if(result.isPresent()) roomsUtilityService.renameAnonymousPlayer(result.get(), room);
 
         RoomInvitationToken roomInvitationToken = new RoomInvitationToken(
             user, 
@@ -152,7 +254,44 @@ public class RoomService {
         String invitationLink = frontendBaseUrl + "rooms/accept?token=" + roomInvitationToken.getToken();
         String html = EmailTemplates.roomInvitationEmail(user.getUsername(), invitationLink);
         emailService.sendEmail(user.getEmail(), "You've been invited to join a game!", html);
-        return "Invited";
+        
+        CreateRoomInvitationNotificationRequest notificationRequest = new CreateRoomInvitationNotificationRequest(user, room, roomAdmin);
+        notificationService.createRoomInvitationNotification(notificationRequest);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+
+        RoomInvitationResponse response = new RoomInvitationResponse(roomInvitationToken);
+        
+        return response;
+    }
+
+    @Transactional
+    public List<RoomInvitationResponse> revokeInvite(RoomInvitationRequest request){
+        User roomAdmin = userService.getUserById(request.getAdminId());
+        
+        String username = request.getUsername();
+        String roomName = request.getRoomName();
+
+        logger.info("Starting revoke invite for: " + username);
+
+        User user = userService.getUserByUsername(username);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
+
+        RoomInvitationToken invite = roomsUtilityService.getOrThrowRoomInvitationTokenByRoomAndUser(room, user);
+        invite.setStatus(InvitationStatus.CANCELLED);
+        roomInvitationTokenRepository.save(invite);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+
+        List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING);
+        return invitations.stream()
+            .filter(i -> !i.getUser().getUsername().equals(user.getUsername()))
+            .map(RoomInvitationResponse::new)
+            .collect(Collectors.toList());
     }
 
     @Transactional
@@ -164,6 +303,8 @@ public class RoomService {
         Room room = roomInvitationToken.getRoom();
         User invitationUser = roomInvitationToken.getUser();
 
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+
         if(authenticatedUser.getId() != invitationUser.getId()){
             throw new BadActionException("A user cannot accept the invitation of another user for them!");
         }
@@ -173,9 +314,22 @@ public class RoomService {
             throw new RoomInvitationTokenExpiredException("This token is expired, please request a new invitation");
         }
 
+        if(roomInvitationToken.getStatus().equals(InvitationStatus.CANCELLED)){
+            throw new RoomInvitationTokenCancelledException("The invitation was cancelled");
+        }
+
+        if(roomInvitationToken.getStatus().equals(InvitationStatus.USED)){
+            throw new RoomInvitationTokenUsedException("The invitation was already used, ask for a new one");
+        }
+
+        roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(invitationUser.getUsername(), room);
+
         RoomUser roomUser = new RoomUser(invitationUser, room, RoomUserRoles.PLAYER);
         roomUserRepository.save(roomUser);
-        roomInvitationTokenRepository.delete(roomInvitationToken);
+        roomInvitationToken.setStatus(InvitationStatus.USED);
+        roomInvitationTokenRepository.save(roomInvitationToken);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
 
         return room.getName();
     }
@@ -188,12 +342,11 @@ public class RoomService {
 
         Room room = roomsUtilityService.getRoomByName(name);
 
-        if(room.getStatus() == RoomStatus.WAITING && room.getLastUpdated().isBefore(LocalDateTime.now().minusSeconds(roomWaitingExpiration))){
-            roomsUtilityService.expireRoom(room);
-            throw new RoomExpiredException("Room expires after 15 minutes of inactivity");
-        }
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
 
-        response = new RoomResponse(room);
+        List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING);
+
+        response = new RoomResponse(room, invitations);
 
         return response;
     }

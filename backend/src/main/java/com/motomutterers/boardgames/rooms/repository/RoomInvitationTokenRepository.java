@@ -20,7 +20,14 @@ public interface RoomInvitationTokenRepository extends JpaRepository<RoomInvitat
     boolean isUserAlreadyInvitedAndNotExpired(@Param("user") User user, @Param("room") Room room, @Param("status") InvitationStatus status, @Param("now") LocalDateTime now);
     
     @Query("SELECT ri.user FROM RoomInvitationToken ri WHERE ri.room = :room AND ri.user IN :users AND ri.status = :status AND ri.expiresAt > :now")
-    Set<User> findInvitedToRoom(@Param("users") List<User> users, @Param("room") Room room, @Param("status") InvitationStatus status, @Param("now") LocalDateTime now);
+    Set<User> findUsersInvitedToRoom(@Param("users") List<User> users, @Param("room") Room room, @Param("status") InvitationStatus status, @Param("now") LocalDateTime now);
+
+    @Query("SELECT ri FROM RoomInvitationToken ri WHERE ri.room = :room")
+    List<RoomInvitationToken> findRoomInvitations(@Param("room") Room room);
+
+    List<RoomInvitationToken> findAllByRoomAndStatus(Room room, InvitationStatus status);
 
     Optional<RoomInvitationToken> findByToken(String token);
+
+    Optional<RoomInvitationToken> findByRoomAndUser(Room room, User user);
 }

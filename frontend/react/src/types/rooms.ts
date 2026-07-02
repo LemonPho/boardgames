@@ -18,9 +18,15 @@ export interface RoomResponse {
     status: RoomStatus,
     trackingMode: TrackingMode,
     players: Array<RoomUserResponse>,
+    invitations: Array<RoomInvitationResponse>,
     startedAt: Date,
     endedAt: Date,
     createdAt: Date
+}
+
+export interface RoomInvitationResponse {
+    username: string
+    status: string
 }
 
 export interface CreateRoomRequest {

@@ -24,10 +24,10 @@ public class UserController {
     }
 
     @GetMapping("/current")
-    public ResponseEntity<UserResponse> getAuthenticatedUser(
+    public ResponseEntity<UserResponse> getAuthenticatedUserResponse(
         Authentication authentication
     ){
-        return ResponseEntity.ok(userService.getAuthenticatedUser(authentication));
+        return ResponseEntity.ok(userService.getAuthenticatedUserResponse(authentication));
     } 
 
     @GetMapping("/username/match-all")

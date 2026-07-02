@@ -1,5 +1,4 @@
-import axios from "axios";
-import type { CreateRoomRequest, InvitationErrorResponse, RoomResponse, TrackingMode } from "../types/rooms";
+import type { CreateRoomRequest, RoomInvitationResponse, RoomResponse, RoomUserResponse } from "../types/rooms";
 import { setAxiosError } from "../util/api";
 import { api } from "./axiosSetup";
 import type { UserAvailabilityResponse } from "../types/user";
@@ -30,29 +29,60 @@ export const getRoom = async (roomName: string, setErrorMessage: (message: strin
   }
 }
 
-export const invitePlayerToRoom = async (username: string, roomName: string, setErrors: (errors: InvitationErrorResponse | null) => void, setErrorMessage: (message: string) => void): Promise<void> => {
+export const invitePlayerToRoom = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomInvitationResponse> => {
   try {
-    await api.post(`/rooms/invite`, {
+    const response = await api.post(`/rooms/${roomName}/invite`, {
       username: username,
-      roomName: roomName,
     });
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error) && error.response?.data) {
-      const data = error.response.data;
-      const invitationErrorResponse: InvitationErrorResponse = {
-        inGame: data.inGame,
-        verified: data.verified,
-        invited: data.invited,
-      };
-      setErrors(invitationErrorResponse);
-    }
+
+    return response.data as RoomInvitationResponse;
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const revokeRoomInvite = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<Array<RoomInvitationResponse>> => {
+  try{
+    const response = await api.post(`/rooms/${roomName}/revoke-invite`, {
+      username: username
+    });
+    return response.data as Array<RoomInvitationResponse>;
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const createAnonymousPlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomUserResponse> => {
+  try{
+    const response = await api.post(`/rooms/${roomName}/create-anonymous`, {
+      displayName: displayName
+    });
+
+    return response.data as RoomUserResponse;
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const removePlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<RoomUserResponse[]> => {
+  try{
+    const response = await api.post(`/rooms/${roomName}/remove-player`, {
+      displayName: displayName
+    });
+
+    return response.data as RoomUserResponse[];
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
     throw error;
   }
 }
 
 export const searchUsersAvailability = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<Array<UserAvailabilityResponse>> => {
   try {
-    const response = await api.get(`/rooms/search-users?username=${username}&roomName=${roomName}`);
+    const response = await api.get(`/rooms/${roomName}/search-users?username=${username}`);
     return response.data as Array<UserAvailabilityResponse>;
   } catch (error) {
     setAxiosError(error, setErrorMessage);
@@ -63,6 +93,16 @@ export const searchUsersAvailability = async (username: string, roomName: string
 export const acceptInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<string> => {
   try{
     const response = await api.put(`/rooms/accept?token=${token}`);
+    return response.data;
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const cancelRoom = async (roomName: string, setErrorMessage: (message: string) => void): Promise<string> => {
+  try{
+    const response = await api.put(`/rooms/${roomName}/cancel`);
     return response.data;
   } catch(error) {
     setAxiosError(error, setErrorMessage);

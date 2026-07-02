@@ -41,6 +41,11 @@ public class UserService {
         return userRepository.findByUsernameContainingIgnoreCase(username);
     }
 
+    public User getAuthenticatedUser(Authentication authentication){
+        UUID userId = UUID.fromString(authentication.getName());
+        return getUserById(userId);
+    }
+
     @Transactional
     public void updateUsername(UUID id, String username) {
         User user = getUserById(id);
@@ -54,7 +59,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public UserResponse getAuthenticatedUser(Authentication authentication) {
+    public UserResponse getAuthenticatedUserResponse(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         return new UserResponse(getUserById(userId));
     }

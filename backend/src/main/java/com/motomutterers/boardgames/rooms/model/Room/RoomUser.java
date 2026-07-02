@@ -58,12 +58,13 @@ public class RoomUser {
       this.user = user;
       this.room = room;
       this.role = role;
+      this.displayName = user.getUsername();
     }
 
-    public RoomUser(String displayName, Room room, RoomUserRoles role){
+    public RoomUser(String displayName, Room room){
       this.displayName = displayName;
       this.room = room;
-      this.role = role;
+      this.role = RoomUserRoles.ANONYMOUS;
     }
 
     public UUID getId(){
@@ -88,5 +89,25 @@ public class RoomUser {
 
     public LocalDateTime getJoinedAt(){
       return joinedAt;
+    }
+
+    public void setRoom(Room room){
+        this.room = room;
+    }
+
+    public void setUser(User user){
+        this.user = user;
+    }
+
+    public void setDisplayName(String displayName){
+        this.displayName = displayName;
+    }
+
+    public void setRole(RoomUserRoles role) {
+        this.role = role;
+    }
+
+    public void setJoinedAt(LocalDateTime joinedAt){
+        this.joinedAt = joinedAt;
     }
 }
