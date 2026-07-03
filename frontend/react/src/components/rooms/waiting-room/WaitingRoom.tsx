@@ -26,7 +26,7 @@ export default function WaitingRoom() {
     event.stopPropagation();
 
     if(room == null) return;
-
+    
     await handleCreateSession();
   }
 

@@ -106,6 +106,11 @@ public class RoomsUtilityService {
         if(result.isPresent()) throw new BadActionException("Each player needs a unique name");
     }
 
+    public void changeRoomStatus(Room room, RoomStatus roomStatus){
+        room.setStatus(roomStatus);
+        roomRepository.save(room);
+    }
+
     public RoomUser renameAnonymousPlayer(RoomUser anonymous, Room room){
         AtomicInteger i = new AtomicInteger(1);
         while(i.get() < 100){

@@ -24,8 +24,8 @@ public class Team {
     private Session session;
 
     private String name;
-    private long finalScore;
-    private boolean winner;
+    private long finalScore = 0;
+    private boolean winner = false;
     private LocalDateTime createdAt;
 
     public Team(){}

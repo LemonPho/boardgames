@@ -64,7 +64,7 @@ erDiagram
   TeamsUsers {
     uuid id PK
     uuid team_id FK
-    uuid user_id FK
+    uuid room_user_id FK
   }
 
   Sessions {
@@ -166,7 +166,7 @@ erDiagram
   Rooms ||--|| Sessions : "has"
   Sessions ||--o{ Teams : "has"
   Teams ||--o{ TeamsUsers : "contains"
-  Users ||--o{ TeamsUsers : "assigned to"
+  RoomUser ||--o{ TeamsUsers : "assigned to"
   Sessions ||--o{ SessionEvents : "logs"
   Sessions ||--o{ TeamSessionEvents : "logs"
   Teams ||--o{ TeamSessionEvents : "participates"
