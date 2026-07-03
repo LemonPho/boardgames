@@ -7,7 +7,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.coyote.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -29,14 +28,12 @@ import com.motomutterers.boardgames.rooms.repository.RoomUserRepository;
 import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.model.User;
-import com.motomutterers.boardgames.user.services.UserService;
 
 @Service
 public class RoomsUtilityService {
     private final RoomRepository roomRepository;
     private final RoomUserRepository roomUserRepository;
     private final RoomInvitationTokenRepository roomInvitationTokenRepository;
-    private final UserService userService;
 
     @Value("${room.waiting.expiration}")
     private int roomWaitingExpiration;
@@ -44,13 +41,11 @@ public class RoomsUtilityService {
     public RoomsUtilityService(
         RoomRepository roomRepository,
         RoomUserRepository roomUserRepository,
-        RoomInvitationTokenRepository roomInvitationTokenRepository,
-        UserService userService
+        RoomInvitationTokenRepository roomInvitationTokenRepository
     ) {
         this.roomRepository = roomRepository;
         this.roomUserRepository = roomUserRepository;
         this.roomInvitationTokenRepository = roomInvitationTokenRepository;
-        this.userService = userService;
     }
 
     public Room getRoomById(UUID id){
@@ -65,7 +60,7 @@ public class RoomsUtilityService {
 
     public RoomUser getOrThrowRoomUserByDisplayNameAndRoom(String displayName, Room room){
         return roomUserRepository.findByDisplayNameAndRoom(displayName, room)
-            .orElseThrow(() -> new RoomUserNotFoundException("User " + displayName + " not found"));
+            .orElseThrow(() -> new RoomUserNotFoundException("User " + displayName + " not found in room " + room.getName()));
     }
 
     public RoomInvitationToken getRoomInvitationTokenByToken(String token){

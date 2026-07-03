@@ -23,7 +23,6 @@ import com.motomutterers.boardgames.email.EmailTemplates;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
 import com.motomutterers.boardgames.user.UserRepository;
 import com.motomutterers.boardgames.user.model.User;
-import com.motomutterers.boardgames.user.services.UserService;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +32,6 @@ import jakarta.transaction.Transactional;
 @Service
 public class AuthService {
     private final UserRepository userRepository;
-    private final UserService userService;
     private final JwtService jwtService;    
     private final RefreshTokenRepository refreshTokenRepository;
     private final VerificationTokenRepository verificationTokenRepository;
@@ -51,7 +49,6 @@ public class AuthService {
 
     public AuthService(
         UserRepository userRepository,
-        UserService userService,
         JwtService jwtService,
         RefreshTokenRepository refreshTokenRepository,
         VerificationTokenRepository verificationTokenRepository,
@@ -59,7 +56,6 @@ public class AuthService {
         PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
-        this.userService = userService;
         this.jwtService = jwtService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.verificationTokenRepository = verificationTokenRepository;

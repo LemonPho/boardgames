@@ -1,15 +1,17 @@
-import { Outlet } from "react-router-dom";
 import { RoomContextProvider, useRoomContext } from "../../context/RoomContext";
 import WaitingRoom from "./waiting-room/WaitingRoom";
-import GameSession from "./GameSession";
+import GameSession from "./game-session/GameSession";
 import FinalScoreboard from "./FinalScoreboard";
 import Cancelled from "./Cancelled";
+import { SessionContextProvider } from "../../context/SessionContext";
 
 export default function RoomPage(){
 
     return(
         <RoomContextProvider>
-            <RoomView/>
+            <SessionContextProvider>
+                <RoomView/> 
+            </SessionContextProvider>
         </RoomContextProvider>
     );
 }

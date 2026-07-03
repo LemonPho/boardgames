@@ -8,17 +8,27 @@ import { useNavigate } from "react-router-dom";
 import PlayersList from "./PlayersList";
 import AddPlayersModal from "./AddPlayersModal";
 import InvitationsList from "./InvitationsList";
+import { useSessionContext } from "../../../context/SessionContext";
 
 const INVITE_PLAYERS_PANEL = "invite-players-room";
 
 export default function WaitingRoom() {
   const { room } = useRoomContext();
   const { user } = useUserContext();
+  const { handleCreateSession } = useSessionContext();
 
   const { setErrorMessage, setSuccessMessage } = useAlertsContext();
 
   const [currentPlayer, setCurrentPlayer] = useState<RoomUserResponse | null>(null);
   const navigate = useNavigate();
+
+  const handleStartGame = async (event: React.MouseEvent): Promise<void> => {
+    event.stopPropagation();
+
+    if(room == null) return;
+
+    await handleCreateSession();
+  }
 
   const handleCancelRoom = async (event: React.MouseEvent): Promise<void> => {
     event.stopPropagation();
@@ -79,7 +89,10 @@ export default function WaitingRoom() {
       <div className="w-full max-w-2xl flex gap-3">
         {currentPlayer?.role == "ADMIN" ? (
           <>
-            <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors">
+            <button 
+              className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors"
+              onClick={(event) => {handleStartGame(event)}}  
+            >
               Start game
             </button>
             <button

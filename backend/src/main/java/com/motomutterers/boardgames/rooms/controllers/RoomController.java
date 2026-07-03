@@ -18,10 +18,7 @@ import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
 import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
-import com.motomutterers.boardgames.rooms.dto.RoomInvitationResponse;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
-import com.motomutterers.boardgames.rooms.dto.RoomUserResponse;
-import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.services.RoomService;
 import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
 

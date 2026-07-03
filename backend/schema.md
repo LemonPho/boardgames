@@ -71,6 +71,8 @@ erDiagram
     uuid id PK
     uuid room_id FK
     string status
+    int current_round
+    string phase
     timestamp created_at
     timestamp ended_at
   }
@@ -78,8 +80,18 @@ erDiagram
   SessionEvents {
     uuid id PK
     uuid session_id FK
-    uuid team_id FK
     string event_type
+    int sequence
+    jsonb payload
+    timestamp created_at
+  }
+
+  TeamSessionEvents {
+    uuid id PK
+    uuid session_id FK
+    uuid session_event_id FK
+    uuid team_id FK
+    string type
     int sequence
     jsonb payload
     timestamp created_at
@@ -156,7 +168,8 @@ erDiagram
   Teams ||--o{ TeamsUsers : "contains"
   Users ||--o{ TeamsUsers : "assigned to"
   Sessions ||--o{ SessionEvents : "logs"
-  Teams ||--o{ SessionEvents : "participates"
+  Sessions ||--o{ TeamSessionEvents : "logs"
+  Teams ||--o{ TeamSessionEvents : "participates"
   Rooms ||--o{ Invitations : "sends"
   Users |o--o{ Invitations : "receives"
   Users ||--o{ UserRatings : "has"
