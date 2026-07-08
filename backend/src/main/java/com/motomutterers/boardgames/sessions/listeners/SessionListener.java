@@ -8,12 +8,15 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.motomutterers.boardgames.rooms.listeners.RoomMessage;
+import com.motomutterers.boardgames.sessions.dto.SessionEventResponse;
 import com.motomutterers.boardgames.sessions.dto.SessionResponse;
+import com.motomutterers.boardgames.sessions.events.SessionEventUpdatedEvent;
 import com.motomutterers.boardgames.sessions.events.SessionUpdatedEvent;
 
 @Component
 public class SessionListener {
     private final String SESSION_UPDATED = "SESSION_UPDATED";
+    private final String SESSION_EVENT = "SESSION_EVENT";
     private final SimpMessagingTemplate messagingTemplate;
 
     public SessionListener(SimpMessagingTemplate messagingTemplate){
@@ -26,5 +29,13 @@ public class SessionListener {
         SessionResponse response = new SessionResponse(sessionUpdatedEvent.getSession());
         messagingTemplate.convertAndSend(   "/topic/sessions/" + sessionUpdatedEvent.getRoomName(), 
                                             new RoomMessage<>(SESSION_UPDATED, response));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleSessionEventUpdated(SessionEventUpdatedEvent sessionEventUpdatedEvent){
+        SessionEventResponse response = new SessionEventResponse(sessionEventUpdatedEvent.getSessionEvent());
+        messagingTemplate.convertAndSend(   "/topic/sessions/" + sessionEventUpdatedEvent.getRoomName(),
+                                            new RoomMessage<>(SESSION_EVENT, response));            
     }
 }

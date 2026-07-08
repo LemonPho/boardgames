@@ -163,7 +163,7 @@ public class RoomService {
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
         roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(request.getDisplayName(), room);
@@ -181,7 +181,7 @@ public class RoomService {
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
 
@@ -198,7 +198,7 @@ public class RoomService {
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
         
@@ -230,7 +230,7 @@ public class RoomService {
         User user = userService.getUserByUsername(username);
         Room room = roomsUtilityService.getRoomByName(roomName);
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
 
@@ -284,7 +284,7 @@ public class RoomService {
         User user = userService.getUserByUsername(username);
         Room room = roomsUtilityService.getRoomByName(roomName);
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
 
@@ -306,7 +306,7 @@ public class RoomService {
         Room room = roomInvitationToken.getRoom();
         User invitationUser = roomInvitationToken.getUser();
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         if(!authenticatedUser.getId().equals(invitationUser.getId())){
             throw new BadActionException("A user cannot accept the invitation of another user for them!");
@@ -325,7 +325,16 @@ public class RoomService {
             throw new RoomInvitationTokenUsedException("The invitation was already used, ask for a new one");
         }
 
-        roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(invitationUser.getUsername(), room);
+        // In this case there is an anonymous player with the same displayName as the user that was invited
+        if(roomsUtilityService.isDisplayNameInRoom(invitationUser.getUsername(), room)){
+            Optional<RoomUser> result = roomUserRepository.findByDisplayNameAndRoom(invitationUser.getUsername(), room);
+            RoomUser anonymous = result.get();
+            if(!anonymous.getUser().equals(null)){
+                throw new BadActionException("User with that username is already in the room, contact support");
+            }
+
+            roomsUtilityService.renameAnonymousPlayer(anonymous, room);
+        }
 
         RoomUser roomUser = new RoomUser(invitationUser, room, RoomUserRoles.PLAYER);
         roomUserRepository.save(roomUser);
@@ -346,7 +355,7 @@ public class RoomService {
 
         Room room = roomsUtilityService.getRoomByName(name);
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.expireRoom(room);
+        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING);
 

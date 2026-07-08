@@ -86,7 +86,7 @@ erDiagram
     timestamp created_at
   }
 
-  TeamSessionEvents {
+  TeamSessionEvent {
     uuid id PK
     uuid session_id FK
     uuid session_event_id FK
@@ -168,8 +168,8 @@ erDiagram
   Teams ||--o{ TeamsUsers : "contains"
   RoomUser ||--o{ TeamsUsers : "assigned to"
   Sessions ||--o{ SessionEvents : "logs"
-  Sessions ||--o{ TeamSessionEvents : "logs"
-  Teams ||--o{ TeamSessionEvents : "participates"
+  Sessions ||--o{ TeamSessionEvent : "logs"
+  Teams ||--o{ TeamSessionEvent : "participates"
   Rooms ||--o{ Invitations : "sends"
   Users |o--o{ Invitations : "receives"
   Users ||--o{ UserRatings : "has"

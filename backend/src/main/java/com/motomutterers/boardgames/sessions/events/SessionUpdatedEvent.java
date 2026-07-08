@@ -1,6 +1,6 @@
 package com.motomutterers.boardgames.sessions.events;
 
-import com.motomutterers.boardgames.sessions.models.Session;
+import com.motomutterers.boardgames.sessions.models.session.Session;
 
 public class SessionUpdatedEvent {
     private String roomName;

@@ -5,15 +5,15 @@ import FinalScoreboard from "./FinalScoreboard";
 import Cancelled from "./Cancelled";
 import { SessionContextProvider } from "../../context/SessionContext";
 
-export default function RoomPage(){
+export default function RoomPage() {
 
-    return(
-        <RoomContextProvider>
-            <SessionContextProvider>
-                <RoomView/> 
-            </SessionContextProvider>
-        </RoomContextProvider>
-    );
+  return (
+    <RoomContextProvider>
+      <SessionContextProvider>
+        <RoomView />
+      </SessionContextProvider>
+    </RoomContextProvider>
+  );
 }
 
 function RoomView() {

@@ -9,16 +9,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.motomutterers.boardgames.exceptions.BadActionException;
+import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.dto.CreateSessionRequest;
 import com.motomutterers.boardgames.sessions.dto.SessionResponse;
-import com.motomutterers.boardgames.sessions.events.SessionUpdatedEvent;
-import com.motomutterers.boardgames.sessions.models.Session;
+import com.motomutterers.boardgames.sessions.dto.sessionevent.CreateRoundStartRequest;
+import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
+import com.motomutterers.boardgames.sessions.models.session.Session;
 import com.motomutterers.boardgames.sessions.repositories.SessionRepository;
 import com.motomutterers.boardgames.teams.services.TeamUtilityService;
 import com.motomutterers.boardgames.user.model.User;
@@ -30,9 +33,11 @@ public class SessionService {
 
     private final SessionRepository sessionRepository;
     private final SessionUtilitysService sessionUtilitysService;
+    private final SessionEventService sessionEventService;
     private final RoomsUtilityService roomsUtilityService;
     private final TeamUtilityService teamUtilityService;
     private final UserService userService;
+
 
     @Autowired
     ApplicationEventPublisher eventPublisher;
@@ -40,17 +45,20 @@ public class SessionService {
     public SessionService(
         SessionRepository sessionRepository,
         SessionUtilitysService sessionUtilitysService,
+        SessionEventService sessionEventService,
         RoomsUtilityService roomsUtilityService,
         TeamUtilityService teamUtilityService,
         UserService userService
     ) {
         this.sessionRepository = sessionRepository;
+        this.sessionEventService = sessionEventService;
         this.roomsUtilityService = roomsUtilityService;
         this.teamUtilityService = teamUtilityService;
         this.userService = userService;
         this.sessionUtilitysService = sessionUtilitysService;
     }
 
+    @Transactional
     public SessionResponse createSession(CreateSessionRequest request, Authentication authentication){
         String roomName = request.getRoomName();
 
@@ -59,6 +67,9 @@ public class SessionService {
         Room room = roomsUtilityService.getRoomByName(roomName);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        if(roomsUtilityService.isRoomExpired(room)){
+            roomsUtilityService.cancelRoom(room);
+        }
         sessionUtilitysService.throwIfSessionExistsInRoom(room);
 
         if(!room.getStatus().equals(RoomStatus.WAITING)) {
@@ -72,8 +83,15 @@ public class SessionService {
         
         // Currently just hardcodes one person per team since skull-king doesn't have teams
         for(RoomUser player : room.getPlayers()){
-            teamUtilityService.createTeam(List.of(player), session, player.getDisplayName());
+            session.addTeam(teamUtilityService.createTeam(List.of(player), session, player.getDisplayName()));
         }
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+        eventPublisher.publishEvent(new RoomUpdatedEvent(roomName));
+
+        CreateRoundStartRequest sessionEventRequest = new CreateRoundStartRequest(0, roomName, SessionEventType.BIDS, 1, 1);
+
+        sessionEventService.createRoundStart(sessionEventRequest);
 
         return new SessionResponse(session);
     }

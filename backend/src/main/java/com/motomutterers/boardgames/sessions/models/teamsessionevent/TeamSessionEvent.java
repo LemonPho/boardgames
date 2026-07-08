@@ -1,8 +1,12 @@
-package com.motomutterers.boardgames.sessions.models;
+package com.motomutterers.boardgames.sessions.models.teamsessionevent;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
+import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.teams.models.Team;
 
 import jakarta.persistence.Entity;
@@ -12,11 +16,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "team_session_events")
-public class TeamSessionEvents {
+public class TeamSessionEvent {
     @GeneratedValue
     @Id
     private UUID id;
@@ -33,6 +38,13 @@ public class TeamSessionEvents {
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;
 
+    @ManyToOne
+    @JoinColumn(name = "corrects_team_session_event_id")
+    private TeamSessionEvent correctsEvent;
+
+    @OneToMany(mappedBy = "correctsEvent")
+    private List<TeamSessionEvent> corrections = new ArrayList<>();
+
     @Enumerated(EnumType.STRING)
     private TeamSessionEventType type;
 
@@ -40,7 +52,7 @@ public class TeamSessionEvents {
     private String payload;
     private LocalDateTime createdAt;
 
-    public TeamSessionEvents(
+    public TeamSessionEvent(
         Session session,
         SessionEvent sessionEvent,
         Team team,

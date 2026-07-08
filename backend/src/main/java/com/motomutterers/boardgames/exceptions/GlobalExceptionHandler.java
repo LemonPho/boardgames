@@ -23,6 +23,7 @@ import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedExce
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
 import com.motomutterers.boardgames.sessions.exceptions.SessionExistsException;
+import com.motomutterers.boardgames.sessions.exceptions.SessionNotFoundException;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 
@@ -130,5 +131,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(SessionExistsException.class)
     public ResponseEntity<String> handleSessionExistsException(SessionExistsException e){
         return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    @ExceptionHandler(SessionNotFoundException.class)
+    public ResponseEntity<String> handleSessionNotFoundException(SessionNotFoundException e){
+        return ResponseEntity.status(404).body(e.getMessage());
     }
 }

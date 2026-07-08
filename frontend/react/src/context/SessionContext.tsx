@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { SessionResponse } from "../types/sessions";
+import { SESSION_EVENT, SESSION_UPDATED, type SessionEventResponse, type SessionResponse, type SessionTopicMessage } from "../types/sessions";
 import { useAlertsContext } from "./AlertsContext";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
@@ -8,16 +8,10 @@ import { useRoomContext } from "./RoomContext";
 
 interface SessionContextType {
   session: SessionResponse | null;
+  currentSessionEvent: SessionEventResponse | null;
   handleCreateSession: () => void;
   loading: boolean;
 }
-
-const SESSION_UPDATED = "SESSION_UPDATED"
-
-type SessionTopicMessage =
-  | { type: "SESSION_UPDATED"; payload: SessionResponse }
-//| { type: "SESSION_EVENT"; payload: SessionEventDto }
-//| { type: "TEAM_SESSION_EVENT"; payload: TeamSessionEventDto };
 
 const SessionContext = createContext<SessionContextType | null>(null);
 
@@ -26,6 +20,7 @@ export function SessionContextProvider({ children }: { children: React.ReactNode
   const { room } = useRoomContext();
 
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [currentSessionEvent, setCurrentSessionEvent] = useState<SessionEventResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const stompClientRef = useRef<Client | null>(null);
 
@@ -38,7 +33,10 @@ export function SessionContextProvider({ children }: { children: React.ReactNode
           console.log(parsed);
           switch (parsed.type) {
             case SESSION_UPDATED:
-              setSession(parsed.payload)
+              setSession(parsed.payload as SessionResponse);
+              break;
+            case SESSION_EVENT:
+              setCurrentSessionEvent(parsed.payload as SessionEventResponse);
               break;
           }
         });
@@ -54,8 +52,8 @@ export function SessionContextProvider({ children }: { children: React.ReactNode
 
     try{
       setLoading(true);
-      const createdSession = await createSession(room.name, setErrorMessage);
       connectWebSocket();
+      const createdSession = await createSession(room.name, setErrorMessage);
       setSession(createdSession);
     } finally {
       setLoading(false);
@@ -72,7 +70,7 @@ export function SessionContextProvider({ children }: { children: React.ReactNode
   }, [room?.name]);
 
   return (
-    <SessionContext.Provider value={{ session, handleCreateSession, loading }}>
+    <SessionContext.Provider value={{ session, currentSessionEvent, handleCreateSession, loading }}>
       {children}
     </SessionContext.Provider>
   );

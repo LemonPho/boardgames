@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.motomutterers.boardgames.exceptions.BadActionException;
+import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
@@ -54,8 +55,21 @@ public class RoomsUtilityService {
     }
 
     public Room getRoomByName(String name){
-        return roomRepository.findByName(name)
-            .orElseThrow(() -> new RoomNotFoundException("Room was not found"));
+        Optional<Room> result = roomRepository.findByName(name);
+        if(result.isEmpty()){
+            throw new RoomNotFoundException("Room not found");
+        }
+
+        Room room = result.get();
+        checkAndHandleExpiry(room);
+        return room;
+    }
+
+    public void checkAndHandleExpiry(Room room) {
+        if (isRoomExpired(room)) {
+            cancelRoom(room);
+            throw new RoomExpiredException("Session was cancelled due to room expiry");
+        }
     }
 
     public RoomUser getOrThrowRoomUserByDisplayNameAndRoom(String displayName, Room room){
@@ -74,7 +88,7 @@ public class RoomsUtilityService {
     }
 
     public boolean isRoomExpired(Room room){
-        if(room.getStatus() == RoomStatus.WAITING && room.getLastUpdated().isBefore(LocalDateTime.now().minusSeconds(roomWaitingExpiration))){
+        if(!room.getStatus().equals(RoomStatus.COMPLETED) && room.getLastUpdated().isBefore(LocalDateTime.now().minusSeconds(roomWaitingExpiration))){
             return true;
         } else {
             return false;
@@ -94,6 +108,20 @@ public class RoomsUtilityService {
     public void throwIfUserNotInRoom(Room room, User user){
         roomUserRepository.findByDisplayNameAndRoom(user.getUsername(), room)
             .orElseThrow(() -> new BadActionException("User not in room"));
+    }
+
+    public boolean isDisplayNameInRoom(String displayName, Room room){
+        Optional<RoomUser> result = room.getPlayers()
+            .stream()
+            .filter(p -> p.getRole().equals(RoomUserRoles.ANONYMOUS))
+            .filter(p -> p.getDisplayName().equals(displayName))
+            .findFirst();
+
+        if(result.isPresent()){
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public void throwIfDisplayNameAlreadyExistsInRoom(String displayName, Room room){
@@ -132,17 +160,11 @@ public class RoomsUtilityService {
 
     }
 
-    @Transactional(propagation=Propagation.REQUIRES_NEW)
-    public void expireRoom(Room room){
-        room.setStatus(RoomStatus.CANCELLED);
-        roomRepository.save(room);
-    }
-
     public List<UserAvailabilityResponse> getOccupiedUsers(List<User> users, Room currentRoom){
         Set<Room> rooms = roomUserRepository.findRoomsByUsersAndStatuses(users, List.of(RoomStatus.WAITING));
         rooms.stream()
             .filter(room -> isRoomExpired(room))
-            .forEach(this::expireRoom);
+            .forEach(this::cancelRoom);
 
         Set<User> occupiedUsers = roomUserRepository.findOccupiedUsers(
             users,
@@ -171,8 +193,7 @@ public class RoomsUtilityService {
         if(result.isEmpty()) return false;
         Room room = result.get();
         if(isRoomExpired(room)){
-            room.setStatus(RoomStatus.CANCELLED);
-            roomRepository.save(room);
+            cancelRoom(room);
             return false;
         }
         return true;
@@ -183,13 +204,14 @@ public class RoomsUtilityService {
         roomRepository.save(room);
     }
 
+    @Transactional(propagation=Propagation.REQUIRES_NEW)
     public void cancelRoom(Room room){
         room.setStatus(RoomStatus.CANCELLED);
         List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findRoomInvitations(room);
         for(RoomInvitationToken invitation : invitations){
             invitation.setStatus(InvitationStatus.CANCELLED);
         }
-
+        
         roomInvitationTokenRepository.saveAll(invitations);
         roomRepository.save(room);
     }

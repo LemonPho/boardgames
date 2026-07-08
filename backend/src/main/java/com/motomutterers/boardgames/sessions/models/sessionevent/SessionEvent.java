@@ -1,8 +1,14 @@
-package com.motomutterers.boardgames.sessions.models;
+package com.motomutterers.boardgames.sessions.models.sessionevent;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import com.motomutterers.boardgames.sessions.models.session.Session;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -27,7 +33,11 @@ public class SessionEvent {
     private SessionEventType type;
 
     private int sequence;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
     private String payload;
+
     private LocalDateTime createdAt;
 
     public SessionEvent(){}

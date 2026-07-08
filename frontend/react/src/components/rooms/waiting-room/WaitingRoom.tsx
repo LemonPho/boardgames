@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
 import { useRoomContext } from "../../../context/RoomContext";
-import { useUserContext } from "../../../context/UserContext";
-import type { RoomUserResponse } from "../../../types/rooms";
 import { useAlertsContext } from "../../../context/AlertsContext";
 import { cancelRoom, leaveRoom } from "../../../api/rooms";
 import { useNavigate } from "react-router-dom";
@@ -13,13 +10,11 @@ import { useSessionContext } from "../../../context/SessionContext";
 const INVITE_PLAYERS_PANEL = "invite-players-room";
 
 export default function WaitingRoom() {
-  const { room } = useRoomContext();
-  const { user } = useUserContext();
+  const { room, currentPlayer } = useRoomContext();
   const { handleCreateSession } = useSessionContext();
 
   const { setErrorMessage, setSuccessMessage } = useAlertsContext();
 
-  const [currentPlayer, setCurrentPlayer] = useState<RoomUserResponse | null>(null);
   const navigate = useNavigate();
 
   const handleStartGame = async (event: React.MouseEvent): Promise<void> => {
@@ -48,18 +43,6 @@ export default function WaitingRoom() {
     await leaveRoom(room.name, setErrorMessage);
     navigate("/");
   }
-
-  useEffect(() => {
-    if (!room || !user) return;
-
-    const me = room.players.find((p) =>
-      p.role != "ANONYMOUS" && p.user?.username === user.username
-    );
-
-    if (me) {
-      setCurrentPlayer(me);
-    }
-  }, [room, user]);
 
   if (!room) return null;
 

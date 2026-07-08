@@ -2,23 +2,27 @@ import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
-import type { RoomResponse } from "../types/rooms";
+import type { RoomResponse, RoomUserResponse } from "../types/rooms";
 import { getRoom } from "../api/rooms";
 import { useAlertsContext } from "./AlertsContext";
+import type { UserResponse } from "../types/user";
+import { useUserContext } from "./UserContext";
 
 interface RoomContextType {
   room: RoomResponse | null;
-  setRoom: (room: RoomResponse) => void;
+  currentPlayer: RoomUserResponse | null;
   loading: boolean;
 }
 
 const RoomContext = createContext<RoomContextType | null>(null);
 
 export function RoomContextProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useUserContext();
   const { setErrorMessage } = useAlertsContext();
   const { name } = useParams();
 
   const [room, setRoom] = useState<RoomResponse | null>(null);
+  const [currentPlayer, setCurrentPlayer] = useState<RoomUserResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const stompClientRef = useRef<Client | null>(null);
 
@@ -67,8 +71,20 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
     };
   }, [name]);
 
+  useEffect(() => {
+    if (!room || !user) return;
+
+    const me = room.players.find((p) =>
+      p.role != "ANONYMOUS" && p.user?.username === user.username
+    );
+
+    if (me) {
+      setCurrentPlayer(me);
+    }
+  }, [room, user])
+
   return (
-    <RoomContext.Provider value={{ room, setRoom, loading }}>
+    <RoomContext.Provider value={{ room, currentPlayer, loading }}>
       {children}
     </RoomContext.Provider>
   );

@@ -3,6 +3,7 @@ package com.motomutterers.boardgames.notifications.dto;
 import com.motomutterers.boardgames.notifications.model.NotificationType;
 import com.motomutterers.boardgames.user.model.User;
 
+
 public class CreateNotificationRequest {
     private User user;
     private NotificationType type;
