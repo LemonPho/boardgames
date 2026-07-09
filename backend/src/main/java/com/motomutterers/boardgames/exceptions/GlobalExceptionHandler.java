@@ -137,4 +137,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<String> handleSessionNotFoundException(SessionNotFoundException e){
         return ResponseEntity.status(404).body(e.getMessage());
     }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<String> handleUnauthorizedException(UnauthorizedException e){
+        return ResponseEntity.status(403).body(e.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleGenericException(Exception e){
+        return ResponseEntity.status(500).body("An unexpected error occurred");
+    }
 }

@@ -1,13 +1,10 @@
 import type { RoomUserResponse } from "./rooms";
 
 export interface TeamResponse{
-  name: string,
-  teamUsers: Array<TeamUserResponse>,
+  id: string,
+  name: string | null,
+  player: RoomUserResponse,
   finalScore: number,
   winner: boolean,
   createdAt: Date
-}
-
-export interface TeamUserResponse{
-  user: RoomUserResponse
 }

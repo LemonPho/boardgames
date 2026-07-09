@@ -1,4 +1,4 @@
-interface PlayerBidCardProps {
+interface BidsPlayerCardProps {
   bid: number;
   round: number;
   cardCount: number;
@@ -8,7 +8,7 @@ interface PlayerBidCardProps {
   submitted: boolean;
 }
 
-export function PlayerBidCard({
+export function BidsPlayerCard({
   bid,
   round,
   cardCount,
@@ -16,7 +16,7 @@ export function PlayerBidCard({
   onDecrement,
   onSubmit,
   submitted,
-}: PlayerBidCardProps) {
+}: BidsPlayerCardProps) {
   return (
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-6">
       <div className="text-center mb-1">

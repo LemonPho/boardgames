@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +25,8 @@ import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.rooms.repository.RoomInvitationTokenRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomUserRepository;
+import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.services.SessionUtilitysService;
 import com.motomutterers.boardgames.user.dto.UserAvailabilityResponse;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.model.User;
@@ -35,18 +36,24 @@ public class RoomsUtilityService {
     private final RoomRepository roomRepository;
     private final RoomUserRepository roomUserRepository;
     private final RoomInvitationTokenRepository roomInvitationTokenRepository;
+    private final SessionUtilitysService sessionUtilitysService;
 
     @Value("${room.waiting.expiration}")
     private int roomWaitingExpiration;
 
+    @Value("${room.in-progress.expiration}")
+    private int roomInProgressExpiration;
+
     public RoomsUtilityService(
         RoomRepository roomRepository,
         RoomUserRepository roomUserRepository,
-        RoomInvitationTokenRepository roomInvitationTokenRepository
+        RoomInvitationTokenRepository roomInvitationTokenRepository,
+        SessionUtilitysService sessionUtilitysService
     ) {
         this.roomRepository = roomRepository;
         this.roomUserRepository = roomUserRepository;
         this.roomInvitationTokenRepository = roomInvitationTokenRepository;
+        this.sessionUtilitysService = sessionUtilitysService;
     }
 
     public Room getRoomById(UUID id){
@@ -72,10 +79,16 @@ public class RoomsUtilityService {
         }
     }
 
-    public RoomUser getOrThrowRoomUserByDisplayNameAndRoom(String displayName, Room room){
-        return roomUserRepository.findByDisplayNameAndRoom(displayName, room)
-            .orElseThrow(() -> new RoomUserNotFoundException("User " + displayName + " not found in room " + room.getName()));
+    public RoomUser getOrThrowRoomUserById(UUID id){
+        return roomUserRepository.findById(id)
+            .orElseThrow(() -> new RoomUserNotFoundException("Player not found"));
     }
+
+    public RoomUser getOrThrowRoomUserByUserAndRoom(User user, Room room){
+        return roomUserRepository.findByUserAndRoom(user, room)
+            .orElseThrow(() -> new RoomUserNotFoundException("User not in room"));
+    }
+
 
     public RoomInvitationToken getRoomInvitationTokenByToken(String token){
         return roomInvitationTokenRepository.findByToken(token)
@@ -88,11 +101,15 @@ public class RoomsUtilityService {
     }
 
     public boolean isRoomExpired(Room room){
-        if(!room.getStatus().equals(RoomStatus.COMPLETED) && room.getLastUpdated().isBefore(LocalDateTime.now().minusSeconds(roomWaitingExpiration))){
-            return true;
-        } else {
+        if(room.getStatus().equals(RoomStatus.COMPLETED) || room.getStatus().equals(RoomStatus.CANCELLED)){
             return false;
         }
+
+        int expiration = room.getStatus().equals(RoomStatus.IN_PROGRESS)
+            ? roomInProgressExpiration
+            : roomWaitingExpiration;
+
+        return room.getLastUpdated().isBefore(LocalDateTime.now().minusSeconds(expiration));
     }
 
     public void throwIfUserIsNotRoomAdmin(Room room, User user){
@@ -106,58 +123,14 @@ public class RoomsUtilityService {
     }
 
     public void throwIfUserNotInRoom(Room room, User user){
-        roomUserRepository.findByDisplayNameAndRoom(user.getUsername(), room)
-            .orElseThrow(() -> new BadActionException("User not in room"));
-    }
-
-    public boolean isDisplayNameInRoom(String displayName, Room room){
-        Optional<RoomUser> result = room.getPlayers()
-            .stream()
-            .filter(p -> p.getRole().equals(RoomUserRoles.ANONYMOUS))
-            .filter(p -> p.getDisplayName().equals(displayName))
-            .findFirst();
-
-        if(result.isPresent()){
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    public void throwIfDisplayNameAlreadyExistsInRoom(String displayName, Room room){
-        Optional<RoomUser> result = room.getPlayers()
-            .stream()
-            .filter(p -> p.getRole().equals(RoomUserRoles.ANONYMOUS))
-            .filter(p -> p.getDisplayName().equals(displayName))
-            .findFirst();
-
-        if(result.isPresent()) throw new BadActionException("Each player needs a unique name");
+        boolean found = room.getPlayers().stream()
+            .anyMatch(p -> p.getUser() != null && p.getUser().getId().equals(user.getId()));
+        if(!found) throw new BadActionException("User not in room");
     }
 
     public void changeRoomStatus(Room room, RoomStatus roomStatus){
         room.setStatus(roomStatus);
         roomRepository.save(room);
-    }
-
-    public RoomUser renameAnonymousPlayer(RoomUser anonymous, Room room){
-        AtomicInteger i = new AtomicInteger(1);
-        while(i.get() < 100){
-            Optional<RoomUser> result = room.getPlayers()
-            .stream()
-            .filter(p -> p.getRole().equals(RoomUserRoles.ANONYMOUS))
-            .filter(p -> p.getDisplayName().equals(anonymous.getDisplayName() + " (" + i.get() + ")"))
-            .findFirst();
-
-            if(result.isEmpty()){
-                anonymous.setDisplayName(anonymous.getDisplayName() + " (" + i.get() + ")");
-                roomUserRepository.save(anonymous);
-                return anonymous;
-            }
-            i.incrementAndGet();
-        }
-
-        throw new BadActionException("There are no available anonymous names for: " + anonymous.getDisplayName());
-
     }
 
     public List<UserAvailabilityResponse> getOccupiedUsers(List<User> users, Room currentRoom){
@@ -211,9 +184,11 @@ public class RoomsUtilityService {
         for(RoomInvitationToken invitation : invitations){
             invitation.setStatus(InvitationStatus.CANCELLED);
         }
-        
+
         roomInvitationTokenRepository.saveAll(invitations);
         roomRepository.save(room);
+
+        sessionUtilitysService.cancelSessionIfExists(room);
     }
     
 }

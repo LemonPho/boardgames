@@ -2,5 +2,7 @@ package com.motomutterers.boardgames.sessions.models.sessionevent;
 
 public enum SessionEventType {
     BIDS,
-    ROUND_RESULT
+    IN_PROGRESS,
+    TRICK_RESULTS,
+    BONUS_POINTS
 }

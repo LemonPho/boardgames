@@ -9,27 +9,36 @@ export interface SessionResponse {
 }
 
 export interface SessionEventResponse {
+  id: string,
   type: string,
   sequence: number,
   payload: {},
   createdAt: Date
 }
 
-export interface TeamSessionEventResponse{
+export interface SessionStateResponse {
+  session: SessionResponse,
+  currentEvent: SessionEventResponse | null
+}
 
+export interface TeamSessionEventResponse {
+  id: string,
+  teamId: string,
+  type: "BIDS" | "TRICK_RESULTS" | "BONUS_POINTS",
+  sequence: number,
+  payload: {},
+  correctsEventId: string | null,
+  createdAt: Date
 }
 
 
 export const SESSION_UPDATED = "SESSION_UPDATED";
 export const SESSION_EVENT = "SESSION_EVENT";
-export const TEAM_SESSION_EVENT = "TEAM_SESSION_EVENT";
 
 export interface SessionTopicMessage{
-  type: typeof SESSION_UPDATED 
-      | typeof SESSION_EVENT
-      | typeof TEAM_SESSION_EVENT,
+  type: typeof SESSION_UPDATED
+      | typeof SESSION_EVENT,
 
   payload:  SessionResponse
           | SessionEventResponse
-          | TeamSessionEventResponse 
 }

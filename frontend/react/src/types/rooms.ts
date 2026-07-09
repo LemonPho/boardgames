@@ -1,4 +1,5 @@
 import type { SimpleGameResponse } from "./games";
+import type { TeamResponse } from "./teams";
 import type { UserResponse } from "./user";
 
 export type RoomStatus = "WAITING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; 
@@ -6,9 +7,11 @@ export type TrackingMode = "ADMIN" | "SELF";
 export type RoomUserRole = "ADMIN" | "ANONYMOUS" | "PLAYER";
 
 export interface RoomUserResponse {
+    id: string,
     user: UserResponse,
     displayName: string,
     role: RoomUserRole,
+    team: TeamResponse | null,
     joinedAt: Date
 }
 

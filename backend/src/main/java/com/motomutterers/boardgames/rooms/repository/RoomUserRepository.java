@@ -6,7 +6,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,9 +27,5 @@ public interface RoomUserRepository extends JpaRepository<RoomUser, UUID> {
     @Query("SELECT ru.room from RoomUser ru JOIN ru.user u JOIN ru.room r WHERE u IN :users AND r.status IN :statuses")
     Set<Room> findRoomsByUsersAndStatuses(@Param("users") List<User> users, @Param("statuses") List<RoomStatus> statuses);
 
-    Optional<RoomUser> findByDisplayNameAndRoom(String displayName, Room room);
-
-    @Modifying
-    @Query("DELETE FROM RoomUser ru WHERE ru.displayName = :displayName AND ru.room = :room")
-    void deleteByDisplayNameAndRoom(@Param("displayName") String displayName, @Param("room") Room room);
+    Optional<RoomUser> findByUserAndRoom(User user, Room room);
 }

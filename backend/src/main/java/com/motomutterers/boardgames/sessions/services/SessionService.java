@@ -1,7 +1,5 @@
 package com.motomutterers.boardgames.sessions.services;
 
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,9 +17,12 @@ import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.dto.CreateSessionRequest;
 import com.motomutterers.boardgames.sessions.dto.SessionResponse;
+import com.motomutterers.boardgames.sessions.dto.SessionStateResponse;
 import com.motomutterers.boardgames.sessions.dto.sessionevent.CreateRoundStartRequest;
+import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.repositories.SessionEventRepository;
 import com.motomutterers.boardgames.sessions.repositories.SessionRepository;
 import com.motomutterers.boardgames.teams.services.TeamUtilityService;
 import com.motomutterers.boardgames.user.model.User;
@@ -32,6 +33,7 @@ public class SessionService {
     private static final Logger logger = LoggerFactory.getLogger(SessionService.class);
 
     private final SessionRepository sessionRepository;
+    private final SessionEventRepository sessionEventRepository;
     private final SessionUtilitysService sessionUtilitysService;
     private final SessionEventService sessionEventService;
     private final RoomsUtilityService roomsUtilityService;
@@ -44,6 +46,7 @@ public class SessionService {
 
     public SessionService(
         SessionRepository sessionRepository,
+        SessionEventRepository sessionEventRepository,
         SessionUtilitysService sessionUtilitysService,
         SessionEventService sessionEventService,
         RoomsUtilityService roomsUtilityService,
@@ -51,6 +54,7 @@ public class SessionService {
         UserService userService
     ) {
         this.sessionRepository = sessionRepository;
+        this.sessionEventRepository = sessionEventRepository;
         this.sessionEventService = sessionEventService;
         this.roomsUtilityService = roomsUtilityService;
         this.teamUtilityService = teamUtilityService;
@@ -67,9 +71,6 @@ public class SessionService {
         Room room = roomsUtilityService.getRoomByName(roomName);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
-        if(roomsUtilityService.isRoomExpired(room)){
-            roomsUtilityService.cancelRoom(room);
-        }
         sessionUtilitysService.throwIfSessionExistsInRoom(room);
 
         if(!room.getStatus().equals(RoomStatus.WAITING)) {
@@ -81,9 +82,8 @@ public class SessionService {
 
         roomsUtilityService.changeRoomStatus(room, RoomStatus.IN_PROGRESS);
         
-        // Currently just hardcodes one person per team since skull-king doesn't have teams
         for(RoomUser player : room.getPlayers()){
-            session.addTeam(teamUtilityService.createTeam(List.of(player), session, player.getDisplayName()));
+            session.addTeam(teamUtilityService.createTeam(player, session));
         }
 
         roomsUtilityService.updateRoomLastUpdated(room);
@@ -91,8 +91,16 @@ public class SessionService {
 
         CreateRoundStartRequest sessionEventRequest = new CreateRoundStartRequest(0, roomName, SessionEventType.BIDS, 1, 1);
 
-        sessionEventService.createRoundStart(sessionEventRequest);
+        sessionEventService.createRoundStart(sessionEventRequest, authentication);
 
         return new SessionResponse(session);
+    }
+
+    public SessionStateResponse getSessionState(String roomName){
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+        SessionEvent currentEvent = sessionEventRepository.findTopBySessionOrderBySequenceDesc(session).orElse(null);
+
+        return new SessionStateResponse(session, currentEvent);
     }
 }

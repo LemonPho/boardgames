@@ -63,6 +63,12 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(401);
+                    response.getWriter().write("Unauthorized");
+                })
+            )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.spa()

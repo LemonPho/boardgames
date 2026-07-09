@@ -52,6 +52,8 @@ public class TeamSessionEvent {
     private String payload;
     private LocalDateTime createdAt;
 
+    public TeamSessionEvent(){}
+
     public TeamSessionEvent(
         Session session,
         SessionEvent sessionEvent,

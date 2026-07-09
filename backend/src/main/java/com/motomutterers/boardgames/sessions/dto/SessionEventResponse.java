@@ -1,6 +1,7 @@
 package com.motomutterers.boardgames.sessions.dto;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.fasterxml.jackson.annotation.JsonRawValue;
@@ -8,6 +9,7 @@ import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 
 
 public class SessionEventResponse {
+    private UUID id;
     private SessionEventType type;
     private int sequence;
 
@@ -18,12 +20,14 @@ public class SessionEventResponse {
     public SessionEventResponse(
         SessionEvent sessionEvent
     ) {
+        this.id = sessionEvent.getId();
         this.type = sessionEvent.getType();
         this.sequence = sessionEvent.getSequence();
         this.payload = sessionEvent.getPayload();
         this.createdAt = sessionEvent.getCreatedAt();
     }
 
+    public UUID getId(){return this.id;}
     public SessionEventType getType(){return this.type;}
     public int getSequence(){return this.sequence;}
     public String getPayload(){return this.payload;}

@@ -3,16 +3,19 @@ package com.motomutterers.boardgames.rooms.model.Room;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.motomutterers.boardgames.teams.models.Team;
 import com.motomutterers.boardgames.user.model.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
 /*
@@ -48,6 +51,10 @@ public class RoomUser {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", columnDefinition = "room_user_roles")
     private RoomUserRoles role;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
 
     @Column(insertable = false, updatable = false)
     private LocalDateTime joinedAt;
@@ -105,6 +112,14 @@ public class RoomUser {
 
     public void setRole(RoomUserRoles role) {
         this.role = role;
+    }
+
+    public Team getTeam(){
+        return team;
+    }
+
+    public void setTeam(Team team){
+        this.team = team;
     }
 
     public void setJoinedAt(LocalDateTime joinedAt){

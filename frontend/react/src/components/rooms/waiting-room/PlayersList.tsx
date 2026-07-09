@@ -11,12 +11,12 @@ export default function PlayersList({ currentPlayer, INVITE_PLAYERS_PANEL }: { c
   const { user } = useUserContext();
   const { setErrorMessage } = useAlertsContext();
 
-  const handleRemovePlayer = async (displayName: string, event: React.MouseEvent): Promise<void> => {
+  const handleRemovePlayer = async (roomUserId: string, event: React.MouseEvent): Promise<void> => {
     event.stopPropagation();
 
     if (room == null) return;
 
-    await removePlayer(displayName, room.name, setErrorMessage);
+    await removePlayer(roomUserId, room.name, setErrorMessage);
   }
 
   if(room == null) return;
@@ -43,9 +43,9 @@ export default function PlayersList({ currentPlayer, INVITE_PLAYERS_PANEL }: { c
       </div>
 
       <div className="flex flex-col gap-2">
-        {room.players.map((player, index) => (
+        {room.players.map((player) => (
           <div
-            key={index}
+            key={player.id}
             className="flex items-center justify-between border border-gray-100 rounded-xl px-4 py-3"
           >
             <div className="flex items-center gap-3">
@@ -83,7 +83,7 @@ export default function PlayersList({ currentPlayer, INVITE_PLAYERS_PANEL }: { c
               {currentPlayer?.role == "ADMIN" && player.user?.username !== user?.username && (
                 <button
                   className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                  onClick={(event) => { handleRemovePlayer(player.displayName, event) }}
+                  onClick={(event) => { handleRemovePlayer(player.id, event) }}
                 >
                   Kick
                 </button>

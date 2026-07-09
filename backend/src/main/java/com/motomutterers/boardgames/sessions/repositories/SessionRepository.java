@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.models.session.SessionStatus;
 
 public interface SessionRepository extends JpaRepository<Session, UUID> {
     Optional<Session> findByRoom(Room room);
+    Optional<Session> findByRoomAndStatus(Room room, SessionStatus status);
 }

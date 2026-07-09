@@ -1,36 +1,69 @@
 import { useState } from "react";
 import { useRoomContext } from "../../../../../context/RoomContext";
-import { useSkullSkingSessionContext } from "../../../../../context/SkullKingSessionContext";
+import { useSessionContext } from "../../../../../context/SessionContext";
+import { useSkullKingSessionContext } from "../../../../../context/SkullKingSessionContext";
 import { AdminBidCard } from "../shared/AdminBidCard";
 
 export default function AdminView() {
   const { room, currentPlayer } = useRoomContext();
+  const { session } = useSessionContext();
+  const { bids, round, cardCount } = useSkullKingSessionContext();
 
-  if (!room || !currentPlayer) return null;
+  if (!room || !currentPlayer || !session) return null;
 
   const adminTracking = room.trackingMode == "ADMIN";
 
-  // local draft state per team, seeded from currentBids when a value first arrives
   const [drafts, setDrafts] = useState<Map<string, number>>(new Map());
 
+  const getDraft = (teamId: string): number => {
+    if (drafts.has(teamId)) return drafts.get(teamId)!;
+    return bids.get(teamId)?.bid ?? 0;
+  }
 
-  const tempFunction = (variable: string):void => {
-    console.log("function");
+  const handleIncrement = (teamId: string): void => {
+    const current = getDraft(teamId);
+    if (current >= cardCount) return;
+    setDrafts(prev => new Map(prev).set(teamId, current + 1));
+  }
+
+  const handleDecrement = (teamId: string): void => {
+    const current = getDraft(teamId);
+    if (current <= 0) return;
+    setDrafts(prev => new Map(prev).set(teamId, current - 1));
+  }
+
+  const handleSubmit = async (teamId: string): Promise<void> => {
+    const bid = getDraft(teamId);
+    // TODO: API call to submit bid for this team
+    console.log("submit bid", teamId, bid);
+  }
+
+  const isModified = (teamId: string): boolean => {
+    if (!drafts.has(teamId)) return false;
+    const submitted = bids.get(teamId);
+    if (!submitted) return drafts.get(teamId)! !== 0;
+    return drafts.get(teamId)! !== submitted.bid;
   }
 
   return (
     <div className="p-4">
+      <div className="text-center mb-1">
+        <span className="text-sm text-neutral-500 dark:text-neutral-400">
+          Round {round} · {cardCount} cards
+        </span>
+      </div>
+      <h2 className="text-lg font-medium text-center mb-6">Bids</h2>
       <div className="grid grid-cols-2 gap-3 mb-4">
-        {room.players.map((player) => (
+        {session.teams.map((team) => (
           <AdminBidCard
-            key={player.displayName}
-            playerName={player.displayName}
-            bid={0}
-            submitted={false}
-            editable={adminTracking || player.displayName == currentPlayer.displayName || player.role == "ANONYMOUS"}
-            onIncrement={() => tempFunction(player.displayName)}
-            onDecrement={() => tempFunction(player.displayName)}
-            onSubmit={() => tempFunction(player.displayName)}
+            key={team.id}
+            playerName={team.player.displayName}
+            bid={getDraft(team.id)}
+            submitted={bids.has(team.id) && !isModified(team.id)}
+            editable={adminTracking}
+            onIncrement={() => handleIncrement(team.id)}
+            onDecrement={() => handleDecrement(team.id)}
+            onSubmit={() => handleSubmit(team.id)}
           />
         ))}
       </div>

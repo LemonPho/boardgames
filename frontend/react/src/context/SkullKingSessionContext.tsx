@@ -1,54 +1,105 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useSessionContext } from "./SessionContext";
-import type { SkullKingPayload } from "../types/skull-king";
+import type { BidsPayload } from "../types/skull-king";
+import type { TeamSessionEventResponse } from "../types/sessions";
+import { parseBidEvent, parseBonusPointEvent, parseTrickResultEvent, type ParsedBidEvent, type ParsedBonusPointEvent, type ParsedTrickResultEvent } from "../util/team-session-events";
 
-interface SkullKingSessionType{
-  gameState: string,
-  round: number,
-  cardCount: number
+export type SkullKingGameState = "BIDS" | "IN_PROGRESS" | "TRICK_RESULTS" | "BONUS_POINTS";
+
+interface SkullKingSessionType {
+  gameState: SkullKingGameState;
+  round: number;
+  cardCount: number;
+  bids: Map<string, ParsedBidEvent>;
+  trickResults: Map<string, ParsedTrickResultEvent>;
+  bonusPoints: Map<string, ParsedBonusPointEvent>;
 }
 
 const SkullKingContext = createContext<SkullKingSessionType | null>(null);
 
-export function SkullKingContextProvider({ children }: { children: React.ReactNode }){
-  const { currentSessionEvent } = useSessionContext();
+export function SkullKingContextProvider({ children }: { children: React.ReactNode }) {
+  const { currentSessionEvent, teamEvents } = useSessionContext();
 
   const [round, setRound] = useState<number>(1);
   const [cardCount, setCardCount] = useState<number>(1);
-  const [payload, setPayload] = useState<SkullKingPayload>();
-  const [gameState, setGameState] = useState<"BIDS" | "PLAYING" | "SUBMIT_TRICKS" | "SUBMIT_BONUS_POINTS">("BIDS");
+  const [gameState, setGameState] = useState<SkullKingGameState>("BIDS");
+
+  const [bids, setBids] = useState<Map<string, ParsedBidEvent>>(new Map());
+  const [trickResults, setTrickResults] = useState<Map<string, ParsedTrickResultEvent>>(new Map());
+  const [bonusPoints, setBonusPoints] = useState<Map<string, ParsedBonusPointEvent>>(new Map());
 
   const processSessionEvent = (): void => {
-    if(!currentSessionEvent) return;
+    if (!currentSessionEvent) return;
 
-    const temp = currentSessionEvent.payload as SkullKingPayload;
-
-    if(currentSessionEvent.type == "BIDS"){ 
-      setGameState("BIDS");
+    switch (currentSessionEvent.type) {
+      case "BIDS": {
+        const payload = currentSessionEvent.payload as BidsPayload;
+        setGameState("BIDS");
+        setRound(payload.round);
+        setCardCount(payload.cardCount);
+        setBids(new Map());
+        break;
+      }
+      case "IN_PROGRESS": {
+        setGameState("IN_PROGRESS");
+        break;
+      }
+      case "TRICK_RESULTS": {
+        setGameState("TRICK_RESULTS");
+        setTrickResults(new Map());
+        break;
+      }
+      case "BONUS_POINTS": {
+        setGameState("BONUS_POINTS");
+        setBonusPoints(new Map());
+        break;
+      }
     }
+  }
 
-    setRound(temp.round);
-    setCardCount(temp.cardCount);
-
+  const processTeamEvent = (event: TeamSessionEventResponse): void => {
+    switch (event.type) {
+      case "BIDS": {
+        const parsed = parseBidEvent(event);
+        setBids(prev => new Map(prev).set(parsed.teamId, parsed));
+        break;
+      }
+      case "TRICK_RESULTS": {
+        const parsed = parseTrickResultEvent(event);
+        setTrickResults(prev => new Map(prev).set(parsed.teamId, parsed));
+        break;
+      }
+      case "BONUS_POINTS": {
+        const parsed = parseBonusPointEvent(event);
+        setBonusPoints(prev => new Map(prev).set(parsed.teamId, parsed));
+        break;
+      }
+    }
   }
 
   useEffect(() => {
-    if(!currentSessionEvent) return;
-
+    if (!currentSessionEvent) return;
     processSessionEvent();
   }, [currentSessionEvent]);
 
-  return(
-    <SkullKingContext.Provider 
-      value={{ gameState, round, cardCount }}
+  useEffect(() => {
+    if (teamEvents.length === 0) return;
+
+    const latestEvent = teamEvents[teamEvents.length - 1];
+    processTeamEvent(latestEvent);
+  }, [teamEvents]);
+
+  return (
+    <SkullKingContext.Provider
+      value={{ gameState, round, cardCount, bids, trickResults, bonusPoints }}
     >
       {children}
     </SkullKingContext.Provider>
   );
 }
 
-export function useSkullSkingSessionContext(){
+export function useSkullKingSessionContext() {
   const ctx = useContext(SkullKingContext);
-  if(!ctx) throw new Error("Skull king context error");
+  if (!ctx) throw new Error("Skull king context error");
   return ctx;
 }

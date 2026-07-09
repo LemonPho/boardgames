@@ -152,7 +152,7 @@ public class RoomService {
         User user = userService.getUserById(userId);
         Room room = roomsUtilityService.getRoomByName(roomName);
 
-        RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(user.getUsername(), room);
+        RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
         roomUserRepository.delete(roomUser);
 
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
@@ -163,10 +163,7 @@ public class RoomService {
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
-
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
-        roomsUtilityService.throwIfDisplayNameAlreadyExistsInRoom(request.getDisplayName(), room);
 
         RoomUser anonymous = new RoomUser(request.getDisplayName(), room);
         roomUserRepository.save(anonymous);
@@ -176,34 +173,16 @@ public class RoomService {
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
-    @Transactional
-    public void renameAnonymousPlayer(CreateAnonymousPlayerRequest request){
-        User user = userService.getUserById(request.getAdminId());
-        Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
-
-        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
-
-        RoomUser anonymous = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(request.getDisplayName(), room);
-
-        anonymous = roomsUtilityService.renameAnonymousPlayer(anonymous, room);
-
-        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
-    }
-
-    //works for both anonymous and players
     @Transactional
     public void removePlayer(RemovePlayerRequest request){
         User user = userService.getUserById(request.getAdminId());
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
-        if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
-
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
-        
-        RoomUser player = roomsUtilityService.getOrThrowRoomUserByDisplayNameAndRoom(request.getDisplayName(), room);
-        roomUserRepository.deleteByDisplayNameAndRoom(player.getDisplayName(), room);
+
+        RoomUser player = roomsUtilityService.getOrThrowRoomUserById(request.getRoomUserId());
+        roomUserRepository.delete(player);
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
@@ -245,10 +224,6 @@ public class RoomService {
             RoomInvitationToken currentInvitation = invitationResult.get();
             roomInvitationTokenRepository.delete(currentInvitation);
         }
-
-        //check if anonymous player already has the same displayName, if so we rename the anonymous player
-        Optional<RoomUser> result = roomUserRepository.findByDisplayNameAndRoom(user.getUsername(), room);
-        if(result.isPresent()) roomsUtilityService.renameAnonymousPlayer(result.get(), room);
 
         RoomInvitationToken roomInvitationToken = new RoomInvitationToken(
             user, 
@@ -323,17 +298,6 @@ public class RoomService {
 
         if(roomInvitationToken.getStatus().equals(InvitationStatus.USED)){
             throw new RoomInvitationTokenUsedException("The invitation was already used, ask for a new one");
-        }
-
-        // In this case there is an anonymous player with the same displayName as the user that was invited
-        if(roomsUtilityService.isDisplayNameInRoom(invitationUser.getUsername(), room)){
-            Optional<RoomUser> result = roomUserRepository.findByDisplayNameAndRoom(invitationUser.getUsername(), room);
-            RoomUser anonymous = result.get();
-            if(!anonymous.getUser().equals(null)){
-                throw new BadActionException("User with that username is already in the room, contact support");
-            }
-
-            roomsUtilityService.renameAnonymousPlayer(anonymous, room);
         }
 
         RoomUser roomUser = new RoomUser(invitationUser, room, RoomUserRoles.PLAYER);

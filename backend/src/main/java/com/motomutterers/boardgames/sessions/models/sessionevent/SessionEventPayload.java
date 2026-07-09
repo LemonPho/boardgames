@@ -4,11 +4,11 @@ import java.util.List;
 
 public sealed interface SessionEventPayload {
 
-    record RoundStart(int round, int cardCount) implements SessionEventPayload {}
+    record Bids(int round, int cardCount) implements SessionEventPayload {}
 
-    record Bids(int round) implements SessionEventPayload {}
+    record InProgress() implements SessionEventPayload {}
 
-    record RoundResults(int round) implements SessionEventPayload {}
+    record TrickResults() implements SessionEventPayload {}
 
-    //record SessionEnd(List<TeamScore> finalScores) implements SessionEventPayload {}
+    record BonusPoints() implements SessionEventPayload {}
 }

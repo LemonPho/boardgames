@@ -64,10 +64,10 @@ export const createAnonymousPlayer = async (displayName: string, roomName: strin
   }
 }
 
-export const removePlayer = async (displayName: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
+export const removePlayer = async (roomUserId: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try{
     await api.post(`/rooms/${roomName}/remove-player`, {
-      displayName: displayName
+      roomUserId: roomUserId
     });
 
   } catch(error) {

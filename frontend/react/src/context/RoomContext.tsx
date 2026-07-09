@@ -5,8 +5,8 @@ import SockJS from "sockjs-client";
 import type { RoomResponse, RoomUserResponse } from "../types/rooms";
 import { getRoom } from "../api/rooms";
 import { useAlertsContext } from "./AlertsContext";
-import type { UserResponse } from "../types/user";
 import { useUserContext } from "./UserContext";
+import { useAuthenticationContext } from "./AuthenticationContext";
 
 interface RoomContextType {
   room: RoomResponse | null;
@@ -19,6 +19,7 @@ const RoomContext = createContext<RoomContextType | null>(null);
 export function RoomContextProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserContext();
   const { setErrorMessage } = useAlertsContext();
+  const { accessToken } = useAuthenticationContext();
   const { name } = useParams();
 
   const [room, setRoom] = useState<RoomResponse | null>(null);
@@ -33,6 +34,9 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
   const connectWebSocket = (roomName: string) => {
     const client = new Client({
       webSocketFactory: () => new SockJS("/ws"),
+      connectHeaders: {
+        Authorization: `Bearer ${accessToken}`
+      },
       onConnect: () => {
         client.subscribe(`/topic/rooms/${roomName}`, (message) => {
           const updatedRoom = JSON.parse(message.body) as RoomResponse;

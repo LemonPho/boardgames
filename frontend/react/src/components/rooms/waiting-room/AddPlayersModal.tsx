@@ -44,12 +44,12 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
   }
 
-  const handleRemovePlayer = async (displayName: string, event: React.MouseEvent): Promise<void> => {
+  const handleRemovePlayer = async (roomUserId: string, event: React.MouseEvent): Promise<void> => {
     event.stopPropagation();
 
     if (room == null) return;
 
-    await removePlayer(displayName, room.name, setErrorMessage);
+    await removePlayer(roomUserId, room.name, setErrorMessage);
   }
 
   const fetchUsernameMatches = async (): Promise<void> => {
@@ -147,7 +147,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
             <div className="flex flex-col gap-1">
               {anonymousPlayers.map((player) => (
                 <div
-                  key={player.displayName}
+                  key={player.id}
                   className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100"
                 >
                   <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
                     <span className="text-sm text-gray-800">{player.displayName}</span>
                   </div>
                   <button
-                    onClick={(event) => handleRemovePlayer(player.displayName, event)}
+                    onClick={(event) => handleRemovePlayer(player.id, event)}
                     className="text-xs text-red-400 hover:text-red-600 transition-colors"
                   >
                     Remove
