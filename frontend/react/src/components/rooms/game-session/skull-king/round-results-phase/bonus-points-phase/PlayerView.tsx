@@ -4,12 +4,17 @@ import { useSkullKingSessionContext } from "../../../../../../context/SkullKingS
 import { useAlertsContext } from "../../../../../../context/AlertsContext";
 import { submitBonusPoints } from "../../../../../../api/skullKing";
 import { EMPTY_BONUS, bonusEligibility, type TeamBonus } from "../../../../../../types/skull-king";
+import { useDebouncedSave } from "../../../../../../util/useDebouncedSave";
 import { BonusCard } from "../../shared/BonusCard";
+
+const sameBonus = (a: TeamBonus | undefined, b: TeamBonus | undefined): boolean =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export default function PlayerView() {
   const { room, currentPlayer } = useRoomContext();
   const { state } = useSkullKingSessionContext();
   const { setErrorMessage } = useAlertsContext();
+  const { schedule } = useDebouncedSave();
 
   const [draft, setDraft] = useState<TeamBonus | null>(null);
 
@@ -21,15 +26,21 @@ export default function PlayerView() {
   const bonuses = state.bonuses ?? {};
 
   const { eligible, reason } = bonusEligibility(bids[teamId], trickResults[teamId]);
-  const submitted = teamId in bonuses;
   const selfTracking = room.trackingMode === "SELF";
 
-  const current = draft ?? bonuses[teamId] ?? EMPTY_BONUS;
+  const serverBonus = bonuses[teamId];
+  const current = draft ?? serverBonus ?? EMPTY_BONUS;
 
-  const handleSubmit = async (): Promise<void> => {
-    if (!selfTracking || !currentPlayer.team) return;
-    const bonus = eligible ? current : EMPTY_BONUS;
-    await submitBonusPoints(room.name, currentPlayer.team.id, bonus, setErrorMessage);
+  const status = (): "saving" | "saved" | null => {
+    if (draft !== null && !sameBonus(draft, serverBonus)) return "saving";
+    if (teamId in bonuses) return "saved";
+    return null;
+  };
+
+  const change = (next: TeamBonus): void => {
+    if (!selfTracking) return;
+    setDraft(next);
+    schedule(teamId, () => submitBonusPoints(room.name, teamId, next, setErrorMessage));
   };
 
   return (
@@ -46,10 +57,9 @@ export default function PlayerView() {
         bonus={current}
         eligible={eligible}
         ineligibleReason={reason}
-        submitted={submitted}
         editable={selfTracking}
-        onChange={setDraft}
-        onSubmit={handleSubmit}
+        status={status()}
+        onChange={change}
       />
     </div>
   );

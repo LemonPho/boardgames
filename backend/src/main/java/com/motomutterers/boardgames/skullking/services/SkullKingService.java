@@ -13,7 +13,6 @@ import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
-import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;
 import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.models.session.Session;
@@ -83,12 +82,17 @@ public class SkullKingService {
         sessionEventService.createSessionEvent(session, SessionEventType.BIDS, new SessionEventPayload.Bids(1, 1));
     }
 
+    @Transactional
     public SkullKingStateResponse getState(String roomName, Authentication authentication){
         User user = userService.getAuthenticatedUser(authentication);
         Room room = roomsUtilityService.getRoomByName(roomName);
         RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
         Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
         boolean isAdmin = roomUser.getRole().equals(RoomUserRoles.ADMIN);
+
+        // Loading or reconnecting to the game keeps the room alive so an active
+        // in-person game isn't expired between server actions.
+        roomsUtilityService.updateRoomLastUpdated(room);
 
         return stateBuilder.buildState(session, roomUser, isAdmin);
     }
@@ -113,8 +117,7 @@ public class SkullKingService {
             throw new BadActionException("Bid must be between 0 and " + bidsPhase.cardCount());
         }
 
-        teamSessionEventService.throwIfTeamAlreadyResponded(currentEvent, team);
-        teamSessionEventService.createTeamSessionEvent(
+        teamSessionEventService.upsertTeamSessionEvent(
             session,
             currentEvent,
             team,
@@ -145,14 +148,14 @@ public class SkullKingService {
             throw new BadActionException("Tricks won must be between 0 and " + cardCount);
         }
 
-        teamSessionEventService.throwIfTeamAlreadyResponded(currentEvent, team);
-
-        int tricksSoFar = sumTricksWon(currentEvent);
-        if(tricksSoFar + request.getTricksWon() > cardCount){
+        // Exclude this team's own existing value: a correction replaces it rather
+        // than adding to the running total.
+        int tricksByOthers = sumTricksWon(currentEvent) - teamTricksWon(currentEvent, team);
+        if(tricksByOthers + request.getTricksWon() > cardCount){
             throw new BadActionException("Total tricks won cannot exceed the " + cardCount + " cards dealt this round");
         }
 
-        teamSessionEventService.createTeamSessionEvent(
+        teamSessionEventService.upsertTeamSessionEvent(
             session,
             currentEvent,
             team,
@@ -270,8 +273,7 @@ public class SkullKingService {
             throw new BadActionException("This team can't earn bonus points — they must make a bid of one or more");
         }
 
-        teamSessionEventService.throwIfTeamAlreadyResponded(currentEvent, team);
-        teamSessionEventService.createTeamSessionEvent(
+        teamSessionEventService.upsertTeamSessionEvent(
             session,
             currentEvent,
             team,
@@ -461,14 +463,24 @@ public class SkullKingService {
             .sum();
     }
 
+    private int teamTricksWon(SessionEvent trickResultsEvent, Team team){
+        Integer value = teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
+        return value == null ? 0 : value;
+    }
+
     private void publishStateChanged(Room room, Session session){
         eventPublisher.publishEvent(new SkullKingStateChangedEvent(room.getName(), session.getId()));
     }
 
     private void throwIfUserCantSubmitForTeam(Room room, RoomUser roomUser, Team team){
-        if(room.getTrackingMode().equals(TrackingMode.ADMIN)){
-            sessionUtilitysService.throwIfUserIsntRoomAdmin(roomUser);
-        } else if(roomUser.getTeam() == null || !roomUser.getTeam().getId().equals(team.getId())){
+        // The admin is the room authority and may submit for any team (they act as
+        // the fallback when advancing a phase, regardless of tracking mode). Other
+        // players may only submit for their own team.
+        if(roomUser.getRole().equals(RoomUserRoles.ADMIN)){
+            return;
+        }
+
+        if(roomUser.getTeam() == null || !roomUser.getTeam().getId().equals(team.getId())){
             throw new UnauthorizedException("You can only submit events for your own team");
         }
     }

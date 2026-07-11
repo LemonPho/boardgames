@@ -1,6 +1,7 @@
 package com.motomutterers.boardgames.sessions.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,5 +15,6 @@ public interface TeamSessionEventRepository extends JpaRepository<TeamSessionEve
     int countBySession(Session session);
     int countBySessionEvent(SessionEvent sessionEvent);
     boolean existsBySessionEventAndTeam(SessionEvent sessionEvent, Team team);
+    Optional<TeamSessionEvent> findBySessionEventAndTeam(SessionEvent sessionEvent, Team team);
     List<TeamSessionEvent> findBySessionEventOrderBySequenceAsc(SessionEvent sessionEvent);
 }

@@ -3,68 +3,53 @@ import { useRoomContext } from "../../../../../../context/RoomContext";
 import { useSkullKingSessionContext } from "../../../../../../context/SkullKingSessionContext";
 import { useAlertsContext } from "../../../../../../context/AlertsContext";
 import { submitTrickResult, startBonusPoints } from "../../../../../../api/skullKing";
+import { useDebouncedSave } from "../../../../../../util/useDebouncedSave";
 import { AdminCounterCard } from "../../shared/AdminCounterCard";
+import { canEditTeam } from "../../shared/permissions";
 
 export default function AdminView() {
   const { room, currentPlayer } = useRoomContext();
   const { state } = useSkullKingSessionContext();
   const { setErrorMessage } = useAlertsContext();
-
-  if (!room || !currentPlayer || !state) return null;
-
-  const adminTracking = room.trackingMode == "ADMIN";
-  const trickResults = state.trickResults ?? {};
+  const { schedule, flush } = useDebouncedSave();
 
   const [drafts, setDrafts] = useState<Map<string, number>>(new Map());
 
-  const getDraft = (teamId: string): number => {
+  if (!room || !currentPlayer || !state) return null;
+
+  const trickResults = state.trickResults ?? {};
+
+  const getValue = (teamId: string): number => {
     if (drafts.has(teamId)) return drafts.get(teamId)!;
     return trickResults[teamId] ?? 0;
-  }
+  };
 
-  const handleIncrement = (teamId: string): void => {
-    const current = getDraft(teamId);
-    if (current >= state.cardCount) return;
-    setDrafts(prev => new Map(prev).set(teamId, current + 1));
-  }
+  const status = (teamId: string): "saving" | "saved" | null => {
+    if (drafts.has(teamId) && drafts.get(teamId) !== trickResults[teamId]) return "saving";
+    if (teamId in trickResults) return "saved";
+    return null;
+  };
 
-  const handleDecrement = (teamId: string): void => {
-    const current = getDraft(teamId);
-    if (current <= 0) return;
-    setDrafts(prev => new Map(prev).set(teamId, current - 1));
-  }
-
-  const handleSubmit = async (teamId: string): Promise<void> => {
-    await submitTrickResult(room.name, teamId, getDraft(teamId), setErrorMessage);
-    setDrafts(prev => {
-      const next = new Map(prev);
-      next.delete(teamId);
-      return next;
-    });
-  }
+  const change = (teamId: string, next: number): void => {
+    if (next < 0 || next > state.cardCount) return;
+    setDrafts(prev => new Map(prev).set(teamId, next));
+    schedule(teamId, () => submitTrickResult(room.name, teamId, next, setErrorMessage));
+  };
 
   const handleStartBonusPoints = async (): Promise<void> => {
-    // Submit any teams whose tricks haven't been registered yet, then advance.
-    // If any submission fails, stop here — the error is already surfaced
-    // and we must not advance the phase.
     try {
-      const pending = state.teams.filter((team) => !(team.id in trickResults));
+      const pending = state.teams.filter((team) => !(team.id in trickResults) && !drafts.has(team.id));
       for (const team of pending) {
-        await submitTrickResult(room.name, team.id, getDraft(team.id), setErrorMessage);
+        await submitTrickResult(room.name, team.id, getValue(team.id), setErrorMessage);
       }
+      await flush();
       await startBonusPoints(room.name, setErrorMessage);
     } catch {
       return;
     }
-  }
+  };
 
-  const isModified = (teamId: string): boolean => {
-    if (!drafts.has(teamId)) return false;
-    if (!(teamId in trickResults)) return drafts.get(teamId)! !== 0;
-    return drafts.get(teamId)! !== trickResults[teamId];
-  }
-
-  const allResultsSubmitted = state.teams.every((team) => team.id in trickResults);
+  const allResultsSubmitted = state.teams.every((team) => team.id in trickResults || drafts.has(team.id));
 
   return (
     <div className="p-4">
@@ -79,19 +64,18 @@ export default function AdminView() {
           <AdminCounterCard
             key={team.id}
             playerName={team.player.displayName}
-            value={getDraft(team.id)}
-            submitted={team.id in trickResults && !isModified(team.id)}
-            editable={adminTracking}
-            onIncrement={() => handleIncrement(team.id)}
-            onDecrement={() => handleDecrement(team.id)}
-            onSubmit={() => handleSubmit(team.id)}
+            editable={canEditTeam(room, currentPlayer, team.id)}
+            team={team}
+            serverValue={trickResults[team.id] ?? 0}
+            max={state.cardCount}
+            status={status(team.id)}
+            change={change}
           />
         ))}
       </div>
 
       <button
         type="button"
-        disabled={!adminTracking && !allResultsSubmitted}
         onClick={handleStartBonusPoints}
         className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
       >

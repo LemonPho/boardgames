@@ -7,10 +7,10 @@ interface BonusCardProps {
   eligible: boolean;
   // Why the team is ineligible, shown when eligible is false.
   ineligibleReason?: string;
-  submitted: boolean;
   editable: boolean;
+  // Reflects the debounced auto-save for this team.
+  status?: "saving" | "saved" | null;
   onChange: (next: TeamBonus) => void;
-  onSubmit: () => void;
 }
 
 export function BonusCard({
@@ -18,12 +18,12 @@ export function BonusCard({
   bonus,
   eligible,
   ineligibleReason,
-  submitted,
   editable,
+  status,
   onChange,
-  onSubmit,
 }: BonusCardProps) {
-  const locked = submitted || !editable;
+  // Edits auto-save; only a non-editable viewer is locked out of the controls.
+  const locked = !editable;
 
   const setCount = (key: keyof TeamBonus, delta: number, max: number): void => {
     const current = bonus[key] as number;
@@ -99,14 +99,12 @@ export function BonusCard({
             />
           </Section>
 
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={locked}
-            className="w-full h-10 rounded-xl text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-50 active:scale-[0.98] transition"
-          >
-            {submitted ? "Locked in" : "Submit"}
-          </button>
+          {!locked && (
+            <div className="h-5 text-center text-sm text-neutral-400">
+              {status === "saving" && "Saving…"}
+              {status === "saved" && "✓ Saved"}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -142,27 +140,31 @@ function Stepper({ label, points, value, max, locked, onDec, onInc }: StepperPro
         <div className="text-xs text-neutral-400">{points}</div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          aria-label={`Decrease ${label}`}
-          onClick={onDec}
-          disabled={locked || value <= 0}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-base border border-neutral-300 dark:border-neutral-700 disabled:opacity-30 active:scale-95 transition"
-        >
-          −
-        </button>
+        {!locked && (
+          <button
+            type="button"
+            aria-label={`Decrease ${label}`}
+            onClick={onDec}
+            disabled={value <= 0}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-base border border-neutral-300 dark:border-neutral-700 disabled:opacity-30 active:scale-95 transition"
+          >
+            −
+          </button>
+        )}
         <span className="text-base font-semibold min-w-[20px] text-center tabular-nums">
           {value}
         </span>
-        <button
-          type="button"
-          aria-label={`Increase ${label}`}
-          onClick={onInc}
-          disabled={locked || value >= max}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-base border border-neutral-300 dark:border-neutral-700 disabled:opacity-30 active:scale-95 transition"
-        >
-          +
-        </button>
+        {!locked && (
+          <button
+            type="button"
+            aria-label={`Increase ${label}`}
+            onClick={onInc}
+            disabled={value >= max}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-base border border-neutral-300 dark:border-neutral-700 disabled:opacity-30 active:scale-95 transition"
+          >
+            +
+          </button>
+        )}
       </div>
     </div>
   );
@@ -178,20 +180,14 @@ interface ToggleProps {
 }
 
 function Toggle({ label, points, active, locked, featured, onToggle }: ToggleProps) {
-  const base = "w-full flex items-center justify-between gap-3 rounded-xl px-3 border transition active:scale-[0.99] disabled:active:scale-100";
+  const base = "w-full flex items-center justify-between gap-3 rounded-xl px-3 border transition";
+  const interactive = "active:scale-[0.99]";
   const height = featured ? "py-3" : "py-2";
   const activeStyle = "bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100";
   const inactiveStyle = "bg-neutral-50 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700";
 
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={active}
-      onClick={onToggle}
-      disabled={locked}
-      className={`${base} ${height} ${active ? activeStyle : inactiveStyle} disabled:opacity-50`}
-    >
+  const content = (
+    <>
       <div className="flex items-center gap-2.5 min-w-0">
         <span
           className={`w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0 ${
@@ -205,6 +201,27 @@ function Toggle({ label, points, active, locked, featured, onToggle }: TogglePro
         <span className={`truncate ${featured ? "text-sm font-medium" : "text-sm"}`}>{label}</span>
       </div>
       <span className={`text-xs shrink-0 ${active ? "opacity-80" : "text-neutral-400"}`}>{points}</span>
+    </>
+  );
+
+  // When locked, render a static row (no interaction) instead of a disabled button.
+  if (locked) {
+    return (
+      <div className={`${base} ${height} ${active ? activeStyle : inactiveStyle}`}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={active}
+      onClick={onToggle}
+      className={`${base} ${interactive} ${height} ${active ? activeStyle : inactiveStyle}`}
+    >
+      {content}
     </button>
   );
 }

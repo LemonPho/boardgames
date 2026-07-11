@@ -4,53 +4,52 @@ import { useSkullKingSessionContext } from "../../../../../../context/SkullKingS
 import { useAlertsContext } from "../../../../../../context/AlertsContext";
 import { submitBonusPoints, finishRound } from "../../../../../../api/skullKing";
 import { EMPTY_BONUS, bonusEligibility, type TeamBonus } from "../../../../../../types/skull-king";
+import { useDebouncedSave } from "../../../../../../util/useDebouncedSave";
 import { BonusCard } from "../../shared/BonusCard";
+import { canEditTeam } from "../../shared/permissions";
+
+const sameBonus = (a: TeamBonus | undefined, b: TeamBonus | undefined): boolean =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export default function AdminView() {
   const { room, currentPlayer } = useRoomContext();
   const { state } = useSkullKingSessionContext();
   const { setErrorMessage } = useAlertsContext();
+  const { schedule, flush } = useDebouncedSave();
 
   const [drafts, setDrafts] = useState<Map<string, TeamBonus>>(new Map());
 
   if (!room || !currentPlayer || !state) return null;
 
-  const adminTracking = room.trackingMode == "ADMIN";
   const bids = state.bids ?? {};
   const trickResults = state.trickResults ?? {};
   const bonuses = state.bonuses ?? {};
 
   const eligibility = (teamId: string) => bonusEligibility(bids[teamId], trickResults[teamId]);
 
-  const getDraft = (teamId: string): TeamBonus =>
+  const getValue = (teamId: string): TeamBonus =>
     drafts.get(teamId) ?? bonuses[teamId] ?? EMPTY_BONUS;
 
-  const setDraft = (teamId: string, next: TeamBonus): void => {
+  const status = (teamId: string): "saving" | "saved" | null => {
+    if (drafts.has(teamId) && !sameBonus(drafts.get(teamId), bonuses[teamId])) return "saving";
+    if (teamId in bonuses) return "saved";
+    return null;
+  };
+
+  const change = (teamId: string, next: TeamBonus): void => {
     setDrafts(prev => new Map(prev).set(teamId, next));
-  };
-
-  const clearDraft = (teamId: string): void => {
-    setDrafts(prev => {
-      const map = new Map(prev);
-      map.delete(teamId);
-      return map;
-    });
-  };
-
-  const submitTeam = async (teamId: string): Promise<void> => {
-    // An ineligible team (missed bid, or made a zero bid) submits an empty record.
-    const bonus = eligibility(teamId).eligible ? getDraft(teamId) : EMPTY_BONUS;
-    await submitBonusPoints(room.name, teamId, bonus, setErrorMessage);
-    clearDraft(teamId);
+    schedule(teamId, () => submitBonusPoints(room.name, teamId, next, setErrorMessage));
   };
 
   const handleFinishRound = async (): Promise<void> => {
-    // Submit any teams not yet recorded, then finish. Stop on the first failure.
     try {
-      const pending = state.teams.filter((team) => !(team.id in bonuses));
+      // Record any team not yet saved (ineligible teams save an empty record), flush, then finish.
+      const pending = state.teams.filter((team) => !(team.id in bonuses) && !drafts.has(team.id));
       for (const team of pending) {
-        await submitTeam(team.id);
+        const bonus = eligibility(team.id).eligible ? getValue(team.id) : EMPTY_BONUS;
+        await submitBonusPoints(room.name, team.id, bonus, setErrorMessage);
       }
+      await flush();
       await finishRound(room.name, setErrorMessage);
     } catch {
       return;
@@ -73,13 +72,12 @@ export default function AdminView() {
             <BonusCard
               key={team.id}
               playerName={team.player.displayName}
-              bonus={getDraft(team.id)}
+              bonus={getValue(team.id)}
               eligible={eligible}
               ineligibleReason={reason}
-              submitted={team.id in bonuses}
-              editable={adminTracking}
-              onChange={(next) => setDraft(team.id, next)}
-              onSubmit={() => submitTeam(team.id)}
+              editable={canEditTeam(room, currentPlayer, team.id)}
+              status={status(team.id)}
+              onChange={(next) => change(team.id, next)}
             />
           );
         })}
@@ -87,7 +85,6 @@ export default function AdminView() {
 
       <button
         type="button"
-        disabled={!adminTracking && !state.teams.every((team) => team.id in bonuses)}
         onClick={handleFinishRound}
         className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
       >
