@@ -5,10 +5,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.motomutterers.boardgames.sessions.models.session.Session;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.teams.models.Team;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -49,7 +53,11 @@ public class TeamSessionEvent {
     private TeamSessionEventType type;
 
     private int sequence;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
     private String payload;
+
     private LocalDateTime createdAt;
 
     public TeamSessionEvent(){}
@@ -68,12 +76,14 @@ public class TeamSessionEvent {
         this.type = type;
         this.sequence = sequence;
         this.payload = payload;
+        this.createdAt = LocalDateTime.now();
     }
 
     public UUID getId(){return this.id;}
     public Session getSession(){return this.session;}
     public SessionEvent getSessionEvent(){return this.sessionEvent;}
     public Team getTeam(){return this.team;}
+    public TeamSessionEvent getCorrectsEvent(){return this.correctsEvent;}
     public TeamSessionEventType getType(){return this.type;}
     public int getSequence(){return this.sequence;}
     public String getPayload(){return this.payload;}

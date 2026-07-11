@@ -1,98 +1,79 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { useSessionContext } from "./SessionContext";
-import type { BidsPayload } from "../types/skull-king";
-import type { TeamSessionEventResponse } from "../types/sessions";
-import { parseBidEvent, parseBonusPointEvent, parseTrickResultEvent, type ParsedBidEvent, type ParsedBonusPointEvent, type ParsedTrickResultEvent } from "../util/team-session-events";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Client } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
+import { useRoomContext } from "./RoomContext";
+import { useAuthenticationContext } from "./AuthenticationContext";
+import { useAlertsContext } from "./AlertsContext";
+import { getSkullKingState } from "../api/skullKing";
+import type { SkullKingState } from "../types/skull-king";
 
-export type SkullKingGameState = "BIDS" | "IN_PROGRESS" | "TRICK_RESULTS" | "BONUS_POINTS";
-
-interface SkullKingSessionType {
-  gameState: SkullKingGameState;
-  round: number;
-  cardCount: number;
-  bids: Map<string, ParsedBidEvent>;
-  trickResults: Map<string, ParsedTrickResultEvent>;
-  bonusPoints: Map<string, ParsedBonusPointEvent>;
+interface SkullKingSessionContextType {
+  state: SkullKingState | null;
+  loading: boolean;
 }
 
-const SkullKingContext = createContext<SkullKingSessionType | null>(null);
+const SkullKingContext = createContext<SkullKingSessionContextType | null>(null);
 
 export function SkullKingContextProvider({ children }: { children: React.ReactNode }) {
-  const { currentSessionEvent, teamEvents } = useSessionContext();
+  const { room, currentPlayer } = useRoomContext();
+  const { accessToken } = useAuthenticationContext();
+  const { setErrorMessage } = useAlertsContext();
 
-  const [round, setRound] = useState<number>(1);
-  const [cardCount, setCardCount] = useState<number>(1);
-  const [gameState, setGameState] = useState<SkullKingGameState>("BIDS");
+  const [state, setState] = useState<SkullKingState | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const [bids, setBids] = useState<Map<string, ParsedBidEvent>>(new Map());
-  const [trickResults, setTrickResults] = useState<Map<string, ParsedTrickResultEvent>>(new Map());
-  const [bonusPoints, setBonusPoints] = useState<Map<string, ParsedBonusPointEvent>>(new Map());
+  const roomName = room?.name;
+  const role = currentPlayer?.role;
+  const teamId = currentPlayer?.team?.id;
 
-  const processSessionEvent = (): void => {
-    if (!currentSessionEvent) return;
-
-    switch (currentSessionEvent.type) {
-      case "BIDS": {
-        const payload = currentSessionEvent.payload as BidsPayload;
-        setGameState("BIDS");
-        setRound(payload.round);
-        setCardCount(payload.cardCount);
-        setBids(new Map());
-        break;
-      }
-      case "IN_PROGRESS": {
-        setGameState("IN_PROGRESS");
-        break;
-      }
-      case "TRICK_RESULTS": {
-        setGameState("TRICK_RESULTS");
-        setTrickResults(new Map());
-        break;
-      }
-      case "BONUS_POINTS": {
-        setGameState("BONUS_POINTS");
-        setBonusPoints(new Map());
-        break;
-      }
-    }
-  }
-
-  const processTeamEvent = (event: TeamSessionEventResponse): void => {
-    switch (event.type) {
-      case "BIDS": {
-        const parsed = parseBidEvent(event);
-        setBids(prev => new Map(prev).set(parsed.teamId, parsed));
-        break;
-      }
-      case "TRICK_RESULTS": {
-        const parsed = parseTrickResultEvent(event);
-        setTrickResults(prev => new Map(prev).set(parsed.teamId, parsed));
-        break;
-      }
-      case "BONUS_POINTS": {
-        const parsed = parseBonusPointEvent(event);
-        setBonusPoints(prev => new Map(prev).set(parsed.teamId, parsed));
-        break;
-      }
-    }
-  }
-
+  // Fetch the initial state whenever the room changes.
   useEffect(() => {
-    if (!currentSessionEvent) return;
-    processSessionEvent();
-  }, [currentSessionEvent]);
+    if (!roomName) return;
 
+    const fetchState = async () => {
+      try {
+        setLoading(true);
+        const fetched = await getSkullKingState(roomName, setErrorMessage);
+        setState(fetched);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchState();
+  }, [roomName]);
+
+  // Subscribe to live state updates. Keyed on the concrete values the
+  // subscription depends on so it rebuilds cleanly once the team is known.
   useEffect(() => {
-    if (teamEvents.length === 0) return;
+    if (!roomName || !role) return;
+    if (role !== "ADMIN" && !teamId) return;
 
-    const latestEvent = teamEvents[teamEvents.length - 1];
-    processTeamEvent(latestEvent);
-  }, [teamEvents]);
+    const topic = role === "ADMIN"
+      ? `/topic/sessions/${roomName}/admin`
+      : `/topic/sessions/${roomName}/teams/${teamId}`;
+
+    const client = new Client({
+      webSocketFactory: () => new SockJS("/ws"),
+      connectHeaders: {
+        Authorization: `Bearer ${accessToken}`
+      },
+      onConnect: () => {
+        client.subscribe(topic, (message) => {
+          setState(JSON.parse(message.body) as SkullKingState);
+        });
+      }
+    });
+
+    client.activate();
+
+    return () => {
+      client.deactivate();
+    };
+  }, [roomName, role, teamId, accessToken]);
 
   return (
-    <SkullKingContext.Provider
-      value={{ gameState, round, cardCount, bids, trickResults, bonusPoints }}
-    >
+    <SkullKingContext.Provider value={{ state, loading }}>
       {children}
     </SkullKingContext.Provider>
   );

@@ -30,6 +30,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
     await invitePlayerToRoom(username, room.name, setErrorMessage);
     setSuccessMessage("User invited");
+    await fetchUsernameMatches();
   }
 
   const handleDisplayNameInputChange = (event: React.ChangeEvent<HTMLInputElement>): void => {

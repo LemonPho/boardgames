@@ -17,13 +17,10 @@ import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.dto.CreateSessionRequest;
 import com.motomutterers.boardgames.sessions.dto.SessionResponse;
-import com.motomutterers.boardgames.sessions.dto.SessionStateResponse;
-import com.motomutterers.boardgames.sessions.dto.sessionevent.CreateRoundStartRequest;
-import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
-import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.motomutterers.boardgames.sessions.models.session.Session;
-import com.motomutterers.boardgames.sessions.repositories.SessionEventRepository;
 import com.motomutterers.boardgames.sessions.repositories.SessionRepository;
+
+import com.motomutterers.boardgames.skullking.services.SkullKingService;
 import com.motomutterers.boardgames.teams.services.TeamUtilityService;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
@@ -33,9 +30,8 @@ public class SessionService {
     private static final Logger logger = LoggerFactory.getLogger(SessionService.class);
 
     private final SessionRepository sessionRepository;
-    private final SessionEventRepository sessionEventRepository;
     private final SessionUtilitysService sessionUtilitysService;
-    private final SessionEventService sessionEventService;
+    private final SkullKingService skullKingService;
     private final RoomsUtilityService roomsUtilityService;
     private final TeamUtilityService teamUtilityService;
     private final UserService userService;
@@ -46,16 +42,14 @@ public class SessionService {
 
     public SessionService(
         SessionRepository sessionRepository,
-        SessionEventRepository sessionEventRepository,
         SessionUtilitysService sessionUtilitysService,
-        SessionEventService sessionEventService,
+        SkullKingService skullKingService,
         RoomsUtilityService roomsUtilityService,
         TeamUtilityService teamUtilityService,
         UserService userService
     ) {
         this.sessionRepository = sessionRepository;
-        this.sessionEventRepository = sessionEventRepository;
-        this.sessionEventService = sessionEventService;
+        this.skullKingService = skullKingService;
         this.roomsUtilityService = roomsUtilityService;
         this.teamUtilityService = teamUtilityService;
         this.userService = userService;
@@ -89,18 +83,8 @@ public class SessionService {
         roomsUtilityService.updateRoomLastUpdated(room);
         eventPublisher.publishEvent(new RoomUpdatedEvent(roomName));
 
-        CreateRoundStartRequest sessionEventRequest = new CreateRoundStartRequest(0, roomName, SessionEventType.BIDS, 1, 1);
-
-        sessionEventService.createRoundStart(sessionEventRequest, authentication);
+        skullKingService.createInitialRound(session);
 
         return new SessionResponse(session);
-    }
-
-    public SessionStateResponse getSessionState(String roomName){
-        Room room = roomsUtilityService.getRoomByName(roomName);
-        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
-        SessionEvent currentEvent = sessionEventRepository.findTopBySessionOrderBySequenceDesc(session).orElse(null);
-
-        return new SessionStateResponse(session, currentEvent);
     }
 }

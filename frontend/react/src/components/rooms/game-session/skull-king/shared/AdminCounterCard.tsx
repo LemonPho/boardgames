@@ -1,6 +1,6 @@
-interface AdminBidCardProps {
+interface AdminCounterCardProps {
   playerName: string;
-  bid: number;
+  value: number;
   submitted: boolean;
   editable: boolean;
   onIncrement: () => void;
@@ -8,15 +8,15 @@ interface AdminBidCardProps {
   onSubmit: () => void;
 }
 
-export function AdminBidCard({
+export function AdminCounterCard({
   playerName,
-  bid,
+  value,
   submitted,
   editable,
   onIncrement,
   onDecrement,
   onSubmit,
-}: AdminBidCardProps) {
+}: AdminCounterCardProps) {
   return (
     <div className="bg-white border border-neutral-200 rounded-xl p-3 flex flex-col gap-3">
       <span className="font-medium text-sm truncate">{playerName}</span>
@@ -24,7 +24,7 @@ export function AdminBidCard({
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          aria-label={`Decrease ${playerName}'s bid`}
+          aria-label={`Decrease ${playerName}'s value`}
           onClick={onDecrement}
           disabled={submitted || !editable}
           className="w-9 h-9 rounded-full flex items-center justify-center text-base border border-neutral-300 disabled:opacity-40 active:scale-95 transition"
@@ -32,11 +32,11 @@ export function AdminBidCard({
           −
         </button>
         <span className="text-xl font-medium min-w-[28px] text-center tabular-nums">
-          {bid}
+          {value}
         </span>
         <button
           type="button"
-          aria-label={`Increase ${playerName}'s bid`}
+          aria-label={`Increase ${playerName}'s value`}
           onClick={onIncrement}
           disabled={submitted || !editable}
           className="w-9 h-9 rounded-full flex items-center justify-center text-base border border-neutral-300 disabled:opacity-40 active:scale-95 transition"

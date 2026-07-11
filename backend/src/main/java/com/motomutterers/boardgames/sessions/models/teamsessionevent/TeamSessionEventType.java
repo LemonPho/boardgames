@@ -5,3 +5,4 @@ public enum TeamSessionEventType {
     TRICK_RESULTS,
     BONUS_POINTS
 }
+

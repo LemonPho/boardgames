@@ -1,22 +1,56 @@
+import { useState } from "react";
 import { useRoomContext } from "../../../../../../context/RoomContext";
 import { useSkullKingSessionContext } from "../../../../../../context/SkullKingSessionContext";
+import { useAlertsContext } from "../../../../../../context/AlertsContext";
+import { submitBonusPoints } from "../../../../../../api/skullKing";
+import { EMPTY_BONUS, bonusEligibility, type TeamBonus } from "../../../../../../types/skull-king";
+import { BonusCard } from "../../shared/BonusCard";
 
 export default function PlayerView() {
-  const { currentPlayer } = useRoomContext();
-  const { bonusPoints } = useSkullKingSessionContext();
+  const { room, currentPlayer } = useRoomContext();
+  const { state } = useSkullKingSessionContext();
+  const { setErrorMessage } = useAlertsContext();
 
-  if (!currentPlayer || !currentPlayer.team) return null;
+  const [draft, setDraft] = useState<TeamBonus | null>(null);
 
-  const myBonus = bonusPoints.get(currentPlayer.team.id);
+  if (!room || !currentPlayer || !currentPlayer.team || !state) return null;
+
+  const teamId = currentPlayer.team.id;
+  const bids = state.bids ?? {};
+  const trickResults = state.trickResults ?? {};
+  const bonuses = state.bonuses ?? {};
+
+  const { eligible, reason } = bonusEligibility(bids[teamId], trickResults[teamId]);
+  const submitted = teamId in bonuses;
+  const selfTracking = room.trackingMode === "SELF";
+
+  const current = draft ?? bonuses[teamId] ?? EMPTY_BONUS;
+
+  const handleSubmit = async (): Promise<void> => {
+    if (!selfTracking || !currentPlayer.team) return;
+    const bonus = eligible ? current : EMPTY_BONUS;
+    await submitBonusPoints(room.name, currentPlayer.team.id, bonus, setErrorMessage);
+  };
 
   return (
     <div className="p-4">
-      <div className="border border-gray-100 rounded-xl px-4 py-3">
-        <span className="text-sm text-gray-800">{currentPlayer.displayName}</span>
-        <div className="ml-2 text-sm font-medium inline">
-          {myBonus ? `${myBonus.points} (${myBonus.source})` : "—"}
-        </div>
+      <div className="text-center mb-1">
+        <span className="text-sm text-neutral-500 dark:text-neutral-400">
+          Round {state.round} · {state.cardCount} cards
+        </span>
       </div>
+      <h2 className="text-lg font-medium text-center mb-6">Bonus points</h2>
+
+      <BonusCard
+        playerName={currentPlayer.displayName}
+        bonus={current}
+        eligible={eligible}
+        ineligibleReason={reason}
+        submitted={submitted}
+        editable={selfTracking}
+        onChange={setDraft}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }

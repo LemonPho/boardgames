@@ -1,14 +1,12 @@
 package com.motomutterers.boardgames.sessions.models.sessionevent;
 
-import java.util.List;
-
 public sealed interface SessionEventPayload {
 
     record Bids(int round, int cardCount) implements SessionEventPayload {}
 
-    record InProgress() implements SessionEventPayload {}
+    record InProgress(int round, int cardCount) implements SessionEventPayload {}
 
-    record TrickResults() implements SessionEventPayload {}
+    record TrickResults(int round, int cardCount) implements SessionEventPayload {}
 
-    record BonusPoints() implements SessionEventPayload {}
+    record BonusPoints(int round, int cardCount) implements SessionEventPayload {}
 }

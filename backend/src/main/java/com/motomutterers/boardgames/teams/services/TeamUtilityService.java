@@ -41,4 +41,10 @@ public class TeamUtilityService {
         return teamRepository.findById(UUID.fromString(teamId))
             .orElseThrow(() -> new TeamNotFoundException("Team with id: " + teamId + " not found."));
     }
+
+    @Transactional
+    public void addToScore(Team team, long delta){
+        team.setFinalScore(team.getFinalScore() + delta);
+        teamRepository.save(team);
+    }
 }

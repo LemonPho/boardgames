@@ -16,7 +16,6 @@ import com.motomutterers.boardgames.sessions.exceptions.SessionNotFoundException
 import com.motomutterers.boardgames.sessions.models.session.Session;
 import com.motomutterers.boardgames.sessions.models.session.SessionStatus;
 import com.motomutterers.boardgames.sessions.repositories.SessionRepository;
-import com.motomutterers.boardgames.user.model.User;
 
 @Service
 public class SessionUtilitysService {
@@ -42,6 +41,11 @@ public class SessionUtilitysService {
     @Transactional(propagation=Propagation.REQUIRES_NEW)
     public void cancelSession(Session session){
         session.setStatus(SessionStatus.CANCELLED);
+        sessionRepository.save(session);
+    }
+
+    public void completeSession(Session session){
+        session.setStatus(SessionStatus.COMPLETED);
         sessionRepository.save(session);
     }
 

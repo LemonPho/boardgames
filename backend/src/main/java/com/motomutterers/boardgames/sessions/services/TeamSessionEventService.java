@@ -1,55 +1,64 @@
 package com.motomutterers.boardgames.sessions.services;
 
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
-import com.motomutterers.boardgames.exceptions.UnauthorizedException;
-import com.motomutterers.boardgames.rooms.model.Room.Room;
-import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
+import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
-import com.motomutterers.boardgames.sessions.dto.teamsessionevent.CreateTeamSessionEventRequest;
 import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
+import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEvent;
+import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEventPayload;
+import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEventType;
+import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventRepository;
 import com.motomutterers.boardgames.teams.models.Team;
-import com.motomutterers.boardgames.teams.services.TeamUtilityService;
-import com.motomutterers.boardgames.user.model.User;
-import com.motomutterers.boardgames.user.services.UserService;
 
 import jakarta.transaction.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class TeamSessionEventService {
-    private final SessionUtilitysService sessionUtilitysService;
+    private final TeamSessionEventRepository teamSessionEventRepository;
     private final RoomsUtilityService roomsUtilityService;
-    private final TeamUtilityService teamUtilityService;
-    private final UserService userService;
-
+    private final ObjectMapper objectMapper;
 
     public TeamSessionEventService(
-        SessionUtilitysService sessionUtilitysService,
+        TeamSessionEventRepository teamSessionEventRepository,
         RoomsUtilityService roomsUtilityService,
-        TeamUtilityService teamUtilityService,
-        UserService userService
+        ObjectMapper objectMapper
     ){
-        this.sessionUtilitysService = sessionUtilitysService;
+        this.teamSessionEventRepository = teamSessionEventRepository;
         this.roomsUtilityService = roomsUtilityService;
-        this.teamUtilityService = teamUtilityService;
-        this.userService = userService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
-    public void createTeamSessionEvent(
-        String sessionId,
-        CreateTeamSessionEventRequest request,
-        Authentication authentication
+    public TeamSessionEvent createTeamSessionEvent(
+        Session session,
+        SessionEvent sessionEvent,
+        Team team,
+        TeamSessionEventType type,
+        TeamSessionEventPayload payload
     ){
-        User user = userService.getAuthenticatedUser(authentication);
-        Session session = sessionUtilitysService.getOrThrowSessionById(sessionId);
-        Room room = session.getRoom();
-        RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
-        Team team = teamUtilityService.getOrThrowTeamById(sessionId);
+        int nextSequence = teamSessionEventRepository.countBySession(session) + 1;
 
-        if(!roomUser.equals(team.getRoomUser())){
-            throw new UnauthorizedException("You do not have permission to modify team events on this team");
+        TeamSessionEvent teamSessionEvent = new TeamSessionEvent(
+            session,
+            sessionEvent,
+            team,
+            type,
+            nextSequence,
+            objectMapper.writeValueAsString(payload)
+        );
+
+        teamSessionEventRepository.save(teamSessionEvent);
+        roomsUtilityService.updateRoomLastUpdated(session.getRoom());
+
+        return teamSessionEvent;
+    }
+
+    public void throwIfTeamAlreadyResponded(SessionEvent sessionEvent, Team team){
+        if(teamSessionEventRepository.existsBySessionEventAndTeam(sessionEvent, team)){
+            throw new BadActionException("This team has already responded to the current event");
         }
     }
 }
