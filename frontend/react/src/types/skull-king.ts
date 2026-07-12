@@ -39,6 +39,22 @@ export function bonusTotal(b: TeamBonus): number {
     + b.loot * 20;
 }
 
+export interface RoundHistoryTeam {
+  teamId: string;
+  playerName: string | null;
+  bid: number | null;
+  tricksWon: number | null;
+  bonus: TeamBonus | null;
+  roundScore: number;
+}
+
+export interface RoundHistory {
+  round: number;
+  cardCount: number;
+  completed: boolean;
+  teams: RoundHistoryTeam[];
+}
+
 export interface BonusEligibility {
   eligible: boolean;
   reason?: string;

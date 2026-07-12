@@ -52,9 +52,13 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   }
 
   const restoreSession = async (): Promise<void> => {
-    const response = await refresh(setLoading);
-    if (response) {
-      setAccessToken(response.accessToken);
+    try {
+      const response = await refresh();
+      if (response) {
+        setAccessToken(response.accessToken);
+      }
+    } finally {
+      setLoading(false);
     }
   }
 

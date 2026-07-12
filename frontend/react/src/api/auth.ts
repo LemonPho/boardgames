@@ -57,15 +57,9 @@ export const login = async (data: LoginRequest, setErrors: (errors: LoginErrors 
     
 }
 
-export const refresh = async(setLoading: (loading: boolean) => void): Promise<AuthResponse> => {
-    try{
-        const response = await auth.post("/refresh");
-        setLoading(false);
-        return response.data
-    } catch(error) {
-        setLoading(false);
-        throw error;
-    }
+export const refresh = async(): Promise<AuthResponse> => {
+    const response = await auth.post("/refresh");
+    return response.data;
 }
 
 export const logout = async (setErrorMessage: (message: string) => void): Promise<boolean> => {

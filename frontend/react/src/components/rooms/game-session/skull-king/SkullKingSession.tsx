@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useSkullKingSessionContext } from "../../../../context/SkullKingSessionContext";
+import { LiveRoundDataProvider } from "../../../../context/RoundDataContext";
 import { useUIContext } from "../../../../context/UIContext";
 import { useRoomContext } from "../../../../context/RoomContext";
 import { useAlertsContext } from "../../../../context/AlertsContext";
@@ -69,7 +70,9 @@ export default function SkullKingSession() {
         </div>
       </header>
 
-      {renderPhase()}
+      <LiveRoundDataProvider>
+        {renderPhase()}
+      </LiveRoundDataProvider>
 
       <ScoreboardModal id={SCOREBOARD_PANEL} />
     </div>

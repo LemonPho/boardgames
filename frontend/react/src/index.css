@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Force light mode everywhere: neutralize `dark:` variants by binding them to a
+   selector that is never present, so they never activate regardless of the
+   system's prefers-color-scheme setting. */
+@custom-variant dark (&:where(.__never-dark__ *));
+
+/* Also opt the page itself out of the browser's dark UA styles. */
+:root {
+  color-scheme: light;
+}

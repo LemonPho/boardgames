@@ -53,21 +53,6 @@ export default function Header() {
               >
                 Sign out
               </button>
-
-              <hr />
-              <button 
-                onClick={deleteAccessToken}
-                className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50"
-              >
-                DELETE TOKEN
-              </button>
-
-              <button 
-                onClick={restoreSession}
-                className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50"
-              >
-                RESTORE SESSION
-              </button>
             </Dropdown>
           }
 

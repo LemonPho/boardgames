@@ -1,5 +1,6 @@
 package com.motomutterers.boardgames.sessions.services;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -52,5 +53,9 @@ public class SessionEventService {
 
     public Optional<SessionEvent> findLatestEventOfType(Session session, SessionEventType type){
         return sessionEventRepository.findTopBySessionAndTypeOrderBySequenceDesc(session, type);
+    }
+
+    public List<SessionEvent> findAllEvents(Session session){
+        return sessionEventRepository.findBySessionOrderBySequenceAsc(session);
     }
 }

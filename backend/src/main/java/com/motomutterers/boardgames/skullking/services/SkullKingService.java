@@ -25,10 +25,13 @@ import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventReposi
 import com.motomutterers.boardgames.sessions.services.SessionEventService;
 import com.motomutterers.boardgames.sessions.services.SessionUtilitysService;
 import com.motomutterers.boardgames.sessions.services.TeamSessionEventService;
+import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
+import com.motomutterers.boardgames.skullking.dto.RoundHistoryTeamResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitBonusPointsRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitTrickResultRequest;
+import com.motomutterers.boardgames.skullking.dto.TeamBonusResponse;
 import com.motomutterers.boardgames.skullking.events.SkullKingStateChangedEvent;
 import com.motomutterers.boardgames.teams.models.Team;
 import com.motomutterers.boardgames.teams.services.TeamUtilityService;
@@ -95,6 +98,86 @@ public class SkullKingService {
         roomsUtilityService.updateRoomLastUpdated(room);
 
         return stateBuilder.buildState(session, roomUser, isAdmin);
+    }
+
+    public RoundHistoryResponse getRoundHistory(String roomName, int round, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        // Each round is a run of session events (BIDS → IN_PROGRESS → TRICK_RESULTS →
+        // BONUS_POINTS), each payload carrying its round number. Corrections overwrite
+        // team events in place, so there's exactly one session event of each type per round.
+        List<SessionEvent> events = sessionEventService.findAllEvents(session);
+
+        SessionEvent bidsEvent = findRoundEvent(events, round, SessionEventType.BIDS);
+        if(bidsEvent == null){
+            throw new BadActionException("Round " + round + " has not started yet");
+        }
+        SessionEvent trickResultsEvent = findRoundEvent(events, round, SessionEventType.TRICK_RESULTS);
+        SessionEvent bonusEvent = findRoundEvent(events, round, SessionEventType.BONUS_POINTS);
+
+        SessionEventPayload.Bids bidsPayload = objectMapper.readValue(bidsEvent.getPayload(), SessionEventPayload.Bids.class);
+        boolean completed = bonusEvent != null;
+
+        List<RoundHistoryTeamResponse> teamRows = session.getTeams().stream()
+            .map(team -> buildRoundTeamRow(team, bidsPayload.cardCount(), bidsEvent, trickResultsEvent, bonusEvent))
+            .toList();
+
+        return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, teamRows);
+    }
+
+    private RoundHistoryTeamResponse buildRoundTeamRow(
+        Team team,
+        int cardCount,
+        SessionEvent bidsEvent,
+        SessionEvent trickResultsEvent,
+        SessionEvent bonusEvent
+    ){
+        Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
+        Integer tricksWon = trickResultsEvent == null ? null : teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
+        TeamSessionEventPayload.BonusPoints bonus = bonusEvent == null ? null : teamBonus(bonusEvent, team);
+
+        // The round only contributes a score once it's fully entered (bids + tricks).
+        long roundScore = (bid != null && tricksWon != null)
+            ? scoreTeamRound(bid, tricksWon, cardCount, bonus)
+            : 0;
+
+        TeamBonusResponse bonusResponse = bonus == null ? null : new TeamBonusResponse(
+            bonus.standardFourteens(),
+            bonus.blackFourteen(),
+            bonus.mermaidsByPirate(),
+            bonus.piratesBySkullKing(),
+            bonus.skullKingByMermaid(),
+            bonus.loot()
+        );
+
+        return new RoundHistoryTeamResponse(
+            team.getId(),
+            team.getRoomUser() != null ? team.getRoomUser().getDisplayName() : null,
+            bid,
+            tricksWon,
+            bonusResponse,
+            roundScore
+        );
+    }
+
+    private SessionEvent findRoundEvent(List<SessionEvent> events, int round, SessionEventType type){
+        return events.stream()
+            .filter(event -> event.getType().equals(type))
+            .filter(event -> eventRound(event) == round)
+            .reduce((first, second) -> second) // latest wins if somehow duplicated
+            .orElse(null);
+    }
+
+    private int eventRound(SessionEvent event){
+        return switch(event.getType()){
+            case BIDS -> objectMapper.readValue(event.getPayload(), SessionEventPayload.Bids.class).round();
+            case IN_PROGRESS -> objectMapper.readValue(event.getPayload(), SessionEventPayload.InProgress.class).round();
+            case TRICK_RESULTS -> objectMapper.readValue(event.getPayload(), SessionEventPayload.TrickResults.class).round();
+            case BONUS_POINTS -> objectMapper.readValue(event.getPayload(), SessionEventPayload.BonusPoints.class).round();
+        };
     }
 
     @Transactional

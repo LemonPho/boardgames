@@ -21,11 +21,6 @@ export function PlayerCounterCard({
 }: PlayerCounterCardProps) {
   return (
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-6">
-      <div className="text-center mb-1">
-        <span className="text-sm text-neutral-500 dark:text-neutral-400">
-          Round {round} · {cardCount} cards
-        </span>
-      </div>
       <h2 className="text-lg font-medium text-center mb-6">{title}</h2>
 
       <div className="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl py-8 px-4 flex items-center justify-center gap-6 mb-4">

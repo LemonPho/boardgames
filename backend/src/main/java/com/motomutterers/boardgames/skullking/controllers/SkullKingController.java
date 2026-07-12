@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitBonusPointsRequest;
@@ -32,6 +33,15 @@ public class SkullKingController {
         Authentication authentication
     ){
         return ResponseEntity.ok(skullKingService.getState(roomName, authentication));
+    }
+
+    @GetMapping("/rounds/{round}")
+    public ResponseEntity<RoundHistoryResponse> getRoundHistory(
+        @PathVariable String roomName,
+        @PathVariable int round,
+        Authentication authentication
+    ){
+        return ResponseEntity.ok(skullKingService.getRoundHistory(roomName, round, authentication));
     }
 
     @PostMapping("/bids")

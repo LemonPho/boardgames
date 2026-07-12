@@ -1,4 +1,4 @@
-import type { SkullKingState, TeamBonus } from "../types/skull-king";
+import type { RoundHistory, SkullKingState, TeamBonus } from "../types/skull-king";
 import { setAxiosError } from "../util/api"
 import { api } from "./axiosSetup";
 
@@ -9,6 +9,20 @@ export const getSkullKingState = async (
   try {
     const response = await api.get(`/skull-king/${roomName}/state`);
     return response.data as SkullKingState;
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const getRoundHistory = async (
+  roomName: string,
+  round: number,
+  setErrorMessage: (message: string) => void
+): Promise<RoundHistory> => {
+  try {
+    const response = await api.get(`/skull-king/${roomName}/rounds/${round}`);
+    return response.data as RoundHistory;
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;

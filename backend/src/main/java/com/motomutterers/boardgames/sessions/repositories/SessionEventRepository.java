@@ -1,5 +1,6 @@
 package com.motomutterers.boardgames.sessions.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,4 +13,5 @@ import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventTyp
 public interface SessionEventRepository extends JpaRepository<SessionEvent, UUID>{
     Optional<SessionEvent> findTopBySessionOrderBySequenceDesc(Session session);
     Optional<SessionEvent> findTopBySessionAndTypeOrderBySequenceDesc(Session session, SessionEventType type);
+    List<SessionEvent> findBySessionOrderBySequenceAsc(Session session);
 }
