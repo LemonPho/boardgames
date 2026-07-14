@@ -13,6 +13,7 @@ import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
+import com.motomutterers.boardgames.skullking.dto.SetKrakenRequest;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitBonusPointsRequest;
@@ -77,6 +78,17 @@ public class SkullKingController {
         Authentication authentication
     ){
         skullKingService.correctBonus(roomName, round, request, authentication);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/rounds/{round}/kraken")
+    public ResponseEntity<Void> setKraken(
+        @PathVariable String roomName,
+        @PathVariable int round,
+        @RequestBody SetKrakenRequest request,
+        Authentication authentication
+    ){
+        skullKingService.setKraken(roomName, round, request.getKrakenPlayed(), authentication);
         return ResponseEntity.ok().build();
     }
 

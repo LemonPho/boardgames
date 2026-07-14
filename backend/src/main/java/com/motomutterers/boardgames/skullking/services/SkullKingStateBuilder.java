@@ -87,7 +87,8 @@ public class SkullKingStateBuilder {
                 return new BidsStateResponse(currentEvent.getType(), round, cardCount, teams, bids);
             case TRICK_RESULTS: {
                 Map<UUID, Integer> trickResults = buildTrickResultsMap(currentEvent, roomUser, isAdmin);
-                return new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, teams, bids, trickResults);
+                boolean krakenPlayed = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
+                return new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, teams, bids, trickResults, krakenPlayed);
             }
             case BONUS_POINTS: {
                 SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElse(null);

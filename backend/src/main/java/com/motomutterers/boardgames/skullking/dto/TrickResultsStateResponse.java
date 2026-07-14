@@ -10,6 +10,7 @@ import com.motomutterers.boardgames.teams.dto.TeamResponse;
 public class TrickResultsStateResponse extends SkullKingStateResponse {
     private Map<UUID, Integer> bids;
     private Map<UUID, Integer> trickResults;
+    private boolean krakenPlayed;
 
     public TrickResultsStateResponse(
         SessionEventType gameState,
@@ -17,13 +18,16 @@ public class TrickResultsStateResponse extends SkullKingStateResponse {
         int cardCount,
         List<TeamResponse> teams,
         Map<UUID, Integer> bids,
-        Map<UUID, Integer> trickResults
+        Map<UUID, Integer> trickResults,
+        boolean krakenPlayed
     ){
         super(gameState, round, cardCount, teams);
         this.bids = bids;
         this.trickResults = trickResults;
+        this.krakenPlayed = krakenPlayed;
     }
 
     public Map<UUID, Integer> getBids(){return this.bids;}
     public Map<UUID, Integer> getTrickResults(){return this.trickResults;}
+    public boolean getKrakenPlayed(){return this.krakenPlayed;}
 }

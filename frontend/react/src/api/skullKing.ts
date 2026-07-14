@@ -71,6 +71,20 @@ export const correctBonus = async (
   }
 }
 
+export const setKraken = async (
+  roomName: string,
+  round: number,
+  krakenPlayed: boolean,
+  setErrorMessage: (message: string) => void
+): Promise<void> => {
+  try {
+    await api.post(`/skull-king/${roomName}/rounds/${round}/kraken`, { krakenPlayed });
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
 export const submitBid = async (
   roomName: string,
   teamId: string,

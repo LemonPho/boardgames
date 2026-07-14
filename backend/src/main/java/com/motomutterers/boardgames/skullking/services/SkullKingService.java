@@ -123,12 +123,14 @@ public class SkullKingService {
 
         SessionEventPayload.Bids bidsPayload = objectMapper.readValue(bidsEvent.getPayload(), SessionEventPayload.Bids.class);
         boolean completed = bonusEvent != null;
+        boolean krakenPlayed = trickResultsEvent != null
+            && objectMapper.readValue(trickResultsEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
 
         List<RoundHistoryTeamResponse> teamRows = session.getTeams().stream()
             .map(team -> buildRoundTeamRow(team, bidsPayload.cardCount(), bidsEvent, trickResultsEvent, bonusEvent))
             .toList();
 
-        return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, teamRows);
+        return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, krakenPlayed, teamRows);
     }
 
     // --- Past-round corrections (admin only; each section validated and saved as a set) ---
@@ -173,6 +175,8 @@ public class SkullKingService {
         SessionEvent bidsEvent = requireRoundEvent(session, round, SessionEventType.BIDS);
         SessionEvent tricksEvent = requireRoundEvent(session, round, SessionEventType.TRICK_RESULTS);
         int cardCount = roundCardCount(bidsEvent);
+        SessionEventPayload.TrickResults phase = objectMapper.readValue(tricksEvent.getPayload(), SessionEventPayload.TrickResults.class);
+        int expected = expectedTrickTotal(phase);
 
         int total = 0;
         for(CorrectTricksRequest.TeamValue tv : request.getTeams()){
@@ -181,8 +185,8 @@ public class SkullKingService {
             }
             total += tv.getValue();
         }
-        if(total != cardCount){
-            throw new BadActionException("Total tricks won (" + total + ") must equal the " + cardCount + " cards dealt this round");
+        if(total != expected){
+            throw new BadActionException("Total tricks won (" + total + ") must equal " + expected + trickTotalReason(phase));
         }
 
         for(CorrectTricksRequest.TeamValue tv : request.getTeams()){
@@ -195,6 +199,23 @@ public class SkullKingService {
         // Ineligible teams keep their stored bonus (see correctBids) — scoring ignores
         // it while ineligible and restores it if the team qualifies again.
         recomputeScores(session);
+        publishStateChanged(room, session);
+    }
+
+    @Transactional
+    public void setKraken(String roomName, int round, boolean krakenPlayed, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        SessionEvent tricksEvent = requireRoundEvent(session, round, SessionEventType.TRICK_RESULTS);
+        SessionEventPayload.TrickResults phase = objectMapper.readValue(tricksEvent.getPayload(), SessionEventPayload.TrickResults.class);
+
+        sessionEventService.updatePayload(
+            tricksEvent,
+            new SessionEventPayload.TrickResults(phase.round(), phase.cardCount(), krakenPlayed));
+
         publishStateChanged(room, session);
     }
 
@@ -450,7 +471,7 @@ public class SkullKingService {
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.TRICK_RESULTS,
-            new SessionEventPayload.TrickResults(inProgressPhase.round(), inProgressPhase.cardCount()));
+            new SessionEventPayload.TrickResults(inProgressPhase.round(), inProgressPhase.cardCount(), false));
 
         publishStateChanged(room, session);
     }
@@ -475,16 +496,16 @@ public class SkullKingService {
         }
 
         SessionEventPayload.TrickResults trickResultsPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class);
-        int cardCount = trickResultsPhase.cardCount();
+        int expected = expectedTrickTotal(trickResultsPhase);
         int totalTricks = sumTricksWon(currentEvent);
-        if(totalTricks != cardCount){
-            throw new BadActionException("Total tricks won (" + totalTricks + ") must equal the " + cardCount + " cards dealt this round");
+        if(totalTricks != expected){
+            throw new BadActionException("Total tricks won (" + totalTricks + ") must equal " + expected + trickTotalReason(trickResultsPhase));
         }
 
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.BONUS_POINTS,
-            new SessionEventPayload.BonusPoints(trickResultsPhase.round(), cardCount));
+            new SessionEventPayload.BonusPoints(trickResultsPhase.round(), trickResultsPhase.cardCount()));
 
         publishStateChanged(room, session);
     }
@@ -717,6 +738,18 @@ public class SkullKingService {
     private int teamTricksWon(SessionEvent trickResultsEvent, Team team){
         Integer value = teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
         return value == null ? 0 : value;
+    }
+
+    // A Kraken destroys one trick (won by nobody), so the teams' tricks must sum to
+    // one fewer than the cards dealt.
+    private int expectedTrickTotal(SessionEventPayload.TrickResults phase){
+        return phase.cardCount() - (phase.krakenPlayed() ? 1 : 0);
+    }
+
+    private String trickTotalReason(SessionEventPayload.TrickResults phase){
+        return phase.krakenPlayed()
+            ? " (" + phase.cardCount() + " cards − 1 Kraken trick)"
+            : " — the " + phase.cardCount() + " cards dealt this round";
     }
 
     private void publishStateChanged(Room room, Session session){

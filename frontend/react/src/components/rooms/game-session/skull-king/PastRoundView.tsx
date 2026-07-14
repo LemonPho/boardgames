@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { getRoundHistory, correctBids, correctTricks, correctBonus } from "../../../../api/skullKing";
+import { getRoundHistory, correctBids, correctTricks, correctBonus, setKraken } from "../../../../api/skullKing";
 import { useAlertsContext } from "../../../../context/AlertsContext";
 import { useRoomContext } from "../../../../context/RoomContext";
-import { EMPTY_BONUS, bonusEligibility, bonusTotal, type RoundHistory, type TeamBonus } from "../../../../types/skull-king";
+import { EMPTY_BONUS, bonusEligibility, type RoundHistory, type TeamBonus } from "../../../../types/skull-king";
 import { AdminCounterCard } from "./shared/AdminCounterCard";
 import { BonusCard } from "./shared/BonusCard";
+import { KrakenToggle } from "./shared/KrakenToggle";
 import type { TeamResponse } from "../../../../types/teams";
 
 type Section = "bids" | "tricks" | "bonus";
@@ -27,6 +28,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
   const [bidDrafts, setBidDrafts] = useState<Map<string, number>>(new Map());
   const [trickDrafts, setTrickDrafts] = useState<Map<string, number>>(new Map());
   const [bonusDrafts, setBonusDrafts] = useState<Map<string, TeamBonus>>(new Map());
+  const [krakenDraft, setKrakenDraft] = useState<boolean>(false);
 
   const isAdmin = currentPlayer?.role === "ADMIN";
 
@@ -64,6 +66,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
     setBidDrafts(new Map(teams.map((t) => [t.teamId, t.bid ?? 0])));
     setTrickDrafts(new Map(teams.map((t) => [t.teamId, t.tricksWon ?? 0])));
     setBonusDrafts(new Map(teams.map((t) => [t.teamId, t.bonus ?? EMPTY_BONUS])));
+    setKrakenDraft(history.krakenPlayed);
     setEditing(section);
   };
 
@@ -81,6 +84,11 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
   const saveTricks = async (): Promise<void> => {
     setSaving(true);
     try {
+      // Set the Kraken flag first so the trick-total validation uses the new
+      // expected sum (cardCount − 1 when a Kraken destroyed a trick).
+      if (krakenDraft !== history.krakenPlayed) {
+        await setKraken(roomName, round, krakenDraft, setErrorMessage);
+      }
       await correctTricks(roomName, round, teams.map((t) => ({ teamId: t.teamId, value: trickDrafts.get(t.teamId) ?? 0 })), setErrorMessage);
       setEditing(null);
       await load();
@@ -147,6 +155,13 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           onCancel={cancelEdit}
           onSave={saveTricks}
         >
+          <div className="mb-3">
+            <KrakenToggle
+              krakenPlayed={editing === "tricks" ? krakenDraft : history.krakenPlayed}
+              editable={editing === "tricks"}
+              onToggle={setKrakenDraft}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {teams.map((t) => (
               <AdminCounterCard

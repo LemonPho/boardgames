@@ -15,6 +15,7 @@ import {
   startTrickResults,
   finishRound,
   startBonusPoints,
+  setKraken,
 } from "../api/skullKing";
 
 export type SaveStatus = "saving" | "saved" | null;
@@ -45,6 +46,10 @@ export interface RoundData {
   setBid: (teamId: string, value: number) => void;
   setTricks: (teamId: string, value: number) => void;
   setBonus: (teamId: string, bonus: TeamBonus) => void;
+
+  // A Kraken destroyed a trick this round: teams' tricks must sum to cardCount − 1.
+  krakenPlayed: boolean;
+  setKrakenPlayed: (value: boolean) => void;
 
   // The admin action that advances past the current phase; null when there's
   // nothing to advance (e.g. a read-only past round).
@@ -128,6 +133,10 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     schedule(teamId, () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage));
   };
 
+  const setKrakenPlayed = (value: boolean): void => {
+    schedule("__kraken__", () => setKraken(room.name, state.round, value, setErrorMessage));
+  };
+
   // --- Phase advance (admin only; each phase submits any stragglers, flushes, then transitions) ---
 
   const advanceBids = async (): Promise<void> => {
@@ -185,6 +194,8 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     setBid,
     setTricks,
     setBonus,
+    krakenPlayed: state.krakenPlayed ?? false,
+    setKrakenPlayed,
     advance,
     advanceLabel,
   };

@@ -19,6 +19,7 @@ export interface SkullKingState {
   bids?: Record<string, number>;
   trickResults?: Record<string, number>;
   bonuses?: Record<string, TeamBonus>;
+  krakenPlayed?: boolean;
 }
 
 export const EMPTY_BONUS: TeamBonus = {
@@ -52,6 +53,7 @@ export interface RoundHistory {
   round: number;
   cardCount: number;
   completed: boolean;
+  krakenPlayed: boolean;
   teams: RoundHistoryTeam[];
 }
 

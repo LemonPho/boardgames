@@ -58,4 +58,11 @@ public class SessionEventService {
     public List<SessionEvent> findAllEvents(Session session){
         return sessionEventRepository.findBySessionOrderBySequenceAsc(session);
     }
+
+    @Transactional
+    public void updatePayload(SessionEvent sessionEvent, SessionEventPayload payload){
+        sessionEvent.setPayload(objectMapper.writeValueAsString(payload));
+        sessionEventRepository.save(sessionEvent);
+        roomsUtilityService.updateRoomLastUpdated(sessionEvent.getSession().getRoom());
+    }
 }
