@@ -43,8 +43,8 @@ public class TeamUtilityService {
     }
 
     @Transactional
-    public void addToScore(Team team, long delta){
-        team.setFinalScore(team.getFinalScore() + delta);
+    public void setScore(Team team, long score){
+        team.setFinalScore(score);
         teamRepository.save(team);
     }
 }

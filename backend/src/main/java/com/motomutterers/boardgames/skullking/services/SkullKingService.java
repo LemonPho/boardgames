@@ -25,6 +25,9 @@ import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventReposi
 import com.motomutterers.boardgames.sessions.services.SessionEventService;
 import com.motomutterers.boardgames.sessions.services.SessionUtilitysService;
 import com.motomutterers.boardgames.sessions.services.TeamSessionEventService;
+import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
+import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
+import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryTeamResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
@@ -126,6 +129,159 @@ public class SkullKingService {
             .toList();
 
         return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, teamRows);
+    }
+
+    // --- Past-round corrections (admin only; each section validated and saved as a set) ---
+
+    @Transactional
+    public void correctBids(String roomName, int round, CorrectBidsRequest request, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        SessionEvent bidsEvent = requireRoundEvent(session, round, SessionEventType.BIDS);
+        int cardCount = roundCardCount(bidsEvent);
+
+        for(CorrectBidsRequest.TeamValue tv : request.getTeams()){
+            if(tv.getValue() < 0 || tv.getValue() > cardCount){
+                throw new BadActionException("Bid must be between 0 and " + cardCount);
+            }
+        }
+
+        for(CorrectBidsRequest.TeamValue tv : request.getTeams()){
+            Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
+            teamSessionEventService.upsertTeamSessionEvent(
+                session, bidsEvent, team, TeamSessionEventType.BIDS,
+                new TeamSessionEventPayload.Bids(tv.getValue()));
+        }
+
+        // A team that becomes ineligible keeps its stored bonus untouched; scoring
+        // already ignores bonuses unless the team makes a positive bid, so the bonus
+        // simply reappears if the team qualifies again.
+        recomputeScores(session);
+        publishStateChanged(room, session);
+    }
+
+    @Transactional
+    public void correctTricks(String roomName, int round, CorrectTricksRequest request, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        SessionEvent bidsEvent = requireRoundEvent(session, round, SessionEventType.BIDS);
+        SessionEvent tricksEvent = requireRoundEvent(session, round, SessionEventType.TRICK_RESULTS);
+        int cardCount = roundCardCount(bidsEvent);
+
+        int total = 0;
+        for(CorrectTricksRequest.TeamValue tv : request.getTeams()){
+            if(tv.getValue() < 0 || tv.getValue() > cardCount){
+                throw new BadActionException("Tricks won must be between 0 and " + cardCount);
+            }
+            total += tv.getValue();
+        }
+        if(total != cardCount){
+            throw new BadActionException("Total tricks won (" + total + ") must equal the " + cardCount + " cards dealt this round");
+        }
+
+        for(CorrectTricksRequest.TeamValue tv : request.getTeams()){
+            Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
+            teamSessionEventService.upsertTeamSessionEvent(
+                session, tricksEvent, team, TeamSessionEventType.TRICK_RESULTS,
+                new TeamSessionEventPayload.TrickResults(tv.getValue()));
+        }
+
+        // Ineligible teams keep their stored bonus (see correctBids) — scoring ignores
+        // it while ineligible and restores it if the team qualifies again.
+        recomputeScores(session);
+        publishStateChanged(room, session);
+    }
+
+    @Transactional
+    public void correctBonus(String roomName, int round, CorrectBonusRequest request, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        SessionEvent bidsEvent = requireRoundEvent(session, round, SessionEventType.BIDS);
+        SessionEvent tricksEvent = requireRoundEvent(session, round, SessionEventType.TRICK_RESULTS);
+        SessionEvent bonusEvent = requireRoundEvent(session, round, SessionEventType.BONUS_POINTS);
+
+        for(CorrectBonusRequest.TeamBonusValue tv : request.getTeams()){
+            validateBonusRange(tv);
+            boolean hasBonus = bonusHasAny(tv);
+            if(hasBonus && !roundEligibleForBonus(bidsEvent, tricksEvent, tv.getTeamId())){
+                throw new BadActionException("A team can only earn bonus points if it made a bid of one or more");
+            }
+        }
+
+        int lootTotal = request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getLoot).sum();
+        int lootMax = request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getLoot).max().orElse(0);
+        validateLoot(lootTotal, lootMax);
+
+        for(CorrectBonusRequest.TeamBonusValue tv : request.getTeams()){
+            Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
+            teamSessionEventService.upsertTeamSessionEvent(
+                session, bonusEvent, team, TeamSessionEventType.BONUS_POINTS,
+                new TeamSessionEventPayload.BonusPoints(
+                    tv.getStandardFourteens(), tv.getBlackFourteen(), tv.getMermaidsByPirate(),
+                    tv.getPiratesBySkullKing(), tv.getSkullKingByMermaid(), tv.getLoot()));
+        }
+
+        recomputeScores(session);
+        publishStateChanged(room, session);
+    }
+
+    private SessionEvent requireRoundEvent(Session session, int round, SessionEventType type){
+        SessionEvent event = findRoundEvent(sessionEventService.findAllEvents(session), round, type);
+        if(event == null){
+            throw new BadActionException("Round " + round + " does not have a " + type + " phase to correct");
+        }
+        return event;
+    }
+
+    private int roundCardCount(SessionEvent bidsEvent){
+        return objectMapper.readValue(bidsEvent.getPayload(), SessionEventPayload.Bids.class).cardCount();
+    }
+
+    private boolean roundEligibleForBonus(SessionEvent bidsEvent, SessionEvent tricksEvent, String teamId){
+        Integer bid = teamValueById(bidsEvent, teamId, TeamSessionEventType.BIDS);
+        Integer tricksWon = teamValueById(tricksEvent, teamId, TeamSessionEventType.TRICK_RESULTS);
+        if(bid == null || tricksWon == null) return false;
+        return bid > 0 && bid.equals(tricksWon);
+    }
+
+    // Recomputes every team's finalScore from scratch by replaying all fully-entered
+    // rounds. This is the single source of truth for scores — used after finishing a
+    // round and after any correction — so edits can never drift from the accumulator.
+    private void recomputeScores(Session session){
+        List<SessionEvent> events = sessionEventService.findAllEvents(session);
+
+        List<Integer> rounds = events.stream()
+            .filter(e -> e.getType().equals(SessionEventType.BIDS))
+            .map(this::eventRound)
+            .distinct()
+            .toList();
+
+        for(Team team : session.getTeams()){
+            long total = 0;
+            for(int round : rounds){
+                SessionEvent bidsEvent = findRoundEvent(events, round, SessionEventType.BIDS);
+                SessionEvent tricksEvent = findRoundEvent(events, round, SessionEventType.TRICK_RESULTS);
+                SessionEvent bonusEvent = findRoundEvent(events, round, SessionEventType.BONUS_POINTS);
+                if(bidsEvent == null || tricksEvent == null) continue; // round not scorable yet
+
+                Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
+                Integer tricksWon = teamValue(tricksEvent, team, TeamSessionEventType.TRICK_RESULTS);
+                if(bid == null || tricksWon == null) continue;
+
+                TeamSessionEventPayload.BonusPoints bonus = bonusEvent == null ? null : teamBonus(bonusEvent, team);
+                total += scoreTeamRound(bid, tricksWon, roundCardCount(bidsEvent), bonus);
+            }
+            teamUtilityService.setScore(team, total);
+        }
     }
 
     private RoundHistoryTeamResponse buildRoundTeamRow(
@@ -395,7 +551,7 @@ public class SkullKingService {
 
         SessionEventPayload.BonusPoints bonusPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.BonusPoints.class);
 
-        scoreRound(session, currentEvent, bonusPhase.cardCount());
+        recomputeScores(session);
 
         if(bonusPhase.round() >= MAX_ROUNDS){
             completeSession(session, room);
@@ -417,20 +573,6 @@ public class SkullKingService {
         // The session is no longer IN_PROGRESS, so we broadcast a room update
         // (clients switch to the final scoreboard) rather than a game-state update.
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
-    }
-
-    private void scoreRound(Session session, SessionEvent bonusEvent, int cardCount){
-        SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElseThrow();
-        SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElseThrow();
-
-        for(Team team : session.getTeams()){
-            Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
-            Integer tricksWon = teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
-            if(bid == null || tricksWon == null) continue;
-
-            long roundScore = scoreTeamRound(bid, tricksWon, cardCount, teamBonus(bonusEvent, team));
-            teamUtilityService.addToScore(team, roundScore);
-        }
     }
 
     private long scoreTeamRound(int bid, int tricksWon, int cardCount, TeamSessionEventPayload.BonusPoints bonus){
@@ -498,12 +640,14 @@ public class SkullKingService {
             .map(event -> objectMapper.readValue(event.getPayload(), TeamSessionEventPayload.BonusPoints.class).loot())
             .toList();
 
-        int total = loots.stream().mapToInt(Integer::intValue).sum();
-        int max = loots.stream().mapToInt(Integer::intValue).max().orElse(0);
+        validateLoot(loots.stream().mapToInt(Integer::intValue).sum(),
+                     loots.stream().mapToInt(Integer::intValue).max().orElse(0));
+    }
 
-        // Every loot alliance pays exactly two teams, so credits come in pairs:
-        // total must be even, at most 4 (two loot cards), and pairable (no team
-        // can hold more credits than there are alliances).
+    // Every loot alliance pays exactly two teams, so credits come in pairs: the
+    // total must be even, at most 4 (two loot cards), and pairable (no team can
+    // hold more credits than there are alliances).
+    private void validateLoot(int total, int max){
         if(total % 2 != 0){
             throw new BadActionException("Loot coins must total an even number — every alliance pays two teams");
         }
@@ -513,6 +657,26 @@ public class SkullKingService {
         if(total > 0 && max > total / 2){
             throw new BadActionException("Loot coins can't be paired — a team holds more coins than there are alliances");
         }
+    }
+
+    private void validateBonusRange(CorrectBonusRequest.TeamBonusValue tv){
+        if(tv.getStandardFourteens() < 0 || tv.getStandardFourteens() > 3){
+            throw new BadActionException("Standard 14s captured must be between 0 and 3");
+        }
+        if(tv.getMermaidsByPirate() < 0 || tv.getMermaidsByPirate() > 2){
+            throw new BadActionException("Mermaids captured by a pirate must be between 0 and 2");
+        }
+        if(tv.getPiratesBySkullKing() < 0 || tv.getPiratesBySkullKing() > 5){
+            throw new BadActionException("Pirates captured by the Skull King must be between 0 and 5");
+        }
+        if(tv.getLoot() < 0 || tv.getLoot() > 2){
+            throw new BadActionException("Loot per team must be between 0 and 2");
+        }
+    }
+
+    private boolean bonusHasAny(CorrectBonusRequest.TeamBonusValue tv){
+        return tv.getStandardFourteens() > 0 || tv.getBlackFourteen() || tv.getMermaidsByPirate() > 0
+            || tv.getPiratesBySkullKing() > 0 || tv.getSkullKingByMermaid() || tv.getLoot() > 0;
     }
 
     private boolean eligibleForBonus(Session session, Team team){
@@ -529,9 +693,13 @@ public class SkullKingService {
     }
 
     private Integer teamValue(SessionEvent sessionEvent, Team team, TeamSessionEventType type){
+        return teamValueById(sessionEvent, team.getId().toString(), type);
+    }
+
+    private Integer teamValueById(SessionEvent sessionEvent, String teamId, TeamSessionEventType type){
         return teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(sessionEvent).stream()
             .filter(event -> event.getType().equals(type))
-            .filter(event -> event.getTeam().getId().equals(team.getId()))
+            .filter(event -> event.getTeam().getId().toString().equals(teamId))
             .map(event -> type.equals(TeamSessionEventType.BIDS)
                 ? objectMapper.readValue(event.getPayload(), TeamSessionEventPayload.Bids.class).bid()
                 : objectMapper.readValue(event.getPayload(), TeamSessionEventPayload.TrickResults.class).tricksWon())

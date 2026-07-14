@@ -29,6 +29,48 @@ export const getRoundHistory = async (
   }
 }
 
+export const correctBids = async (
+  roomName: string,
+  round: number,
+  teams: { teamId: string; value: number }[],
+  setErrorMessage: (message: string) => void
+): Promise<void> => {
+  try {
+    await api.post(`/skull-king/${roomName}/rounds/${round}/bids`, { teams });
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const correctTricks = async (
+  roomName: string,
+  round: number,
+  teams: { teamId: string; value: number }[],
+  setErrorMessage: (message: string) => void
+): Promise<void> => {
+  try {
+    await api.post(`/skull-king/${roomName}/rounds/${round}/tricks`, { teams });
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+export const correctBonus = async (
+  roomName: string,
+  round: number,
+  teams: (TeamBonus & { teamId: string })[],
+  setErrorMessage: (message: string) => void
+): Promise<void> => {
+  try {
+    await api.post(`/skull-king/${roomName}/rounds/${round}/bonus`, { teams });
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
 export const submitBid = async (
   roomName: string,
   teamId: string,

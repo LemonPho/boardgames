@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSkullKingSessionContext } from "../../../../context/SkullKingSessionContext";
 import { LiveRoundDataProvider } from "../../../../context/RoundDataContext";
@@ -10,6 +11,7 @@ import RoundInProgressPhase from "./round-in-progress-phase/RoundInProgressPhase
 import BonusPointsPhase from "./round-results-phase/bonus-points-phase/BonusPointsPhase";
 import TricksPhase from "./round-results-phase/tricks-phase/TricksPhase";
 import ScoreboardModal from "./ScoreboardModal";
+import PastRoundView from "./PastRoundView";
 
 const SCOREBOARD_PANEL = "skull-king-scoreboard";
 
@@ -20,9 +22,21 @@ export default function SkullKingSession() {
   const { setErrorMessage, setSuccessMessage } = useAlertsContext();
   const navigate = useNavigate();
 
+  const [viewingRound, setViewingRound] = useState<number | null>(null);
+
   if (!state) return null;
 
   const isAdmin = currentPlayer?.role === "ADMIN";
+
+  if (viewingRound !== null && room) {
+    return (
+      <PastRoundView
+        roomName={room.name}
+        round={viewingRound}
+        onBack={() => setViewingRound(null)}
+      />
+    );
+  }
 
   const handleCancelGame = async (event: React.MouseEvent): Promise<void> => {
     event.stopPropagation();
@@ -70,11 +84,12 @@ export default function SkullKingSession() {
         </div>
       </header>
 
-      <LiveRoundDataProvider>
+      {/* Key on the round so drafts and card state fully reset when a new round starts. */}
+      <LiveRoundDataProvider key={state.round}>
         {renderPhase()}
       </LiveRoundDataProvider>
 
-      <ScoreboardModal id={SCOREBOARD_PANEL} />
+      <ScoreboardModal id={SCOREBOARD_PANEL} onOpenRound={setViewingRound} />
     </div>
   );
 }
