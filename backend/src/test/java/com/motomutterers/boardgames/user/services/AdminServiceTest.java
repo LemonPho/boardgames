@@ -11,32 +11,71 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class AdminServiceTest {
 
-    @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private UserService userService;
+    @Mock private UserRepository userRepository;
+    @Mock private UserService userService;
 
     @InjectMocks
     private AdminService adminService;
 
+    // helpers
+    private User plainUser() {
+        return new User("test@test.com", "testuser", "hash");
+    }
+
+    // --- sameUserGuard ---
+
     @Test
-    void sameUserGuard_sameIds_throwsBadActionException() {
+    void sameUserGuard_sameIds_throwsBadAction() {
         UUID id = UUID.randomUUID();
         assertThrows(BadActionException.class, () -> adminService.sameUserGuard(id, id));
     }
 
     @Test
-    void banUser_targetIsAdmin_throwsUnauthorizedException() {
+    void sameUserGuard_differentIds_passes() {
+        assertDoesNotThrow(() -> adminService.sameUserGuard(UUID.randomUUID(), UUID.randomUUID()));
+    }
+
+    // --- setIsActive ---
+
+    @Test
+    void setIsActive_sameUser_throwsBadAction() {
+        UUID id = UUID.randomUUID();
+        assertThrows(BadActionException.class, () -> adminService.setIsActive(id, id));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void setIsActive_valid_activatesAndSaves() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = plainUser();
+        when(userService.getUserById(targetId)).thenReturn(target);
+
+        adminService.setIsActive(adminId, targetId);
+
+        assertEquals(UserStatus.ACTIVE, target.getStatus());
+        verify(userRepository).save(target);
+    }
+
+    // --- banUser ---
+
+    @Test
+    void banUser_sameUser_throwsBadAction() {
+        UUID id = UUID.randomUUID();
+        assertThrows(BadActionException.class, () -> adminService.banUser(id, id));
+    }
+
+    @Test
+    void banUser_targetIsAdmin_throwsUnauthorized() {
         UUID adminId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         User target = mock(User.class);
@@ -47,7 +86,19 @@ public class AdminServiceTest {
     }
 
     @Test
-    void banUser_userAlreadyBanned_throwsBadActionException() {
+    void banUser_targetIsDeleted_throwsBadAction() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = mock(User.class);
+        when(userService.getUserById(targetId)).thenReturn(target);
+        when(target.isAdmin()).thenReturn(false);
+        when(target.isDeleted()).thenReturn(true);
+
+        assertThrows(BadActionException.class, () -> adminService.banUser(adminId, targetId));
+    }
+
+    @Test
+    void banUser_alreadyBanned_throwsBadAction() {
         UUID adminId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         User target = mock(User.class);
@@ -60,10 +111,10 @@ public class AdminServiceTest {
     }
 
     @Test
-    void banUser_validRequest_setsUserBanned() {
+    void banUser_valid_setsBannedAndSaves() {
         UUID adminId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
-        User target = new User("test@test.com", "testuser", "hash");
+        User target = plainUser();
         when(userService.getUserById(targetId)).thenReturn(target);
 
         adminService.banUser(adminId, targetId);
@@ -72,8 +123,59 @@ public class AdminServiceTest {
         verify(userRepository).save(target);
     }
 
+    // --- temporarilyBanUser ---
+
     @Test
-    void deleteUser_targetIsAdmin_throwsBadActionException() {
+    void temporarilyBanUser_targetIsAdmin_throwsUnauthorized() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = mock(User.class);
+        when(userService.getUserById(targetId)).thenReturn(target);
+        when(target.isAdmin()).thenReturn(true);
+
+        assertThrows(UserUnauthorizedException.class, () -> adminService.temporarilyBanUser(adminId, targetId));
+    }
+
+    @Test
+    void temporarilyBanUser_alreadyBanned_throwsBadAction() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = mock(User.class);
+        when(userService.getUserById(targetId)).thenReturn(target);
+        when(target.isAdmin()).thenReturn(false);
+        when(target.isTemporarilyBanned()).thenReturn(true);
+
+        assertThrows(BadActionException.class, () -> adminService.temporarilyBanUser(adminId, targetId));
+    }
+
+    @Test
+    void temporarilyBanUser_valid_setsTempBannedAndSaves() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = plainUser();
+        when(userService.getUserById(targetId)).thenReturn(target);
+
+        adminService.temporarilyBanUser(adminId, targetId);
+
+        assertEquals(UserStatus.TEMPORARILY_BANNED, target.getStatus());
+        verify(userRepository).save(target);
+    }
+
+    // --- deleteUser ---
+
+    @Test
+    void deleteUser_alreadyDeleted_throwsBadAction() {
+        UUID adminId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        User target = mock(User.class);
+        when(userService.getUserById(targetId)).thenReturn(target);
+        when(target.isDeleted()).thenReturn(true);
+
+        assertThrows(BadActionException.class, () -> adminService.deleteUser(adminId, targetId));
+    }
+
+    @Test
+    void deleteUser_targetIsAdmin_throwsBadAction() {
         UUID adminId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
         User target = mock(User.class);
@@ -85,14 +187,15 @@ public class AdminServiceTest {
     }
 
     @Test
-    void temporarilyBanUser_alreadyBanned_throwsBadActionException() {
+    void deleteUser_valid_setsDeletedAndSaves() {
         UUID adminId = UUID.randomUUID();
         UUID targetId = UUID.randomUUID();
-        User target = mock(User.class);
+        User target = plainUser();
         when(userService.getUserById(targetId)).thenReturn(target);
-        when(target.isAdmin()).thenReturn(false);
-        when(target.isTemporarilyBanned()).thenReturn(true);
 
-        assertThrows(BadActionException.class, () -> adminService.temporarilyBanUser(adminId, targetId));
+        adminService.deleteUser(adminId, targetId);
+
+        assertEquals(UserStatus.DELETED, target.getStatus());
+        verify(userRepository).save(target);
     }
 }
