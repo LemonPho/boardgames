@@ -19,6 +19,7 @@ export default function GamePage() {
 
   const [game, setGame] = useState<GameResponse | null>(null)
   const [trackingMode, setTrackingMode] = useState<TrackingMode>("SELF")
+  const [advancedCards, setAdvancedCards] = useState<boolean>(false)
 
   const navigate = useNavigate();
 
@@ -26,8 +27,8 @@ export default function GamePage() {
     if(game == null) return;
 
     const request: CreateRoomRequest = {
-      trackingMode: trackingMode,
       gameName: game?.name,
+      configuration: { trackingMode, advancedCards },
     }
     const response = await createRoom(request, setErrorMessage);
     navigate(`/rooms/${response?.name}`);
@@ -108,6 +109,27 @@ export default function GamePage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Advanced cards */}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-3">Advanced cards</p>
+            <button
+              onClick={() => setAdvancedCards((v) => !v)}
+              className={`w-full flex items-center justify-between gap-3 text-left border rounded-xl p-4 transition-colors ${advancedCards
+                  ? "border-gray-800 bg-gray-50"
+                  : "border-gray-200 hover:border-gray-300"
+                }`}
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Include advanced cards</p>
+                <p className="text-xs text-gray-500 mt-0.5">Adds the Loot, Kraken, and White Whale cards.</p>
+              </div>
+              <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors flex-shrink-0 ${advancedCards ? "bg-gray-800 justify-end" : "bg-gray-300 justify-start"
+                }`}>
+                <div className="w-5 h-5 rounded-full bg-white" />
+              </div>
+            </button>
           </div>
 
           {/* CTA */}

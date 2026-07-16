@@ -8,6 +8,8 @@ interface BonusCardProps {
   // Why the team is ineligible, shown when eligible is false.
   ineligibleReason?: string;
   editable: boolean;
+  // Loot is an advanced card; only show its row when advanced cards are enabled.
+  advancedCards?: boolean;
   // Reflects the debounced auto-save for this team.
   status?: "saving" | "saved" | null;
   onChange: (next: TeamBonus) => void;
@@ -19,6 +21,7 @@ export function BonusCard({
   eligible,
   ineligibleReason,
   editable,
+  advancedCards,
   status,
   onChange,
 }: BonusCardProps) {
@@ -90,14 +93,16 @@ export function BonusCard({
             />
           </Section>
 
-          <Section title="Loot">
-            <Stepper
-              label="Coins collected" points="+20 each" locked={locked}
-              value={bonus.loot} max={2}
-              onDec={() => setCount("loot", -1, 2)}
-              onInc={() => setCount("loot", 1, 2)}
-            />
-          </Section>
+          {advancedCards && (
+            <Section title="Loot">
+              <Stepper
+                label="Coins collected" points="+20 each" locked={locked}
+                value={bonus.loot} max={2}
+                onDec={() => setCount("loot", -1, 2)}
+                onInc={() => setCount("loot", 1, 2)}
+              />
+            </Section>
+          )}
 
           {!locked && (
             <div className="h-5 text-center text-sm text-neutral-400">

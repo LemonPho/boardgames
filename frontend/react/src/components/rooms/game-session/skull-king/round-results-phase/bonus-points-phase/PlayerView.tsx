@@ -5,7 +5,7 @@ import { BonusCard } from "../../shared/BonusCard";
 
 export default function PlayerView() {
   const { currentPlayer } = useRoomContext();
-  const { round, cardCount, bonuses, canEdit, bonusEligibilityFor, bonusStatus, setBonus } = useRoundData();
+  const { round, cardCount, bonuses, canEdit, bonusEligibilityFor, bonusStatus, setBonus, advancedCards } = useRoundData();
 
   if (!currentPlayer || !currentPlayer.team) return null;
 
@@ -27,6 +27,7 @@ export default function PlayerView() {
         eligible={eligible}
         ineligibleReason={reason}
         editable={canEdit(teamId)}
+        advancedCards={advancedCards}
         status={bonusStatus(teamId)}
         onChange={(next) => setBonus(teamId, next)}
       />

@@ -16,6 +16,7 @@ export interface SkullKingState {
   round: number;
   cardCount: number;
   teams: TeamResponse[];
+  startingTeamId: string;
   bids?: Record<string, number>;
   trickResults?: Record<string, number>;
   bonuses?: Record<string, TeamBonus>;
@@ -54,6 +55,7 @@ export interface RoundHistory {
   cardCount: number;
   completed: boolean;
   krakenPlayed: boolean;
+  startingTeamId: string;
   teams: RoundHistoryTeam[];
 }
 

@@ -2,13 +2,11 @@ package com.motomutterers.boardgames.auth.services;
 
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
-import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
 import com.motomutterers.boardgames.auth.repositories.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.repositories.VerificationTokenRepository;
 import com.motomutterers.boardgames.email.EmailService;
 import com.motomutterers.boardgames.exceptions.ValidationException;
 import com.motomutterers.boardgames.user.UserRepository;
-import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.services.UserService;
 
@@ -63,23 +61,35 @@ public class AuthServiceTest {
     }
 
     @Test
-    void login_userNotFound_throwsUserNotFoundException() {
+    void login_userNotFound_throwsValidationException() {
         LoginRequest request = new LoginRequest(false, "unknown@test.com", "password1");
 
         when(userRepository.findByEmail("unknown@test.com")).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> authService.login(request, httpServletResponse));
+        assertThrows(ValidationException.class, () -> authService.login(request, httpServletResponse));
     }
 
     @Test
-    void login_wrongPassword_throwsPasswordIncorrectException() {
+    void login_unverifiedUser_throwsValidationException() {
+        LoginRequest request = new LoginRequest(false, "test@test.com", "password1");
+
+        // A freshly-constructed user defaults to PENDING_VERIFICATION.
+        User user = new User("test@test.com", "testuser", "hashedpassword");
+        when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
+
+        assertThrows(ValidationException.class, () -> authService.login(request, httpServletResponse));
+    }
+
+    @Test
+    void login_wrongPassword_throwsValidationException() {
         LoginRequest request = new LoginRequest(false, "test@test.com", "wrongpassword");
 
         User user = new User("test@test.com", "testuser", "hashedpassword");
+        user.setIsActive();
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongpassword", "hashedpassword")).thenReturn(false);
 
-        assertThrows(PasswordIncorrectException.class, () -> authService.login(request, httpServletResponse));
+        assertThrows(ValidationException.class, () -> authService.login(request, httpServletResponse));
     }
 
     @Test
@@ -87,6 +97,7 @@ public class AuthServiceTest {
         LoginRequest request = new LoginRequest(false, "test@test.com", "password1");
 
         User user = new User("test@test.com", "testuser", "hashedpassword");
+        user.setIsActive();
         when(userRepository.findByEmail("test@test.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password1", "hashedpassword")).thenReturn(true);
         when(jwtService.generateToken(user)).thenReturn("jwt-token");

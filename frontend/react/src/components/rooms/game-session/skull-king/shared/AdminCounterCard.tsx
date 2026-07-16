@@ -10,6 +10,8 @@ interface AdminCounterCardProps {
   serverValue: number;
   max: number;
   status?: "saving" | "saved" | null;
+  // This team leads (goes first) this round.
+  leads?: boolean;
   // Reports a new value up to the parent, which stores it and debounces the save.
   change: (teamId: string, value: number) => void;
 }
@@ -21,6 +23,7 @@ export function AdminCounterCard({
   serverValue,
   max,
   status,
+  leads,
   change,
 }: AdminCounterCardProps) {
   const [value, setValue] = useState<number>(serverValue);
@@ -45,9 +48,16 @@ export function AdminCounterCard({
   const displayValue = editable ? value : serverValue;
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl p-3 flex flex-col gap-2">
+    <div
+      className={`bg-white rounded-xl p-3 flex flex-col gap-2 border ${
+        leads ? "border-amber-400 ring-1 ring-amber-300" : "border-neutral-200"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-sm truncate">{playerName}</span>
+        <span className="font-medium text-sm truncate flex items-center gap-1">
+          {leads && <span className="text-amber-500" aria-label="Goes first">▶</span>}
+          {playerName}
+        </span>
         <span className="text-[11px] text-neutral-400 shrink-0 h-4">
           {editable && status === "saving" && "Saving…"}
           {editable && status === "saved" && "✓"}

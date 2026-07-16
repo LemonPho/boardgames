@@ -30,6 +30,10 @@ export interface RoundData {
   cardCount: number;
   gameState: SkullKingGameState;
   teams: TeamResponse[];
+  // The team that leads (goes first) this round.
+  startingTeamId: string;
+  // Whether the room includes advanced cards (Loot, Kraken, White Whale).
+  advancedCards: boolean;
 
   // Effective values (a pending local edit takes precedence over the server value).
   bids: Record<string, number>;
@@ -183,6 +187,8 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     cardCount: state.cardCount,
     gameState: state.gameState,
     teams: state.teams,
+    startingTeamId: state.startingTeamId,
+    advancedCards: room.configuration?.advancedCards ?? false,
     bids,
     trickResults,
     bonuses,

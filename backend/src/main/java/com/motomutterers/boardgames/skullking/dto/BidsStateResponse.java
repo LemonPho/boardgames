@@ -14,10 +14,11 @@ public class BidsStateResponse extends SkullKingStateResponse {
         SessionEventType gameState,
         int round,
         int cardCount,
+        String startingTeamId,
         List<TeamResponse> teams,
         Map<UUID, Integer> bids
     ){
-        super(gameState, round, cardCount, teams);
+        super(gameState, round, cardCount, startingTeamId, teams);
         this.bids = bids;
     }
 

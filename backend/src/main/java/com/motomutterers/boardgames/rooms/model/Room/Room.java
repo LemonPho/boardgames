@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.motomutterers.boardgames.games.model.Game;
 
 import jakarta.persistence.Column;
@@ -40,9 +43,9 @@ public class Room {
     @OneToMany(mappedBy = "room", fetch = FetchType.LAZY)
     private List<RoomUser> players = new ArrayList<RoomUser>();
 
-    @Enumerated(EnumType.STRING) 
-    @Column(columnDefinition = "tracking_mode")
-    private TrackingMode trackingMode;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    private RoomConfiguration configuration = new RoomConfiguration();
 
     private LocalDateTime startedAt;
 
@@ -58,11 +61,11 @@ public class Room {
     public Room(
         Game game,
         String name,
-        TrackingMode trackingMode
+        RoomConfiguration configuration
     ){
         this.game = game;
         this.name = name;
-        this.trackingMode = trackingMode;
+        this.configuration = configuration;
         this.status = RoomStatus.WAITING;
         this.lastUpdated = LocalDateTime.now();
     }
@@ -83,8 +86,13 @@ public class Room {
         return status;
     }
 
+    public RoomConfiguration getConfiguration(){
+        return configuration;
+    }
+
+    // Convenience accessor: tracking mode is part of the room configuration.
     public TrackingMode getTrackingMode(){
-        return trackingMode;
+        return configuration != null ? configuration.getTrackingMode() : null;
     }
 
     public List<RoomUser> getPlayers(){
@@ -119,8 +127,8 @@ public class Room {
         this.status = status;
     }
 
-    public void setTrackingMode(TrackingMode trackingMode){
-        this.trackingMode = trackingMode;
+    public void setConfiguration(RoomConfiguration configuration){
+        this.configuration = configuration;
     }
 
     public void addPlayer(RoomUser player){

@@ -1,5 +1,6 @@
 package com.motomutterers.boardgames.skullking.services;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,34 +46,46 @@ public class SkullKingStateBuilder {
 
     public SkullKingStateResponse buildState(Session session, RoomUser roomUser, boolean isAdmin){
         SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
-        List<TeamResponse> teams = session.getTeams().stream().map(TeamResponse::new).toList();
+
+        // Stable display/turn order: by each player's join time ascending.
+        List<TeamResponse> teams = session.getTeams().stream()
+            .sorted(Comparator.comparing(
+                t -> t.getRoomUser() != null ? t.getRoomUser().getJoinedAt() : null,
+                Comparator.nullsLast(Comparator.naturalOrder())))
+            .map(TeamResponse::new)
+            .toList();
 
         int round = 1;
         int cardCount = 1;
+        String startingTeamId = null;
 
         switch(currentEvent.getType()){
             case BIDS: {
                 SessionEventPayload.Bids payload = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.Bids.class);
                 round = payload.round();
                 cardCount = payload.cardCount();
+                startingTeamId = payload.startingTeamId();
                 break;
             }
             case IN_PROGRESS: {
                 SessionEventPayload.InProgress payload = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.InProgress.class);
                 round = payload.round();
                 cardCount = payload.cardCount();
+                startingTeamId = payload.startingTeamId();
                 break;
             }
             case TRICK_RESULTS: {
                 SessionEventPayload.TrickResults payload = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class);
                 round = payload.round();
                 cardCount = payload.cardCount();
+                startingTeamId = payload.startingTeamId();
                 break;
             }
             case BONUS_POINTS: {
                 SessionEventPayload.BonusPoints payload = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.BonusPoints.class);
                 round = payload.round();
                 cardCount = payload.cardCount();
+                startingTeamId = payload.startingTeamId();
                 break;
             }
         }
@@ -82,13 +95,13 @@ public class SkullKingStateBuilder {
 
         switch(currentEvent.getType()){
             case BIDS:
-                return new BidsStateResponse(currentEvent.getType(), round, cardCount, teams, bids);
+                return new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
             case IN_PROGRESS:
-                return new BidsStateResponse(currentEvent.getType(), round, cardCount, teams, bids);
+                return new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
             case TRICK_RESULTS: {
                 Map<UUID, Integer> trickResults = buildTrickResultsMap(currentEvent, roomUser, isAdmin);
                 boolean krakenPlayed = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
-                return new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, teams, bids, trickResults, krakenPlayed);
+                return new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, krakenPlayed);
             }
             case BONUS_POINTS: {
                 SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElse(null);
@@ -96,10 +109,10 @@ public class SkullKingStateBuilder {
                     ? Map.of()
                     : buildTrickResultsMap(trickResultsEvent, roomUser, isAdmin);
                 Map<UUID, TeamBonusResponse> bonuses = buildBonusMap(currentEvent, roomUser, isAdmin);
-                return new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, teams, bids, trickResults, bonuses);
+                return new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses);
             }
             default:
-                return new SkullKingStateResponse(currentEvent.getType(), round, cardCount, teams);
+                return new SkullKingStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams);
         }
     }
 

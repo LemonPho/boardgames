@@ -3,7 +3,7 @@ import { AdminCounterCard } from "../../shared/AdminCounterCard";
 import { KrakenToggle } from "../../shared/KrakenToggle";
 
 export default function AdminView() {
-  const { teams, trickResults, cardCount, canEdit, trickStatus, setTricks, advance, advanceLabel, krakenPlayed, setKrakenPlayed } = useRoundData();
+  const { teams, trickResults, cardCount, canEdit, trickStatus, setTricks, advance, advanceLabel, krakenPlayed, setKrakenPlayed, startingTeamId, advancedCards } = useRoundData();
 
   // The Kraken is a round-level fact registered by the admin; `advance` is the
   // admin-only signal for the live round.
@@ -13,9 +13,11 @@ export default function AdminView() {
     <div className="p-4">
       <h2 className="text-lg font-medium text-center mb-6">Tricks won</h2>
 
-      <div className="mb-4">
-        <KrakenToggle krakenPlayed={krakenPlayed} editable={isAdmin} onToggle={setKrakenPlayed} />
-      </div>
+      {advancedCards && (
+        <div className="mb-4">
+          <KrakenToggle krakenPlayed={krakenPlayed} editable={isAdmin} onToggle={setKrakenPlayed} />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         {teams.map((team) => (
@@ -27,6 +29,7 @@ export default function AdminView() {
             serverValue={trickResults[team.id] ?? 0}
             max={cardCount}
             status={trickStatus(team.id)}
+            leads={team.id === startingTeamId}
             change={setTricks}
           />
         ))}

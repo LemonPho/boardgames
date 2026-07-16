@@ -122,6 +122,36 @@ public class RoomsUtilityService {
         if(result.isEmpty()) throw new BadActionException("You need to be the room admin to perform this action.");
     }
 
+    /**
+     * A room can hold at most game.maxPlayers seats. Pending invitations reserve
+     * a seat so we don't over-invite and blow past the cap once everyone accepts.
+     * Used when adding a new occupant (invite, anonymous player).
+     */
+    public void throwIfRoomIsFull(Room room){
+        int maxPlayers = room.getGame().getMaxPlayers();
+        long pendingInvites = roomInvitationTokenRepository
+            .findAllByRoomAndStatus(room, InvitationStatus.PENDING)
+            .size();
+        long occupied = room.getPlayers().size() + pendingInvites;
+
+        if(occupied >= maxPlayers){
+            throw new BadActionException("Room is full");
+        }
+    }
+
+    /**
+     * Guards accepting an invite. Only joined players count here: the invite
+     * being accepted is still PENDING (its reserved seat is about to convert
+     * into a player), so it must not be double-counted. Defends against
+     * pre-existing over-invites and concurrent accepts.
+     */
+    public void throwIfPlayerLimitReached(Room room){
+        int maxPlayers = room.getGame().getMaxPlayers();
+        if(room.getPlayers().size() >= maxPlayers){
+            throw new BadActionException("Room is full");
+        }
+    }
+
     public void throwIfUserNotInRoom(Room room, User user){
         boolean found = room.getPlayers().stream()
             .anyMatch(p -> p.getUser() != null && p.getUser().getId().equals(user.getId()));

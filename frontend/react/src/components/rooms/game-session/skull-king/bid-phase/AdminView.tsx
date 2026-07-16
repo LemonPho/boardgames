@@ -2,7 +2,7 @@ import { useRoundData } from "../../../../../context/RoundDataContext";
 import { AdminCounterCard } from "../shared/AdminCounterCard";
 
 export default function AdminView() {
-  const { teams, bids, cardCount, canEdit, bidStatus, setBid, advance, advanceLabel } = useRoundData();
+  const { teams, bids, cardCount, canEdit, bidStatus, setBid, advance, advanceLabel, startingTeamId } = useRoundData();
 
   return (
     <div className="p-4">
@@ -17,6 +17,7 @@ export default function AdminView() {
             serverValue={bids[team.id] ?? 0}
             max={cardCount}
             status={bidStatus(team.id)}
+            leads={team.id === startingTeamId}
             change={setBid}
           />
         ))}

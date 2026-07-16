@@ -3,7 +3,7 @@ import { EMPTY_BONUS } from "../../../../../../types/skull-king";
 import { BonusCard } from "../../shared/BonusCard";
 
 export default function AdminView() {
-  const { teams, bonuses, canEdit, bonusEligibilityFor, bonusStatus, setBonus, advance, advanceLabel } = useRoundData();
+  const { teams, bonuses, canEdit, bonusEligibilityFor, bonusStatus, setBonus, advance, advanceLabel, advancedCards } = useRoundData();
 
   return (
     <div className="p-4">
@@ -20,6 +20,7 @@ export default function AdminView() {
               eligible={eligible}
               ineligibleReason={reason}
               editable={canEdit(team.id)}
+              advancedCards={advancedCards}
               status={bonusStatus(team.id)}
               onChange={(next) => setBonus(team.id, next)}
             />

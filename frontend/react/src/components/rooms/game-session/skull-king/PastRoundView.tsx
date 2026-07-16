@@ -18,7 +18,8 @@ interface PastRoundViewProps {
 
 export default function PastRoundView({ roomName, round, onBack }: PastRoundViewProps) {
   const { setErrorMessage } = useAlertsContext();
-  const { currentPlayer } = useRoomContext();
+  const { room, currentPlayer } = useRoomContext();
+  const advancedCards = room?.configuration?.advancedCards ?? false;
   const [history, setHistory] = useState<RoundHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Section | null>(null);
@@ -138,6 +139,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                 team={pseudoTeam(t)}
                 serverValue={bidValue(t.teamId)}
                 max={cardCount}
+                leads={t.teamId === history.startingTeamId}
                 change={(id, v) => setBidDrafts((prev) => new Map(prev).set(id, v))}
               />
             ))}
@@ -155,13 +157,15 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           onCancel={cancelEdit}
           onSave={saveTricks}
         >
-          <div className="mb-3">
-            <KrakenToggle
-              krakenPlayed={editing === "tricks" ? krakenDraft : history.krakenPlayed}
-              editable={editing === "tricks"}
-              onToggle={setKrakenDraft}
-            />
-          </div>
+          {advancedCards && (
+            <div className="mb-3">
+              <KrakenToggle
+                krakenPlayed={editing === "tricks" ? krakenDraft : history.krakenPlayed}
+                editable={editing === "tricks"}
+                onToggle={setKrakenDraft}
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {teams.map((t) => (
               <AdminCounterCard
@@ -171,6 +175,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                 team={pseudoTeam(t)}
                 serverValue={trickValue(t.teamId)}
                 max={cardCount}
+                leads={t.teamId === history.startingTeamId}
                 change={(id, v) => setTrickDrafts((prev) => new Map(prev).set(id, v))}
               />
             ))}
@@ -199,6 +204,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                   eligible={eligible}
                   ineligibleReason={reason}
                   editable={editing === "bonus"}
+                  advancedCards={advancedCards}
                   onChange={(next) => setBonusDrafts((prev) => new Map(prev).set(t.teamId, next))}
                 />
               );

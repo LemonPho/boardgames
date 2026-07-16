@@ -16,12 +16,13 @@ public class BonusPointsStateResponse extends SkullKingStateResponse {
         SessionEventType gameState,
         int round,
         int cardCount,
+        String startingTeamId,
         List<TeamResponse> teams,
         Map<UUID, Integer> bids,
         Map<UUID, Integer> trickResults,
         Map<UUID, TeamBonusResponse> bonuses
     ){
-        super(gameState, round, cardCount, teams);
+        super(gameState, round, cardCount, startingTeamId, teams);
         this.bids = bids;
         this.trickResults = trickResults;
         this.bonuses = bonuses;

@@ -4,7 +4,7 @@ import { PlayerCounterCard } from "../shared/PlayerCounterCard";
 
 export default function PlayerView() {
   const { currentPlayer } = useRoomContext();
-  const { round, cardCount, bids, canEdit, bidStatus, setBid } = useRoundData();
+  const { round, cardCount, bids, canEdit, bidStatus, setBid, startingTeamId } = useRoundData();
 
   if (!currentPlayer || !currentPlayer.team) return null;
 
@@ -20,6 +20,7 @@ export default function PlayerView() {
         round={round}
         cardCount={cardCount}
         status={bidStatus(teamId)}
+        leads={teamId === startingTeamId}
         onIncrement={editable ? () => setBid(teamId, value + 1) : undefined}
         onDecrement={editable ? () => setBid(teamId, value - 1) : undefined}
       />

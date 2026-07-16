@@ -31,6 +31,7 @@ import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedExce
 import com.motomutterers.boardgames.rooms.model.Invitation.InvitationStatus;
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
+import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.rooms.repository.RoomInvitationTokenRepository;
@@ -118,7 +119,10 @@ public class RoomService {
         User user = userService.getUserById(userId);
         roomsUtilityService.throwIsUserInActiveRoom(user);
         String roomName = generateRoomName(user.getUsername(), game.getName());
-        Room room = new Room(game, roomName, request.getTrackingMode());
+        RoomConfiguration configuration = request.getConfiguration() != null
+            ? request.getConfiguration()
+            : new RoomConfiguration();
+        Room room = new Room(game, roomName, configuration);
         RoomUser roomUser = new RoomUser(user, room, RoomUserRoles.ADMIN);
         room.addPlayer(roomUser);
 
@@ -164,6 +168,7 @@ public class RoomService {
         Room room = roomsUtilityService.getRoomByName(request.getRoomName());
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+        roomsUtilityService.throwIfRoomIsFull(room);
 
         RoomUser anonymous = new RoomUser(request.getDisplayName(), room);
         roomUserRepository.save(anonymous);
@@ -212,6 +217,7 @@ public class RoomService {
         if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
+        roomsUtilityService.throwIfRoomIsFull(room);
 
         if(roomsUtilityService.getIsUserInActiveRoom(user)) throw new BadActionException("User is in an active session");
         if(!user.isActive()) throw new BadActionException("User needs to verify their email to be able to play");
@@ -299,6 +305,8 @@ public class RoomService {
         if(roomInvitationToken.getStatus().equals(InvitationStatus.USED)){
             throw new RoomInvitationTokenUsedException("The invitation was already used, ask for a new one");
         }
+
+        roomsUtilityService.throwIfPlayerLimitReached(room);
 
         RoomUser roomUser = new RoomUser(invitationUser, room, RoomUserRoles.PLAYER);
         roomUserRepository.save(roomUser);

@@ -18,7 +18,14 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
   const [usernameMatches, setUsernameMatches] = useState<UserAvailabilityResponse[]>([]);
   const [displayNameInput, setDisplayNameInput] = useState<string>("");
   const [anonymousPlayers, setAnonymousPlayers] = useState<RoomUserResponse[]>([]);
- 
+
+  // Pending invitations reserve a seat, so the room is full once current
+  // players + outstanding invites reach the game's max. Mirrors the backend.
+  const maxPlayers = room?.game.maxPlayers ?? 0;
+  const pendingInvites = room?.invitations.filter((i) => i.status === "PENDING").length ?? 0;
+  const occupied = (room?.players.length ?? 0) + pendingInvites;
+  const isFull = maxPlayers > 0 && occupied >= maxPlayers;
+
   const handleUsernameInputChange = (event: React.ChangeEvent<HTMLInputElement>): void => {
     setUsernameInput(event.target.value);
   }
@@ -27,6 +34,10 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     event.stopPropagation();
 
     if (room == null) return;
+    if (isFull) {
+      setErrorMessage("Room is full");
+      return;
+    }
 
     await invitePlayerToRoom(username, room.name, setErrorMessage);
     setSuccessMessage("User invited");
@@ -41,6 +52,10 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     event.stopPropagation();
 
     if (room == null) return;
+    if (isFull) {
+      setErrorMessage("Room is full");
+      return;
+    }
 
     await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
   }
@@ -84,6 +99,12 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
   return (
     <Modal id={INVITE_PLAYERS_PANEL} title="Add players">
+      {isFull && (
+        <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+          Room is full ({occupied}/{maxPlayers}). Remove a player or cancel an invite to add more.
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
         <button
@@ -113,7 +134,8 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
             placeholder="Search by username..."
             value={usernameInput}
             onChange={handleUsernameInputChange}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
+            disabled={isFull}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           {usernameMatches.length > 0 && (
             <div className="flex flex-col gap-1 mt-1">
@@ -132,12 +154,14 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
             <input
               type="text"
               placeholder="Enter display name..."
-              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
+              disabled={isFull}
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               onChange={handleDisplayNameInputChange}
             />
             <button
               onClick={(event) => handleCreateAnonymousPlayer(event)}
-              className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-4 rounded-lg transition-colors"
+              disabled={isFull}
+              className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Add
             </button>

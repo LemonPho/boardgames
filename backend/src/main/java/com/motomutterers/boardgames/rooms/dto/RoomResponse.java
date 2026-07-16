@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import com.motomutterers.boardgames.games.dto.SimpleGameResponse;
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
+import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;
 
@@ -15,6 +16,7 @@ public class RoomResponse {
     private String name;
     private SimpleGameResponse game;
     private RoomStatus status;
+    private RoomConfiguration configuration;
     private TrackingMode trackingMode;
     private List<RoomUserResponse> players = new ArrayList<RoomUserResponse>();
     private List<RoomInvitationResponse> invitations = new ArrayList<RoomInvitationResponse>();
@@ -28,6 +30,7 @@ public class RoomResponse {
         this.name = room.getName();
         this.game = new SimpleGameResponse(room.getGame());
         this.status = room.getStatus();
+        this.configuration = room.getConfiguration();
         this.trackingMode = room.getTrackingMode();
         this.players = room.getPlayers().stream()
             .map(RoomUserResponse::new)
@@ -41,6 +44,7 @@ public class RoomResponse {
         this.name = room.getName();
         this.game = new SimpleGameResponse(room.getGame());
         this.status = room.getStatus();
+        this.configuration = room.getConfiguration();
         this.trackingMode = room.getTrackingMode();
         this.players = room.getPlayers().stream()
             .map(RoomUserResponse::new)
@@ -63,6 +67,10 @@ public class RoomResponse {
 
     public RoomStatus getStatus(){
         return status;
+    }
+
+    public RoomConfiguration getConfiguration(){
+        return configuration;
     }
 
     public TrackingMode getTrackingMode(){
@@ -99,6 +107,10 @@ public class RoomResponse {
 
     public void setStatus(RoomStatus status){
         this.status = status;
+    }
+
+    public void setConfiguration(RoomConfiguration configuration){
+        this.configuration = configuration;
     }
 
     public void setTrackingMode(TrackingMode trackingMode){

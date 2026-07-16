@@ -6,7 +6,7 @@ import type { UserAvailabilityResponse } from "../types/user";
 export const createRoom = async (request: CreateRoomRequest, setErrorMessage: (message: string) => void): Promise<RoomResponse> => {
   try {
     const response = await api.post("/rooms", {
-      trackingMode: request.trackingMode,
+      configuration: request.configuration,
       gameName: request.gameName
     });
 

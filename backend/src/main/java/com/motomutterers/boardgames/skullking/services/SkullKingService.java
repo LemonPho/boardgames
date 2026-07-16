@@ -1,6 +1,8 @@
 package com.motomutterers.boardgames.skullking.services;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,6 +49,10 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class SkullKingService {
     private static final int MAX_ROUNDS = 10;
+    // Base deck: 56 suited (4×14) + 14 special. Advanced play adds Loot ×2, Kraken,
+    // and White Whale (+4). Deck size caps how many cards each player can be dealt.
+    private static final int BASE_DECK_SIZE = 70;
+    private static final int ADVANCED_DECK_SIZE = 74;
 
     private final UserService userService;
     private final RoomsUtilityService roomsUtilityService;
@@ -85,7 +91,49 @@ public class SkullKingService {
 
     @Transactional
     public void createInitialRound(Session session){
-        sessionEventService.createSessionEvent(session, SessionEventType.BIDS, new SessionEventPayload.Bids(1, 1));
+        // Randomly choose which seat (in join order) leads the first round.
+        List<Team> ordered = orderedTeams(session);
+        String startingTeamId = ordered.isEmpty()
+            ? null
+            : ordered.get(ThreadLocalRandom.current().nextInt(ordered.size())).getId().toString();
+
+        sessionEventService.createSessionEvent(session, SessionEventType.BIDS, new SessionEventPayload.Bids(1, cardCountForRound(session, 1), startingTeamId));
+    }
+
+    // Cards dealt per player in a round. Normally the round number, but the deck is
+    // finite, so a full table can't be dealt `round` cards each in the late rounds —
+    // cap at how many the deck allows everyone to receive equally. The advanced-cards
+    // room setting enlarges the deck.
+    private int cardCountForRound(Session session, int round){
+        int players = Math.max(1, session.getTeams().size());
+        boolean advanced = session.getRoom().getConfiguration() != null
+            && session.getRoom().getConfiguration().getAdvancedCards();
+        int deckSize = advanced ? ADVANCED_DECK_SIZE : BASE_DECK_SIZE;
+        return Math.min(round, deckSize / players);
+    }
+
+    // Teams in a stable display/turn order: by their player's join time ascending.
+    private List<Team> orderedTeams(Session session){
+        return session.getTeams().stream()
+            .sorted(Comparator.comparing(
+                t -> t.getRoomUser() != null ? t.getRoomUser().getJoinedAt() : null,
+                Comparator.nullsLast(Comparator.naturalOrder())))
+            .toList();
+    }
+
+    // The leader of the next round is the next seat in join order after this round's leader.
+    private String nextRoundStartingTeamId(Session session, String currentStartingTeamId){
+        List<Team> ordered = orderedTeams(session);
+        if(ordered.isEmpty()) return null;
+
+        int currentIndex = 0;
+        for(int i = 0; i < ordered.size(); i++){
+            if(ordered.get(i).getId().toString().equals(currentStartingTeamId)){
+                currentIndex = i;
+                break;
+            }
+        }
+        return ordered.get((currentIndex + 1) % ordered.size()).getId().toString();
     }
 
     @Transactional
@@ -126,11 +174,11 @@ public class SkullKingService {
         boolean krakenPlayed = trickResultsEvent != null
             && objectMapper.readValue(trickResultsEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
 
-        List<RoundHistoryTeamResponse> teamRows = session.getTeams().stream()
+        List<RoundHistoryTeamResponse> teamRows = orderedTeams(session).stream()
             .map(team -> buildRoundTeamRow(team, bidsPayload.cardCount(), bidsEvent, trickResultsEvent, bonusEvent))
             .toList();
 
-        return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, krakenPlayed, teamRows);
+        return new RoundHistoryResponse(bidsPayload.round(), bidsPayload.cardCount(), completed, krakenPlayed, bidsPayload.startingTeamId(), teamRows);
     }
 
     // --- Past-round corrections (admin only; each section validated and saved as a set) ---
@@ -214,7 +262,7 @@ public class SkullKingService {
 
         sessionEventService.updatePayload(
             tricksEvent,
-            new SessionEventPayload.TrickResults(phase.round(), phase.cardCount(), krakenPlayed));
+            new SessionEventPayload.TrickResults(phase.round(), phase.cardCount(), phase.startingTeamId(), krakenPlayed));
 
         publishStateChanged(room, session);
     }
@@ -448,7 +496,7 @@ public class SkullKingService {
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.IN_PROGRESS,
-            new SessionEventPayload.InProgress(bidsPhase.round(), bidsPhase.cardCount()));
+            new SessionEventPayload.InProgress(bidsPhase.round(), bidsPhase.cardCount(), bidsPhase.startingTeamId()));
 
         publishStateChanged(room, session);
     }
@@ -471,7 +519,7 @@ public class SkullKingService {
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.TRICK_RESULTS,
-            new SessionEventPayload.TrickResults(inProgressPhase.round(), inProgressPhase.cardCount(), false));
+            new SessionEventPayload.TrickResults(inProgressPhase.round(), inProgressPhase.cardCount(), inProgressPhase.startingTeamId(), false));
 
         publishStateChanged(room, session);
     }
@@ -505,7 +553,7 @@ public class SkullKingService {
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.BONUS_POINTS,
-            new SessionEventPayload.BonusPoints(trickResultsPhase.round(), trickResultsPhase.cardCount()));
+            new SessionEventPayload.BonusPoints(trickResultsPhase.round(), trickResultsPhase.cardCount(), trickResultsPhase.startingTeamId()));
 
         publishStateChanged(room, session);
     }
@@ -580,10 +628,11 @@ public class SkullKingService {
         }
 
         int nextRound = bonusPhase.round() + 1;
+        String nextStartingTeamId = nextRoundStartingTeamId(session, bonusPhase.startingTeamId());
         sessionEventService.createSessionEvent(
             session,
             SessionEventType.BIDS,
-            new SessionEventPayload.Bids(nextRound, nextRound));
+            new SessionEventPayload.Bids(nextRound, cardCountForRound(session, nextRound), nextStartingTeamId));
 
         publishStateChanged(room, session);
     }

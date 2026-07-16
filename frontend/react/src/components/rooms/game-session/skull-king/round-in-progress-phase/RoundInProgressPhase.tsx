@@ -26,6 +26,7 @@ export default function RoundInProgressPhase() {
           round={state.round}
           cardCount={state.cardCount}
           bid={myBid}
+          leads={currentPlayer.team ? currentPlayer.team.id === state.startingTeamId : false}
         />
       </div>
 
