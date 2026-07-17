@@ -290,6 +290,13 @@ public class SkullKingService {
         int lootMax = request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getLoot).max().orElse(0);
         validateLoot(lootTotal, lootMax);
 
+        validateBonusCardLimits(
+            request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getStandardFourteens).sum(),
+            (int) request.getTeams().stream().filter(CorrectBonusRequest.TeamBonusValue::getBlackFourteen).count(),
+            request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getMermaidsByPirate).sum(),
+            request.getTeams().stream().mapToInt(CorrectBonusRequest.TeamBonusValue::getPiratesBySkullKing).sum(),
+            (int) request.getTeams().stream().filter(CorrectBonusRequest.TeamBonusValue::getSkullKingByMermaid).count());
+
         for(CorrectBonusRequest.TeamBonusValue tv : request.getTeams()){
             Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
             teamSessionEventService.upsertTeamSessionEvent(
@@ -617,6 +624,7 @@ public class SkullKingService {
         }
 
         validateLootTotals(currentEvent, session.getTeams().size());
+        validateBonusTotals(currentEvent);
 
         SessionEventPayload.BonusPoints bonusPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.BonusPoints.class);
 
@@ -702,6 +710,43 @@ public class SkullKingService {
             || request.getPiratesBySkullKing() > 0
             || request.getSkullKingByMermaid()
             || request.getLoot() > 0;
+    }
+
+    // Each bonus source is a fixed set of unique cards in the deck, so the totals
+    // captured across ALL teams in a single round can't exceed what exists: three
+    // coloured 14s, one black 14, two mermaids, five pirates, one Skull King. The
+    // per-team ranges guard each entry; this guards the round-wide sum.
+    private void validateBonusCardLimits(int standardFourteens, int blackFourteens,
+            int mermaidsByPirate, int piratesBySkullKing, int skullKingsByMermaid){
+        if(standardFourteens > 3){
+            throw new BadActionException("Only three standard 14s exist, so at most three can be captured in a round");
+        }
+        if(blackFourteens > 1){
+            throw new BadActionException("There is only one black 14, so only one team can capture it");
+        }
+        if(mermaidsByPirate > 2){
+            throw new BadActionException("There are only two mermaids to be captured by a pirate");
+        }
+        if(piratesBySkullKing > 5){
+            throw new BadActionException("There are only five pirates to be captured by the Skull King");
+        }
+        if(skullKingsByMermaid > 1){
+            throw new BadActionException("There is only one Skull King, so only one team can capture it with a mermaid");
+        }
+    }
+
+    private void validateBonusTotals(SessionEvent bonusEvent){
+        List<TeamSessionEventPayload.BonusPoints> bonuses = teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bonusEvent).stream()
+            .filter(event -> event.getType().equals(TeamSessionEventType.BONUS_POINTS))
+            .map(event -> objectMapper.readValue(event.getPayload(), TeamSessionEventPayload.BonusPoints.class))
+            .toList();
+
+        validateBonusCardLimits(
+            bonuses.stream().mapToInt(TeamSessionEventPayload.BonusPoints::standardFourteens).sum(),
+            (int) bonuses.stream().filter(TeamSessionEventPayload.BonusPoints::blackFourteen).count(),
+            bonuses.stream().mapToInt(TeamSessionEventPayload.BonusPoints::mermaidsByPirate).sum(),
+            bonuses.stream().mapToInt(TeamSessionEventPayload.BonusPoints::piratesBySkullKing).sum(),
+            (int) bonuses.stream().filter(TeamSessionEventPayload.BonusPoints::skullKingByMermaid).count());
     }
 
     private void validateLootTotals(SessionEvent bonusEvent, int teamCount){
