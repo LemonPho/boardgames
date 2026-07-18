@@ -1,3 +1,5 @@
+import krakenImg from "../../../../../assets/skullking/Kraken.png";
+
 interface KrakenToggleProps {
   krakenPlayed: boolean;
   editable: boolean;
@@ -28,7 +30,7 @@ export function KrakenToggle({ krakenPlayed, editable, onToggle }: KrakenToggleP
         >
           {krakenPlayed ? "✓" : ""}
         </span>
-        <span className="truncate">Kraken destroyed a trick</span>
+        <img src={krakenImg} alt="Kraken destroyed a trick" className="h-10 w-auto object-contain" />
       </span>
       <span className={`text-xs shrink-0 ${krakenPlayed ? "opacity-80" : "text-neutral-400"}`}>
         −1 trick

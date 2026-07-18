@@ -5,7 +5,7 @@ import { useAlertsContext } from "../../context/AlertsContext"
 import { Link } from "react-router-dom"
 import RoomsSection from "./RoomsSection"
 
-import skullKingImage from '../../assets/skull-king-1-jeux-Toulon-L-Ataniere.webp'
+import skullKingImage from '../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp'
 
 export default function HomePage() {
   const { setErrorMessage } = useAlertsContext()

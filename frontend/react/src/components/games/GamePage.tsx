@@ -4,7 +4,7 @@ import { getGame } from "../../api/games"
 import { useAlertsContext } from "../../context/AlertsContext"
 import type { GameResponse } from "../../types/games"
 
-import skullKingImage from '../../assets/skull-king-1-jeux-Toulon-L-Ataniere.webp'
+import skullKingImage from '../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp'
 import { createRoom } from "../../api/rooms"
 import type { CreateRoomRequest, TrackingMode } from "../../types/rooms"
 

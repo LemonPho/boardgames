@@ -1,4 +1,10 @@
 import { bonusTotal, type TeamBonus } from "../../../../../types/skull-king";
+import plus10Img from "../../../../../assets/skullking/plus_10.png";
+import black14Img from "../../../../../assets/skullking/black_14.png";
+import mermaidByPirateImg from "../../../../../assets/skullking/pirate_mermaids.png";
+import pirateBySkullKingImg from "../../../../../assets/skullking/skullking_pirates.png";
+import skullKingByMermaidImg from "../../../../../assets/skullking/mermaid_skullking.png";
+import coinsImg from "../../../../../assets/skullking/Coins.png";
 
 interface BonusCardProps {
   playerName: string;
@@ -63,32 +69,32 @@ export function BonusCard({
         <div className="p-4 flex flex-col gap-4">
           <Section title="Cards captured">
             <Stepper
-              label="Standard 14s" points="+10 each" locked={locked}
+              label="Standard 14s" image={plus10Img} points="+10 each" locked={locked}
               value={bonus.standardFourteens} max={3}
               onDec={() => setCount("standardFourteens", -1, 3)}
               onInc={() => setCount("standardFourteens", 1, 3)}
             />
             <Toggle
-              label="Black 14" points="+20" locked={locked}
+              label="Black 14" image={black14Img} points="+20" locked={locked}
               active={bonus.blackFourteen} onToggle={() => toggle("blackFourteen")}
             />
           </Section>
 
           <Section title="Character captures">
             <Stepper
-              label="Mermaid × Pirate" points="+20 each" locked={locked}
+              label="Mermaid × Pirate" image={mermaidByPirateImg} points="+20 each" locked={locked}
               value={bonus.mermaidsByPirate} max={2}
               onDec={() => setCount("mermaidsByPirate", -1, 2)}
               onInc={() => setCount("mermaidsByPirate", 1, 2)}
             />
             <Stepper
-              label="Pirate × Skull King" points="+30 each" locked={locked}
+              label="Pirate × Skull King" image={pirateBySkullKingImg} points="+30 each" locked={locked}
               value={bonus.piratesBySkullKing} max={5}
               onDec={() => setCount("piratesBySkullKing", -1, 5)}
               onInc={() => setCount("piratesBySkullKing", 1, 5)}
             />
             <Toggle
-              label="Skull King × Mermaid" points="+40" featured locked={locked}
+              label="Skull King × Mermaid" image={skullKingByMermaidImg} points="+40" featured locked={locked}
               active={bonus.skullKingByMermaid} onToggle={() => toggle("skullKingByMermaid")}
             />
           </Section>
@@ -96,7 +102,7 @@ export function BonusCard({
           {advancedCards && (
             <Section title="Loot">
               <Stepper
-                label="Coins collected" points="+20 each" locked={locked}
+                label="Coins collected" image={coinsImg} points="+20 each" locked={locked}
                 value={bonus.loot} max={2}
                 onDec={() => setCount("loot", -1, 2)}
                 onInc={() => setCount("loot", 1, 2)}
@@ -129,6 +135,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 interface StepperProps {
   label: string;
+  // Card image shown in place of the label text; label is used as its alt.
+  image?: string;
   points: string;
   value: number;
   max: number;
@@ -137,11 +145,15 @@ interface StepperProps {
   onInc: () => void;
 }
 
-function Stepper({ label, points, value, max, locked, onDec, onInc }: StepperProps) {
+function Stepper({ label, image, points, value, max, locked, onDec, onInc }: StepperProps) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 px-3 py-2">
       <div className="min-w-0">
-        <div className="text-sm truncate">{label}</div>
+        {image ? (
+          <img src={image} alt={label} className="h-10 w-auto object-contain" />
+        ) : (
+          <div className="text-sm truncate">{label}</div>
+        )}
         <div className="text-xs text-neutral-400">{points}</div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -177,6 +189,8 @@ function Stepper({ label, points, value, max, locked, onDec, onInc }: StepperPro
 
 interface ToggleProps {
   label: string;
+  // Card image shown in place of the label text; label is used as its alt.
+  image?: string;
   points: string;
   active: boolean;
   locked: boolean;
@@ -184,7 +198,7 @@ interface ToggleProps {
   onToggle: () => void;
 }
 
-function Toggle({ label, points, active, locked, featured, onToggle }: ToggleProps) {
+function Toggle({ label, image, points, active, locked, featured, onToggle }: ToggleProps) {
   const base = "w-full flex items-center justify-between gap-3 rounded-xl px-3 border transition";
   const interactive = "active:scale-[0.99]";
   const height = featured ? "py-3" : "py-2";
@@ -203,7 +217,11 @@ function Toggle({ label, points, active, locked, featured, onToggle }: TogglePro
         >
           {active ? "✓" : ""}
         </span>
-        <span className={`truncate ${featured ? "text-sm font-medium" : "text-sm"}`}>{label}</span>
+        {image ? (
+          <img src={image} alt={label} className="h-10 w-auto object-contain" />
+        ) : (
+          <span className={`truncate ${featured ? "text-sm font-medium" : "text-sm"}`}>{label}</span>
+        )}
       </div>
       <span className={`text-xs shrink-0 ${active ? "opacity-80" : "text-neutral-400"}`}>{points}</span>
     </>

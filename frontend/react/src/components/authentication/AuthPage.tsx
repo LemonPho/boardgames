@@ -1,4 +1,4 @@
-import skullKingImage from '../../assets/skull-king-1-jeux-Toulon-L-Ataniere.webp'
+import skullKingImage from '../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp'
 
 import LoginForm from "./LoginForm"
 import RegisterForm from "./RegisterForm"

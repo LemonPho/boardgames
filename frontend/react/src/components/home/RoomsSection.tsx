@@ -9,7 +9,7 @@ import { useAlertsContext } from "../../context/AlertsContext";
 import { useNotificationsContext } from "../../context/NotificationsContext";
 import { useUserContext } from "../../context/UserContext";
 
-import skullKingImage from "../../assets/skull-king-1-jeux-Toulon-L-Ataniere.webp";
+import skullKingImage from "../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp";
 
 /**
  * Home-page rooms section. Appears only when the user is currently in a room
