@@ -9,6 +9,6 @@ cd ..
 
 cd frontend/react
 npm ci
-npm run bild
+npm run build
 
 sudo systemctl restart boardgames
