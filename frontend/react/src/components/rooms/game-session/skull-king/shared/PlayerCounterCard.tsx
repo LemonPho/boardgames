@@ -15,8 +15,6 @@ interface PlayerCounterCardProps {
 export function PlayerCounterCard({
   title,
   value,
-  round,
-  cardCount,
   status,
   leads,
   onIncrement,

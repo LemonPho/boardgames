@@ -12,7 +12,6 @@ import {
   submitTrickResult,
   submitBonusPoints,
   startRound,
-  startTrickResults,
   finishRound,
   startBonusPoints,
   setKraken,

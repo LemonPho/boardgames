@@ -1,4 +1,4 @@
-import type { CreateRoomRequest, RoomInvitationResponse, RoomResponse, RoomUserResponse } from "../types/rooms";
+import type { CreateRoomRequest, RoomResponse } from "../types/rooms";
 import { setAxiosError } from "../util/api";
 import { api } from "./axiosSetup";
 import type { UserAvailabilityResponse } from "../types/user";

@@ -109,7 +109,7 @@
 				<artifactId>flyway-maven-plugin</artifactId>
 				<version>12.4.0</version>
 				<configuration>
-					<url>jdbc:postgresql://localhost:5433/boardgamesdb</url>
+					<url>jdbc:postgresql://localhost:5432/boardgamesdb</url>
 					<user>boardgames_user</user>
 					<password>boardgames_pass</password>
 					<locations>

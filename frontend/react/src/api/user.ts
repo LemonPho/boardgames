@@ -1,4 +1,4 @@
-import type { UserAvailabilityResponse, UserResponse } from "../types/user";
+import type { UserResponse } from "../types/user";
 import type { MatchHistoryResponse } from "../types/matches";
 import { setAxiosError } from "../util/api";
 import { reviveDates } from "../util/dates";
