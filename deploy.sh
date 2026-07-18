@@ -3,7 +3,6 @@ cd /var/www/apps/boardgames
 git pull
 
 cd backend
-./mvnw flyway:migrate
 ./mvnw clean package
 cp target/*.jar /opt/boardgames/app.jar
 cd ..
