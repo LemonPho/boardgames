@@ -2,7 +2,7 @@ import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth"
 import { auth } from "./axiosSetup";
 import { setAxiosError } from "../util/api";
 import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 
 export const verifyEmail = async (token: string, setErrorMessage: (message: string) => void): Promise<string> => {
     try{
