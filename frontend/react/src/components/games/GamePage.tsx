@@ -45,7 +45,7 @@ export default function GamePage() {
   if (!game) return null
 
   return (
-    <div className="min-h-screen bg-gray-100 flex justify-center p-6">
+    <div className="min-h-screen flex justify-center p-6">
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg overflow-hidden">
 
         {/* Hero */}

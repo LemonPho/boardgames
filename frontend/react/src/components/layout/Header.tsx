@@ -1,4 +1,4 @@
-import { Bell, User } from "lucide-react";
+import { Bell, User, Home } from "lucide-react";
 import { useUIContext } from "../../context/UIContext";
 import Dropdown from "../util/Dropdown";
 import NotificationsPanel from "../notifications/NotificationsPanel";
@@ -20,7 +20,7 @@ export default function Header() {
 
   return(
     <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-      <Link to={"/"} className="font-semibold text-gray-800 text-lg">Boardgames</Link>
+      <Link to={"/"} className="font-semibold text-gray-800 text-lg"><Home></Home></Link>
 
       <div className="flex items-center gap-2">
       {/* Notification bell */}

@@ -18,4 +18,10 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Modifying
     @Query(value = "DELETE FROM notifications WHERE payload->>'roomName' = :roomName AND type = 'ROOM_INVITATION'", nativeQuery=true)
     void deleteByRoomName(@Param("roomName") String roomName);
+
+    // Dismiss a room's invitations once it's over (completed/cancelled) — the
+    // invite is no longer actionable, so it shouldn't linger as unread.
+    @Modifying
+    @Query(value = "UPDATE notifications SET read = true WHERE payload->>'roomName' = :roomName AND type = 'ROOM_INVITATION' AND read = false", nativeQuery=true)
+    void markReadByRoomName(@Param("roomName") String roomName);
 }

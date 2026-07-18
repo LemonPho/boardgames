@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.motomutterers.boardgames.exceptions.BadActionException;
+import com.motomutterers.boardgames.notifications.repositories.NotificationRepository;
 import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
@@ -37,6 +38,7 @@ public class RoomsUtilityService {
     private final RoomUserRepository roomUserRepository;
     private final RoomInvitationTokenRepository roomInvitationTokenRepository;
     private final SessionUtilitysService sessionUtilitysService;
+    private final NotificationRepository notificationRepository;
 
     @Value("${room.waiting.expiration}")
     private int roomWaitingExpiration;
@@ -48,12 +50,14 @@ public class RoomsUtilityService {
         RoomRepository roomRepository,
         RoomUserRepository roomUserRepository,
         RoomInvitationTokenRepository roomInvitationTokenRepository,
-        SessionUtilitysService sessionUtilitysService
+        SessionUtilitysService sessionUtilitysService,
+        NotificationRepository notificationRepository
     ) {
         this.roomRepository = roomRepository;
         this.roomUserRepository = roomUserRepository;
         this.roomInvitationTokenRepository = roomInvitationTokenRepository;
         this.sessionUtilitysService = sessionUtilitysService;
+        this.notificationRepository = notificationRepository;
     }
 
     public Room getRoomById(UUID id){
@@ -161,6 +165,11 @@ public class RoomsUtilityService {
     public void changeRoomStatus(Room room, RoomStatus roomStatus){
         room.setStatus(roomStatus);
         roomRepository.save(room);
+
+        // Once a room reaches a terminal state, dismiss its pending invitations.
+        if(roomStatus.equals(RoomStatus.COMPLETED) || roomStatus.equals(RoomStatus.CANCELLED)){
+            notificationRepository.markReadByRoomName(room.getName());
+        }
     }
 
     public List<UserAvailabilityResponse> getOccupiedUsers(List<User> users, Room currentRoom){
@@ -223,6 +232,9 @@ public class RoomsUtilityService {
 
         roomInvitationTokenRepository.saveAll(invitations);
         roomRepository.save(room);
+
+        // The room is over, so its invitations are no longer actionable — dismiss them.
+        notificationRepository.markReadByRoomName(room.getName());
 
         sessionUtilitysService.cancelSessionIfExists(room);
     }

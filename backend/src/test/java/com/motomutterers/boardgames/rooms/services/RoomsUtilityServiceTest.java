@@ -2,6 +2,7 @@ package com.motomutterers.boardgames.rooms.services;
 
 import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.games.model.Game;
+import com.motomutterers.boardgames.notifications.repositories.NotificationRepository;
 import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
@@ -43,6 +44,7 @@ public class RoomsUtilityServiceTest {
     @Mock private RoomUserRepository roomUserRepository;
     @Mock private RoomInvitationTokenRepository roomInvitationTokenRepository;
     @Mock private SessionUtilitysService sessionUtilitysService;
+    @Mock private NotificationRepository notificationRepository;
 
     @InjectMocks
     private RoomsUtilityService roomsUtilityService;
