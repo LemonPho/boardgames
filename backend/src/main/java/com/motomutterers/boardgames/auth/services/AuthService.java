@@ -210,6 +210,7 @@ public class AuthService {
             user.setEmail(verificationToken.getPendingEmail());
         } else {
             user.setIsActive();
+            user.setVerified(true);
         }
 
         userRepository.save(user);
