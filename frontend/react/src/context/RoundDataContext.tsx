@@ -97,7 +97,7 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
   const trickResults = effective(serverTricks, trickDrafts);
   const bonuses = effective(serverBonuses, bonusDrafts);
 
-  const canEdit = (teamId: string): boolean => canEditTeam(room, currentPlayer, teamId);
+  const canEdit = (teamId: string): boolean => canEditTeam(room, currentPlayer, teamId, state.teams);
 
   const bonusEligibilityFor = (teamId: string) => bonusEligibility(bids[teamId], trickResults[teamId]);
 
