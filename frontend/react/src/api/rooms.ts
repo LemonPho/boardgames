@@ -29,6 +29,19 @@ export const getRoom = async (roomName: string, setErrorMessage: (message: strin
   }
 }
 
+// The room the user is currently in, or null (204) if none.
+export const getActiveRoom = async (setErrorMessage: (message: string) => void): Promise<RoomResponse | null> => {
+  try {
+    const response = await api.get(`/rooms/active`);
+    // 204 No Content -> not in a room.
+    if (response.status === 204) return null;
+    return response.data as RoomResponse;
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
 export const invitePlayerToRoom = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
   try {
     await api.post(`/rooms/${roomName}/invite`, {

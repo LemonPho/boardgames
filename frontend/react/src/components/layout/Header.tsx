@@ -1,14 +1,17 @@
 import { Bell, User } from "lucide-react";
 import { useUIContext } from "../../context/UIContext";
 import Dropdown from "../util/Dropdown";
+import NotificationsPanel from "../notifications/NotificationsPanel";
 import { useAuthenticationContext } from "../../context/AuthenticationContext";
 import { useUserContext } from "../../context/UserContext";
+import { useNotificationsContext } from "../../context/NotificationsContext";
 import { Link } from "react-router-dom";
 
 export default function Header() {
   const { user } = useUserContext();
   const { togglePanel, closePanel } = useUIContext();
   const { logoutUser, deleteAccessToken, restoreSession } = useAuthenticationContext();
+  const { unreadCount } = useNotificationsContext();
 
   const handleLogout = async (): Promise<void> => {
     await logoutUser();
@@ -22,15 +25,18 @@ export default function Header() {
       <div className="flex items-center gap-2">
       {/* Notification bell */}
         <div className="relative">
-          <button 
+          <button
             onClick={(event) => {togglePanel('notifications'); event.stopPropagation();}}
             className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 transition relative"
           >
             <Bell size={18} className="text-gray-600" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 flex items-center justify-center text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                {unreadCount}
+              </span>
+            )}
           </button>
-          <Dropdown id="notifications">
-            <span className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">No notifications...</span>
-          </Dropdown>
+          <NotificationsPanel />
 
         </div>
         
@@ -43,11 +49,17 @@ export default function Header() {
             <User size={18} className="text-gray-600" />
           </button>
 
-          {user && 
+          {user &&
             <Dropdown id="profile">
-              <button className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">{user?.username}</button>
+              <Link
+                to={`/profile/${user.username}`}
+                onClick={closePanel}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                {user?.username}
+              </Link>
               <hr className="border-gray-100" />
-              <button 
+              <button
                 onClick={handleLogout}
                 className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50"
               >

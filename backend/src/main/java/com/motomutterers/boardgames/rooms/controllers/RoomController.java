@@ -133,10 +133,20 @@ public class RoomController {
         return ResponseEntity.ok(roomService.acceptInvite(token, authentication));
     }
 
+    @GetMapping("/active")
+    public ResponseEntity<RoomResponse> getActiveRoom(
+        Authentication authentication
+    ) {
+        UUID userId = UUID.fromString(authentication.getName());
+        RoomResponse room = roomService.getActiveRoom(userId);
+        // 204 when the user isn't in any room, so the client shows no rooms section.
+        return room == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(room);
+    }
+
     @GetMapping("/{name}")
     public ResponseEntity<RoomResponse> getRoom(
         @PathVariable String name
     ) {
         return ResponseEntity.ok(roomService.getRoom(name));
-    }   
+    }
 }

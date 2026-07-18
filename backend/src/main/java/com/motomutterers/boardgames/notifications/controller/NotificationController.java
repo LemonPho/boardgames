@@ -1,10 +1,13 @@
 package com.motomutterers.boardgames.notifications.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,5 +30,14 @@ public class NotificationController {
         Authentication authentication
     ) {
         return ResponseEntity.ok(notificationService.getNotifications(authentication));
+    }
+
+    @PutMapping("/{id}/read")
+    public ResponseEntity<Void> readNotification(
+        @PathVariable UUID id,
+        Authentication authentication
+    ) {
+        notificationService.readNotification(id, authentication);
+        return ResponseEntity.noContent().build();
     }
 }

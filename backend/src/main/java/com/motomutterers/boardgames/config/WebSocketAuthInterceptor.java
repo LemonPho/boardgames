@@ -74,6 +74,24 @@ public class WebSocketAuthInterceptor implements ChannelInterceptor {
         String destination = accessor.getDestination();
         if (destination == null) return;
 
+        // A user may only subscribe to their own personal notification topic,
+        // which is keyed by their (unique) username.
+        if (destination.startsWith("/topic/notifications/")) {
+            UsernamePasswordAuthenticationToken auth = (UsernamePasswordAuthenticationToken) accessor.getUser();
+            if (auth == null) {
+                throw new IllegalArgumentException("Not authenticated");
+            }
+            UUID userId = UUID.fromString(auth.getName());
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+            String topicUsername = destination.substring("/topic/notifications/".length());
+            if (!user.getUsername().equals(topicUsername)) {
+                throw new IllegalArgumentException("You can only subscribe to your own notifications");
+            }
+            return;
+        }
+
         // Public room topics don't need team-level auth
         if (destination.matches("/topic/rooms/.*")) return;
 

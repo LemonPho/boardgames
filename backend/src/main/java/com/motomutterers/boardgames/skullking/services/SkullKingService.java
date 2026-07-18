@@ -18,6 +18,7 @@ import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.models.session.Session;
+import com.motomutterers.boardgames.sessions.models.session.SessionStatus;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventPayload;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
@@ -31,6 +32,7 @@ import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
+import com.motomutterers.boardgames.skullking.dto.ScoreboardResponse;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryTeamResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
@@ -149,6 +151,42 @@ public class SkullKingService {
         roomsUtilityService.updateRoomLastUpdated(room);
 
         return stateBuilder.buildState(session, roomUser, isAdmin);
+    }
+
+    // Final standings for a room's session (works for completed sessions, unlike
+    // getState which only resolves IN_PROGRESS). Backs the final scoreboard page.
+    @Transactional
+    public ScoreboardResponse getScoreboard(String roomName, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
+        Session session = sessionUtilitysService.getOrThrowSessionByRoomAnyStatus(room);
+
+        List<Team> ranked = session.getTeams().stream()
+            .sorted(Comparator.comparingLong(Team::getFinalScore).reversed())
+            .toList();
+
+        List<ScoreboardResponse.ScoreboardTeamResponse> teamRows = ranked.stream()
+            .map(team -> {
+                // Standard competition ranking: ties share the better placement.
+                int placement = (int) ranked.stream()
+                    .filter(t -> t.getFinalScore() > team.getFinalScore())
+                    .count() + 1;
+                return new ScoreboardResponse.ScoreboardTeamResponse(
+                    team.getId().toString(),
+                    team.getRoomUser() != null ? team.getRoomUser().getDisplayName() : null,
+                    team.getFinalScore(),
+                    placement,
+                    placement == 1);
+            })
+            .toList();
+
+        return new ScoreboardResponse(
+            room.getName(),
+            room.getGame().getName(),
+            session.getStatus().equals(SessionStatus.COMPLETED),
+            session.getEndedAt(),
+            teamRows);
     }
 
     public RoundHistoryResponse getRoundHistory(String roomName, int round, Authentication authentication){

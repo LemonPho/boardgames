@@ -12,9 +12,10 @@ import com.motomutterers.boardgames.notifications.model.Notification;
 import com.motomutterers.boardgames.user.model.User;
 
 public interface NotificationRepository extends JpaRepository<Notification, UUID>{
-    List<Notification> findNotificationsByUser(User user);
+    // Only unread notifications are surfaced — reading one dismisses it.
+    List<Notification> findNotificationsByUserAndReadFalse(User user);
 
     @Modifying
-    @Query(value = "DELETE FROM notifications WHERE payload->'room'->>'name' = :roomName AND type = 'ROOM_INVITATION'", nativeQuery=true)
+    @Query(value = "DELETE FROM notifications WHERE payload->>'roomName' = :roomName AND type = 'ROOM_INVITATION'", nativeQuery=true)
     void deleteByRoomName(@Param("roomName") String roomName);
 }

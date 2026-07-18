@@ -13,6 +13,7 @@ import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
+import com.motomutterers.boardgames.skullking.dto.ScoreboardResponse;
 import com.motomutterers.boardgames.skullking.dto.SetKrakenRequest;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
@@ -37,6 +38,14 @@ public class SkullKingController {
         Authentication authentication
     ){
         return ResponseEntity.ok(skullKingService.getState(roomName, authentication));
+    }
+
+    @GetMapping("/scoreboard")
+    public ResponseEntity<ScoreboardResponse> getScoreboard(
+        @PathVariable String roomName,
+        Authentication authentication
+    ){
+        return ResponseEntity.ok(skullKingService.getScoreboard(roomName, authentication));
     }
 
     @GetMapping("/rounds/{round}")

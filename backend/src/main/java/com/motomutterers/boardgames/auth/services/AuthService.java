@@ -16,6 +16,7 @@ import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredExce
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
 import com.motomutterers.boardgames.auth.models.RefreshToken;
 import com.motomutterers.boardgames.auth.models.VerificationToken;
+import com.motomutterers.boardgames.auth.models.VerificationTokenType;
 import com.motomutterers.boardgames.auth.repositories.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.repositories.VerificationTokenRepository;
 import com.motomutterers.boardgames.email.EmailService;
@@ -46,6 +47,9 @@ public class AuthService {
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
 
     public AuthService(
         UserRepository userRepository,
@@ -128,7 +132,7 @@ public class AuthService {
         VerificationToken verificationToken = createVerificationToken(user);
         verificationTokenRepository.save(verificationToken);
 
-        String verificationLink = baseUrl + "api/auth/verify?token=" + verificationToken.getToken();
+        String verificationLink = frontendBaseUrl + "verify?token=" + verificationToken.getToken();
         String html = EmailTemplates.verificationEmail(user.getUsername(), verificationLink);
         emailService.sendEmail(user.getEmail(), "Verify your Boardgames account", html);
     }
@@ -199,7 +203,44 @@ public class AuthService {
         }
 
         User user = verificationToken.getUser();
-        user.setIsActive();
+
+        // EMAIL_CHANGE tokens apply the pending address; older/registration tokens
+        // (type null pre-migration or ACCOUNT_VERIFICATION) activate the account.
+        if(VerificationTokenType.EMAIL_CHANGE.equals(verificationToken.getType())){
+            user.setEmail(verificationToken.getPendingEmail());
+        } else {
+            user.setIsActive();
+        }
+
         userRepository.save(user);
+        verificationTokenRepository.delete(verificationToken);
+    }
+
+    // Starts an email change: the address only changes once the new inbox confirms
+    // the link, so a typo can't lock the account. Guarded by the current password.
+    @Transactional
+    public void requestEmailChange(User user, String newEmail, String currentPassword){
+        new ValidationBuilder()
+            .addError(!passwordEncoder.matches(currentPassword, user.getPasswordHash()), "currentPassword", "Password is incorrect")
+            .validate();
+
+        if(!newEmail.equals(user.getEmail())){
+            new ValidationBuilder()
+                .addError(userRepository.findByEmail(newEmail).isPresent(), "email", "Email is already taken")
+                .validate();
+        }
+
+        VerificationToken token = new VerificationToken(
+            user,
+            UUID.randomUUID().toString(),
+            VerificationTokenType.EMAIL_CHANGE,
+            newEmail,
+            LocalDateTime.now().plusSeconds(verificationExpiration));
+        verificationTokenRepository.save(token);
+
+        String verificationLink = frontendBaseUrl + "verify?token=" + token.getToken();
+        String html = EmailTemplates.emailChangeEmail(user.getUsername(), verificationLink);
+        // Sent to the NEW address — that inbox must prove ownership.
+        emailService.sendEmail(newEmail, "Confirm your new email", html);
     }
 }

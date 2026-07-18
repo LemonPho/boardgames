@@ -192,14 +192,20 @@ public class RoomsUtilityService {
     }
 
     public boolean getIsUserInActiveRoom(User user){
+        return getActiveRoom(user).isPresent();
+    }
+
+    // The user's current WAITING/IN_PROGRESS room, if any. An expired room is
+    // cancelled and treated as none, so callers never see a stale room.
+    public Optional<Room> getActiveRoom(User user){
         Optional<Room> result = roomUserRepository.findActiveRoomByUser(user, List.of(RoomStatus.WAITING, RoomStatus.IN_PROGRESS));
-        if(result.isEmpty()) return false;
+        if(result.isEmpty()) return Optional.empty();
         Room room = result.get();
         if(isRoomExpired(room)){
             cancelRoom(room);
-            return false;
+            return Optional.empty();
         }
-        return true;
+        return Optional.of(room);
     }
 
     public void updateRoomLastUpdated(Room room){

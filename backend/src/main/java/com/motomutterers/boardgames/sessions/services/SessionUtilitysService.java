@@ -1,5 +1,6 @@
 package com.motomutterers.boardgames.sessions.services;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,6 +47,7 @@ public class SessionUtilitysService {
 
     public void completeSession(Session session){
         session.setStatus(SessionStatus.COMPLETED);
+        session.setEndedAt(LocalDateTime.now());
         sessionRepository.save(session);
     }
 
@@ -65,6 +67,13 @@ public class SessionUtilitysService {
         }
 
         return result.get();
+    }
+
+    // The room's session regardless of status (a room has one). Used to read a
+    // completed session's final scoreboard, where the IN_PROGRESS lookup fails.
+    public Session getOrThrowSessionByRoomAnyStatus(Room room){
+        return sessionRepository.findByRoom(room)
+            .orElseThrow(() -> new SessionNotFoundException("Session for room: " + room.getName() + " not found"));
     }
 
     public void throwIfUserIsntRoomAdmin(RoomUser roomUser){

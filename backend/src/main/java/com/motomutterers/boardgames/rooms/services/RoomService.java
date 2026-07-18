@@ -245,7 +245,7 @@ public class RoomService {
         String html = EmailTemplates.roomInvitationEmail(user.getUsername(), invitationLink);
         emailService.sendEmail(user.getEmail(), "You've been invited to join a game!", html);
         
-        CreateRoomInvitationNotificationRequest notificationRequest = new CreateRoomInvitationNotificationRequest(user, room, roomAdmin);
+        CreateRoomInvitationNotificationRequest notificationRequest = new CreateRoomInvitationNotificationRequest(user, room, roomAdmin, roomInvitationToken.getToken());
         notificationService.createRoomInvitationNotification(notificationRequest);
 
         roomsUtilityService.updateRoomLastUpdated(room);
@@ -317,6 +317,16 @@ public class RoomService {
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
 
         return new RoomResponse(room);
+    }
+
+    // The room the user is currently in (WAITING or IN_PROGRESS), or null if none.
+    // Backs the home page's rooms section so a returning user is shown their room.
+    @Transactional
+    public RoomResponse getActiveRoom(UUID userId) {
+        User user = userService.getUserById(userId);
+        return roomsUtilityService.getActiveRoom(user)
+            .map(RoomResponse::new)
+            .orElse(null);
     }
 
     @Transactional

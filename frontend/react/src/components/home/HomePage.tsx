@@ -3,6 +3,7 @@ import type { SimpleGameResponse } from "../../types/games"
 import { getGames } from "../../api/games"
 import { useAlertsContext } from "../../context/AlertsContext"
 import { Link } from "react-router-dom"
+import RoomsSection from "./RoomsSection"
 
 import skullKingImage from '../../assets/skull-king-1-jeux-Toulon-L-Ataniere.webp'
 
@@ -31,6 +32,8 @@ export default function HomePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      <RoomsSection />
+
       <h1 className="text-2xl font-medium text-gray-900 mb-1">Games</h1>
       <p className="text-sm text-gray-500 mb-8">Pick a game to start tracking scores</p>
 

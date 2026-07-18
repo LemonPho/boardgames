@@ -1,6 +1,22 @@
 import type { RoundHistory, SkullKingState, TeamBonus } from "../types/skull-king";
+import type { ScoreboardResponse } from "../types/scoreboard";
 import { setAxiosError } from "../util/api"
+import { reviveDates } from "../util/dates";
 import { api } from "./axiosSetup";
+
+export const getScoreboard = async (
+  roomName: string,
+  setErrorMessage: (message: string) => void
+): Promise<ScoreboardResponse> => {
+  try {
+    const response = await api.get(`/skull-king/${roomName}/scoreboard`);
+    // endedAt arrives as an ISO string; revive it into a Date.
+    return reviveDates(response.data as ScoreboardResponse, "endedAt");
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
 
 export const getSkullKingState = async (
   roomName: string,
