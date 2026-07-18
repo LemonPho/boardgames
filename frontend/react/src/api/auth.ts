@@ -59,6 +59,24 @@ export const login = async (data: LoginRequest, setErrors: (errors: LoginErrors 
     
 }
 
+export const forgotPassword = async (isUsername: boolean, primaryKey: string, setErrorMessage: (message: string) => void): Promise<void> => {
+    try{
+        await auth.post("/forgot-password", { isUsername, primaryKey });
+    } catch(error) {
+        setAxiosError(error, setErrorMessage);
+        throw error;
+    }
+}
+
+export const resetPassword = async (token: string, newPassword: string, setErrorMessage: (message: string) => void): Promise<void> => {
+    try{
+        await auth.post("/reset-password", { token, newPassword });
+    } catch(error) {
+        setAxiosError(error, setErrorMessage);
+        throw error;
+    }
+}
+
 export const refresh = async(): Promise<AuthResponse> => {
     const response = await auth.post("/refresh");
     return response.data;

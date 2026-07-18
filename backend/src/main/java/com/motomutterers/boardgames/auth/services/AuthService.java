@@ -244,4 +244,46 @@ public class AuthService {
         // Sent to the NEW address — that inbox must prove ownership.
         emailService.sendEmail(newEmail, "Confirm your new email", html);
     }
+
+    // Emails a password-reset link if the account exists. Silent no-op when it
+    // doesn't, so this endpoint can't be used to probe which accounts are real.
+    @Transactional
+    public void requestPasswordReset(boolean isUsername, String primaryKey){
+        Optional<User> result = isUsername
+            ? userRepository.findByUsername(primaryKey)
+            : userRepository.findByEmail(primaryKey);
+        if(result.isEmpty()) return;
+
+        User user = result.get();
+        VerificationToken token = new VerificationToken(
+            user,
+            UUID.randomUUID().toString(),
+            VerificationTokenType.PASSWORD_RESET,
+            null,
+            LocalDateTime.now().plusSeconds(verificationExpiration));
+        verificationTokenRepository.save(token);
+
+        String resetLink = frontendBaseUrl + "reset-password?token=" + token.getToken();
+        String html = EmailTemplates.passwordResetEmail(user.getUsername(), resetLink);
+        emailService.sendEmail(user.getEmail(), "Reset your password", html);
+    }
+
+    // Completes a reset: the token must exist, be a PASSWORD_RESET token, and be
+    // unexpired. On success the password is replaced and the token consumed.
+    @Transactional
+    public void resetPassword(String token, String newPassword){
+        VerificationToken verificationToken = getVerificationTokenByToken(token);
+
+        if(!VerificationTokenType.PASSWORD_RESET.equals(verificationToken.getType())){
+            throw new VerificationTokenNotFoundException("Invalid password reset link");
+        }
+        if(verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){
+            throw new VerificationTokenExpiredException("This reset link has expired, please request a new one");
+        }
+
+        User user = verificationToken.getUser();
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        verificationTokenRepository.delete(verificationToken);
+    }
 }

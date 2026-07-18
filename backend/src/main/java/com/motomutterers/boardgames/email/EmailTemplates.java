@@ -13,6 +13,17 @@ public class EmailTemplates {
                 """.formatted(username, verificationLink);
     }
 
+    public static String passwordResetEmail(String username, String resetLink) {
+        return """
+                <h2>Reset your password</h2>
+                <p>Hi %s,</p>
+                <p>Click the link below to choose a new password for your Boardgames account:</p>
+                <a href="%s">Reset my password</a>
+                <p>This link expires in 15 minutes.</p>
+                <p>If you did not request this, you can ignore this email — your password won't change.</p>
+                """.formatted(username, resetLink);
+    }
+
     public static String emailChangeEmail(String username, String verificationLink) {
         return """
                 <h2>Confirm your new email</h2>

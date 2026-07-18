@@ -17,6 +17,8 @@ import FinalScoreboard from './components/rooms/FinalScoreboard'
 import RoomPage from './components/rooms/RoomPage'
 import AcceptInvitePage from './components/rooms/waiting-room/AcceptInvitePage'
 import VerifyPage from './components/authentication/VerifyPage'
+import ForgotPassword from './components/authentication/ForgotPassword'
+import CreateNewPassword from './components/authentication/CreateNewPassword'
 import ProfilePage from './components/user/ProfilePage'
 import SettingsPage from './components/user/SettingsPage'
 
@@ -40,6 +42,8 @@ export default function App() {
                     <Route path="scoreboard/:name" element={<FinalScoreboard />} />
                     <Route path="/rooms/accept" element={<AcceptInvitePage />} />
                     <Route path="verify" element={<VerifyPage />} />
+                    <Route path="forgot-password" element={<ForgotPassword />} />
+                    <Route path="reset-password" element={<CreateNewPassword />} />
                     <Route path="rooms/:name" element={<RoomPage />}>
                       <Route path="waiting" element={<WaitingRoom />} />
                       <Route path="in-progress" element={<GameSession />} />

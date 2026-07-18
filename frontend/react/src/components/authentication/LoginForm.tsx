@@ -13,7 +13,7 @@ export default function LoginForm() {
     primaryKey: '',
     password: '',
     isUsername: false
-  })
+  });
   const [errors, setErrors] = useState<LoginErrors | null>(null);
 
   const navigate = useNavigate();
@@ -70,6 +70,9 @@ export default function LoginForm() {
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
             <label className="text-sm font-medium text-gray-700">Password</label>
+            <Link to="/forgot-password" className="text-xs text-gray-500 hover:text-gray-800 hover:underline">
+              Forgot password?
+            </Link>
           </div>
           <input
             name="password"

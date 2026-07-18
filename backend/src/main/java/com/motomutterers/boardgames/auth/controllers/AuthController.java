@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
+import com.motomutterers.boardgames.auth.dto.ForgotPasswordRequest;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
+import com.motomutterers.boardgames.auth.dto.ResetPasswordRequest;
 import com.motomutterers.boardgames.auth.services.AuthService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,6 +66,19 @@ public class AuthController {
     public ResponseEntity<String> verify(@RequestParam String token){
         authService.verifyEmail(token);
         return ResponseEntity.ok("Email verified");
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(@RequestBody ForgotPasswordRequest request){
+        authService.requestPasswordReset(request.getIsUsername(), request.getPrimaryKey());
+        // Always 200, even if no account matched — don't reveal which accounts exist.
+        return ResponseEntity.ok("If an account exists, a reset link has been sent");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request){
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok("Password updated");
     }
 
     @GetMapping("/csrf")
