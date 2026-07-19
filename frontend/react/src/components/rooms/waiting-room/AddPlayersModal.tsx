@@ -7,6 +7,7 @@ import { useAlertsContext } from "../../../context/AlertsContext";
 import { createAnonymousPlayer, invitePlayerToRoom, removePlayer, searchUsersAvailability } from "../../../api/rooms";
 import type { RoomUserResponse } from "../../../types/rooms";
 import { useUserContext } from "../../../context/UserContext";
+import SubmitButton from "../../util/SubmitButton";
 
 export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYERS_PANEL: string}) {
   const { room } = useRoomContext();
@@ -18,6 +19,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
   const [usernameMatches, setUsernameMatches] = useState<UserAvailabilityResponse[]>([]);
   const [displayNameInput, setDisplayNameInput] = useState<string>("");
   const [anonymousPlayers, setAnonymousPlayers] = useState<RoomUserResponse[]>([]);
+  const [addingAnon, setAddingAnon] = useState(false);
 
   // Pending invitations reserve a seat, so the room is full once current
   // players + outstanding invites reach the game's max. Mirrors the backend.
@@ -30,9 +32,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     setUsernameInput(event.target.value);
   }
 
-  const handleInviteUserToRoom = async (username: string, event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
+  const handleInviteUserToRoom = async (username: string): Promise<void> => {
     if (room == null) return;
     if (isFull) {
       setErrorMessage("Room is full");
@@ -48,9 +48,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     setDisplayNameInput(event.target.value);
   }
 
-  const handleCreateAnonymousPlayer = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
+  const handleCreateAnonymousPlayer = async (): Promise<void> => {
     if (room == null) return;
     if (isFull) {
       setErrorMessage("Room is full");
@@ -58,14 +56,6 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
     }
 
     await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
-  }
-
-  const handleRemovePlayer = async (roomUserId: string, event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
-    if (room == null) return;
-
-    await removePlayer(roomUserId, room.name, setErrorMessage);
   }
 
   const fetchUsernameMatches = async (): Promise<void> => {
@@ -158,36 +148,21 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
               className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
               onChange={handleDisplayNameInputChange}
             />
-            <button
-              onClick={(event) => handleCreateAnonymousPlayer(event)}
+            <SubmitButton
+              text="Add"
+              loading={addingAnon}
+              setLoading={setAddingAnon}
+              onSubmit={handleCreateAnonymousPlayer}
               disabled={isFull}
               className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Add
-            </button>
+            />
           </div>
 
           {/* Anonymous players list */}
-          {anonymousPlayers.length > 0 && (
+          {anonymousPlayers.length > 0 && room && (
             <div className="flex flex-col gap-1">
               {anonymousPlayers.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-                      {player.displayName?.[0]?.toUpperCase() ?? "?"}
-                    </div>
-                    <span className="text-sm text-gray-800">{player.displayName}</span>
-                  </div>
-                  <button
-                    onClick={(event) => handleRemovePlayer(player.id, event)}
-                    className="text-xs text-red-400 hover:text-red-600 transition-colors"
-                  >
-                    Remove
-                  </button>
-                </div>
+                <AnonymousPlayerRow key={player.id} player={player} roomName={room.name} />
               ))}
             </div>
           )}
@@ -195,5 +170,33 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
       )}
     </Modal>
 
+  );
+}
+
+// Own loading state per row, so removing one anonymous player only loads its button.
+function AnonymousPlayerRow({ player, roomName }: { player: RoomUserResponse; roomName: string }) {
+  const { setErrorMessage } = useAlertsContext();
+  const [loading, setLoading] = useState(false);
+
+  const handleRemove = async (): Promise<void> => {
+    await removePlayer(player.id, roomName, setErrorMessage);
+  };
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+          {player.displayName?.[0]?.toUpperCase() ?? "?"}
+        </div>
+        <span className="text-sm text-gray-800">{player.displayName}</span>
+      </div>
+      <SubmitButton
+        text="Remove"
+        loading={loading}
+        setLoading={setLoading}
+        onSubmit={handleRemove}
+        className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
+      />
+    </div>
   );
 }

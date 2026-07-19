@@ -6,6 +6,7 @@ import { useAlertsContext } from "../../context/AlertsContext";
 import { useNotificationsContext } from "../../context/NotificationsContext";
 import { markNotificationRead } from "../../api/notifications";
 import { acceptInvite } from "../../api/rooms";
+import SubmitButton from "../util/SubmitButton";
 import type { NotificationResponse, RoomInvitationNotification } from "../../types/notifications";
 
 export default function NotificationsPanel() {
@@ -87,35 +88,22 @@ function RoomInvitationRow({
   const navigate = useNavigate();
   const { closePanel } = useUIContext();
 
+  // SubmitButton owns the loading lifecycle for both actions (shared `busy`).
   const handleAccept = async (): Promise<void> => {
-    setBusy(true);
-    try {
-      const room = await acceptInvite(token, setErrorMessage);
-      // Mark read so it doesn't reappear, then remove it from the list.
-      await markNotificationRead(notification.id, setErrorMessage);
-      onRead(notification.id);
-      setSuccessMessage(`Joined ${roomName}`);
-      // Close the dropdown and drop the user straight into the room.
-      closePanel();
-      if (room) navigate(`/rooms/${room.name}`);
-    } catch {
-      /* surfaced via alerts */
-    } finally {
-      setBusy(false);
-    }
+    const room = await acceptInvite(token, setErrorMessage);
+    // Mark read so it doesn't reappear, then remove it from the list.
+    await markNotificationRead(notification.id, setErrorMessage);
+    onRead(notification.id);
+    setSuccessMessage(`Joined ${roomName}`);
+    // Close the dropdown and drop the user straight into the room.
+    closePanel();
+    if (room) navigate(`/rooms/${room.name}`);
   };
 
   const handleDecline = async (): Promise<void> => {
-    setBusy(true);
-    try {
-      // No decline endpoint yet — dismiss by marking read so it disappears.
-      await markNotificationRead(notification.id, setErrorMessage);
-      onRead(notification.id);
-    } catch {
-      /* surfaced via alerts */
-    } finally {
-      setBusy(false);
-    }
+    // No decline endpoint yet — dismiss by marking read so it disappears.
+    await markNotificationRead(notification.id, setErrorMessage);
+    onRead(notification.id);
   };
 
   return (
@@ -145,20 +133,22 @@ function RoomInvitationRow({
         <p className="text-xs text-gray-400 mt-0.5">{gameName}</p>
 
         <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleAccept}
-            disabled={busy}
+          <SubmitButton
+            loading={busy}
+            setLoading={setBusy}
+            onSubmit={handleAccept}
             className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40"
           >
             <Check size={13} /> Accept
-          </button>
-          <button
-            onClick={handleDecline}
-            disabled={busy}
+          </SubmitButton>
+          <SubmitButton
+            loading={busy}
+            setLoading={setBusy}
+            onSubmit={handleDecline}
             className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-gray-400 transition disabled:opacity-40"
           >
             <X size={13} /> Decline
-          </button>
+          </SubmitButton>
         </div>
       </div>
     </div>

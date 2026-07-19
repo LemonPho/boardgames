@@ -8,6 +8,7 @@ import { markNotificationRead } from "../../api/notifications";
 import { useAlertsContext } from "../../context/AlertsContext";
 import { useNotificationsContext } from "../../context/NotificationsContext";
 import { useUserContext } from "../../context/UserContext";
+import SubmitButton from "../util/SubmitButton";
 
 import skullKingImage from "../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp";
 
@@ -27,6 +28,9 @@ export default function RoomsSection() {
   const { user } = useUserContext();
 
   const [activeRoom, setActiveRoom] = useState<RoomResponse | null>(null);
+  // Which invite (by id) has an action in flight, so only that card's buttons
+  // show loading — not every invite's.
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Pending room invitations, surfaced live from notifications.
   const invites = notifications.filter(
@@ -134,19 +138,22 @@ export default function RoomsSection() {
                 <p className="text-xs text-white/70 mt-0.5">{invite.data.gameName}</p>
               </div>
               <div className="flex gap-2 mt-1">
-                <button
-                  onClick={() => handleAccept(invite)}
-                  className="flex-1 flex items-center justify-center gap-1 text-sm font-medium py-2 rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition active:scale-[0.98]"
+                <SubmitButton
+                  loading={busyId === invite.id}
+                  setLoading={(v) => setBusyId(v ? invite.id : null)}
+                  onSubmit={() => handleAccept(invite)}
+                  className="flex-1 flex items-center justify-center gap-1 text-sm font-medium py-2 rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition active:scale-[0.98] disabled:opacity-40"
                 >
                   <Check size={15} /> Accept
-                </button>
-                <button
-                  onClick={() => handleDecline(invite)}
-                  className="flex items-center justify-center px-3 py-2 rounded-lg bg-white/15 text-white hover:bg-white/25 transition active:scale-[0.98]"
-                  aria-label="Decline invite"
+                </SubmitButton>
+                <SubmitButton
+                  loading={busyId === invite.id}
+                  setLoading={(v) => setBusyId(v ? invite.id : null)}
+                  onSubmit={() => handleDecline(invite)}
+                  className="flex items-center justify-center px-3 py-2 rounded-lg bg-white/15 text-white hover:bg-white/25 transition active:scale-[0.98] disabled:opacity-40"
                 >
                   <X size={16} />
-                </button>
+                </SubmitButton>
               </div>
             </div>
           </div>

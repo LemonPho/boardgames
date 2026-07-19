@@ -7,6 +7,7 @@ import type { GameResponse } from "../../types/games"
 import skullKingImage from '../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp'
 import { createRoom } from "../../api/rooms"
 import type { CreateRoomRequest, TrackingMode } from "../../types/rooms"
+import SubmitButton from "../util/SubmitButton"
 
 const TRACKING_OPTIONS: { value: TrackingMode; label: string; description: string }[] = [
   { value: "SELF", label: "Self", description: "Each player marks their own points during the game." },
@@ -20,6 +21,7 @@ export default function GamePage() {
   const [game, setGame] = useState<GameResponse | null>(null)
   const [trackingMode, setTrackingMode] = useState<TrackingMode>("SELF")
   const [advancedCards, setAdvancedCards] = useState<boolean>(false)
+  const [creating, setCreating] = useState(false)
 
   const navigate = useNavigate();
 
@@ -133,12 +135,13 @@ export default function GamePage() {
           </div>
 
           {/* CTA */}
-          <button
-            onClick={handleCreateRoom}
-            className="w-full bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors"
-          >
-            Create room
-          </button>
+          <SubmitButton
+            text="Create room"
+            loading={creating}
+            setLoading={setCreating}
+            onSubmit={handleCreateRoom}
+            className="w-full bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-40"
+          />
         </div>
       </div>
     </div>

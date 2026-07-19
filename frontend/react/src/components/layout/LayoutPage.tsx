@@ -6,13 +6,14 @@ import { useEffect } from 'react';
 import { useAlertsContext } from '../../context/AlertsContext';
 
 export default function LayoutPage() {
-  const { errorMessage, successMessage, infoMessage, setErrorMessage, setSuccessMessage, setInfoMessage } = useAlertsContext();
+  const { errorMessage, successMessage, infoMessage, setErrorMessage, setSuccessMessage, setInfoMessage, clearAlerts } = useAlertsContext();
   const { closePanel } = useUIContext();
   const { csrfInit } = useAuthenticationContext();
 
   const handleGeneralClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     event.stopPropagation();
     closePanel();
+    clearAlerts();
   }
 
   useEffect(() => {

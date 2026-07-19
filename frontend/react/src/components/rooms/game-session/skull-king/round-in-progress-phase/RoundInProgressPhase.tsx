@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { useRoomContext } from "../../../../../context/RoomContext";
 import { useSkullKingSessionContext } from "../../../../../context/SkullKingSessionContext";
 import { useAlertsContext } from "../../../../../context/AlertsContext";
 import { startTrickResults } from "../../../../../api/skullKing";
 import { MyBidCard } from "../shared/MyBidCard";
+import SubmitButton from "../../../../util/SubmitButton";
 
 export default function RoundInProgressPhase() {
   const { room, currentPlayer } = useRoomContext();
   const { state } = useSkullKingSessionContext();
   const { setErrorMessage } = useAlertsContext();
+  const [starting, setStarting] = useState(false);
 
   if (!room || !currentPlayer || !state) return null;
 
@@ -31,13 +34,13 @@ export default function RoundInProgressPhase() {
       </div>
 
       {isAdmin && (
-        <button
-          type="button"
-          onClick={handleStartTrickResults}
+        <SubmitButton
+          text="Enter trick results"
+          loading={starting}
+          setLoading={setStarting}
+          onSubmit={handleStartTrickResults}
           className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
-        >
-          Enter trick results
-        </button>
+        />
       )}
     </div>
   );

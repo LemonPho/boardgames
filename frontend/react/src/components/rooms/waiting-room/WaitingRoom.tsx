@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useRoomContext } from "../../../context/RoomContext";
 import { useAlertsContext } from "../../../context/AlertsContext";
 import { cancelRoom, leaveRoom } from "../../../api/rooms";
@@ -6,6 +7,7 @@ import PlayersList from "./PlayersList";
 import AddPlayersModal from "./AddPlayersModal";
 import InvitationsList from "./InvitationsList";
 import { useSessionContext } from "../../../context/SessionContext";
+import SubmitButton from "../../util/SubmitButton";
 
 const INVITE_PLAYERS_PANEL = "invite-players-room";
 
@@ -16,30 +18,23 @@ export default function WaitingRoom() {
   const { setErrorMessage, setSuccessMessage } = useAlertsContext();
 
   const navigate = useNavigate();
+  // Shared across the room actions; only one runs at a time and it disables the others.
+  const [loading, setLoading] = useState(false);
 
-  const handleStartGame = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
+  const handleStartGame = async (): Promise<void> => {
     if(room == null) return;
-    
     await handleCreateSession();
   }
 
-  const handleCancelRoom = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
+  const handleCancelRoom = async (): Promise<void> => {
     if (room == null) return;
-
     await cancelRoom(room.name, setErrorMessage);
     setSuccessMessage("Room cancelled");
     navigate("/");
   }
 
-  const handleLeaveRoom = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
-
+  const handleLeaveRoom = async (): Promise<void> => {
     if(room == null) return;
-
     await leaveRoom(room.name, setErrorMessage);
     navigate("/");
   }
@@ -72,26 +67,29 @@ export default function WaitingRoom() {
       <div className="w-full max-w-2xl flex gap-3">
         {currentPlayer?.role == "ADMIN" ? (
           <>
-            <button 
-              className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors"
-              onClick={(event) => {handleStartGame(event)}}  
-            >
-              Start game
-            </button>
-            <button
-              className="border border-red-200 text-red-500 hover:border-red-400 text-sm font-medium py-3 px-6 rounded-xl transition-colors"
-              onClick={(event) => { handleCancelRoom(event) }}
-            >
-              Cancel room
-            </button>
+            <SubmitButton
+              text="Start game"
+              loading={loading}
+              setLoading={setLoading}
+              onSubmit={handleStartGame}
+              className="flex-1 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-40"
+            />
+            <SubmitButton
+              text="Cancel room"
+              loading={loading}
+              setLoading={setLoading}
+              onSubmit={handleCancelRoom}
+              className="border border-red-200 text-red-500 hover:border-red-400 text-sm font-medium py-3 px-6 rounded-xl transition-colors disabled:opacity-40"
+            />
           </>
         ) : (
-          <button 
-            className="flex-1 border border-gray-200 hover:border-gray-400 text-gray-600 text-sm font-medium py-3 rounded-xl transition-colors"
-            onClick={(event) => {handleLeaveRoom(event)}}
-          >
-            Leave room
-          </button>
+          <SubmitButton
+            text="Leave room"
+            loading={loading}
+            setLoading={setLoading}
+            onSubmit={handleLeaveRoom}
+            className="flex-1 border border-gray-200 hover:border-gray-400 text-gray-600 text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-40"
+          />
         )}
       </div>
 

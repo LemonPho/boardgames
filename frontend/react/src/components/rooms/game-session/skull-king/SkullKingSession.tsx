@@ -12,6 +12,7 @@ import BonusPointsPhase from "./round-results-phase/bonus-points-phase/BonusPoin
 import TricksPhase from "./round-results-phase/tricks-phase/TricksPhase";
 import ScoreboardModal from "./ScoreboardModal";
 import PastRoundView from "./PastRoundView";
+import SubmitButton from "../../../util/SubmitButton";
 
 const SCOREBOARD_PANEL = "skull-king-scoreboard";
 
@@ -23,6 +24,7 @@ export default function SkullKingSession() {
   const navigate = useNavigate();
 
   const [viewingRound, setViewingRound] = useState<number | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   if (!state) return null;
 
@@ -38,8 +40,7 @@ export default function SkullKingSession() {
     );
   }
 
-  const handleCancelGame = async (event: React.MouseEvent): Promise<void> => {
-    event.stopPropagation();
+  const handleCancelGame = async (): Promise<void> => {
     if (!room) return;
     if (!window.confirm("Cancel this game? This ends the session for everyone and can't be undone.")) return;
 
@@ -73,13 +74,13 @@ export default function SkullKingSession() {
             Scoreboard
           </button>
           {isAdmin && (
-            <button
-              type="button"
-              onClick={(event) => { handleCancelGame(event); }}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:border-red-400 transition"
-            >
-              Cancel game
-            </button>
+            <SubmitButton
+              text="Cancel game"
+              loading={cancelling}
+              setLoading={setCancelling}
+              onSubmit={handleCancelGame}
+              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:border-red-400 transition disabled:opacity-40"
+            />
           )}
         </div>
       </header>

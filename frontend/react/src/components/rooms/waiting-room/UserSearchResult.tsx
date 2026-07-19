@@ -1,7 +1,10 @@
-import type React from "react";
+import { useState } from "react";
 import type { UserAvailabilityResponse } from "../../../types/user";
+import SubmitButton from "../../util/SubmitButton";
 
-export default function UserSearchResult({ user, handleInviteUserToRoom }: { user: UserAvailabilityResponse, handleInviteUserToRoom: (username: string, event: React.MouseEvent) => void }) {
+export default function UserSearchResult({ user, handleInviteUserToRoom }: { user: UserAvailabilityResponse, handleInviteUserToRoom: (username: string) => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
+
   if (user.inGame) {
     return (
       <div
@@ -51,12 +54,13 @@ export default function UserSearchResult({ user, handleInviteUserToRoom }: { use
         </div>
         <span className="text-sm text-gray-800">{user.username}</span>
       </div>
-      <button
-        className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:border-gray-400 transition-colors"
-        onClick={(event) => { handleInviteUserToRoom(user.username, event) }}
-      >
-        Invite
-      </button>
+      <SubmitButton
+        text="Invite"
+        loading={loading}
+        setLoading={setLoading}
+        onSubmit={() => handleInviteUserToRoom(user.username)}
+        className="text-xs text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:border-gray-400 transition-colors disabled:opacity-40"
+      />
     </div>
   )
 }

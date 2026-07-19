@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useAlertsContext } from "../../context/AlertsContext";
 import { resetPassword } from "../../api/auth";
+import SubmitButton from "../util/SubmitButton";
 
 /**
  * Landing page for the password-reset link (/reset-password?token=...). Takes a
@@ -18,7 +19,7 @@ export default function CreateNewPassword() {
   const [busy, setBusy] = useState(false);
 
   const mismatch = confirm.length > 0 && password !== confirm;
-  const canSubmit = !!token && password.length > 0 && password === confirm && !busy;
+  const canSubmit = !!token && password.length > 0 && password === confirm;
 
   const submit = async (): Promise<void> => {
     if (!token) {
@@ -27,15 +28,12 @@ export default function CreateNewPassword() {
     }
     if (password !== confirm) return;
 
-    setBusy(true);
     try {
       await resetPassword(token, password, setErrorMessage);
       setSuccessMessage("Password updated — please sign in");
       navigate("/login");
     } catch {
       /* surfaced via alerts */
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -73,19 +71,19 @@ export default function CreateNewPassword() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Confirm password"
-                onKeyDown={(e) => e.key === "Enter" && canSubmit && submit()}
+                onKeyDown={(e) => e.key === "Enter" && canSubmit && !busy && submit()}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
               />
             </label>
             <p className="h-4 text-xs text-red-500 mb-3">{mismatch ? "Passwords don't match" : ""}</p>
 
-            <button
-              onClick={submit}
+            <SubmitButton
+              text="Update password"
+              loading={busy}
+              setLoading={setBusy}
+              onSubmit={submit}
               disabled={!canSubmit}
-              className="w-full text-sm font-medium py-2.5 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40"
-            >
-              {busy ? "Saving…" : "Update password"}
-            </button>
+            />
           </>
         )}
       </div>

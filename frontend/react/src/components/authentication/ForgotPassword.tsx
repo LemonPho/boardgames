@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAlertsContext } from "../../context/AlertsContext";
 import { forgotPassword } from "../../api/auth";
+import SubmitButton from "../util/SubmitButton";
 
 export default function ForgotPassword() {
   const { setErrorMessage } = useAlertsContext();
@@ -14,12 +15,12 @@ export default function ForgotPassword() {
     setPrimaryKeyInput(event.target.value);
   };
 
+  // SubmitButton owns the loading lifecycle; this just does the work.
   const submitFindAccount = async (): Promise<void> => {
     if (!primaryKeyInput.trim()) return;
     // An "@" means they typed an email; otherwise treat it as a username.
     const isUsername = !primaryKeyInput.includes("@");
 
-    setBusy(true);
     try {
       await forgotPassword(isUsername, primaryKeyInput.trim(), setErrorMessage);
       // Always show the same confirmation — the backend won't reveal whether the
@@ -27,8 +28,6 @@ export default function ForgotPassword() {
       setSent(true);
     } catch {
       /* surfaced via alerts */
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -67,13 +66,13 @@ export default function ForgotPassword() {
               />
             </label>
 
-            <button
-              onClick={submitFindAccount}
-              disabled={busy || !primaryKeyInput.trim()}
-              className="w-full text-sm font-medium py-2.5 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40"
-            >
-              {busy ? "Sending…" : "Send reset link"}
-            </button>
+            <SubmitButton
+              text="Send reset link"
+              loading={busy}
+              setLoading={setBusy}
+              onSubmit={submitFindAccount}
+              disabled={!primaryKeyInput.trim()}
+            />
 
             <div className="text-center mt-4">
               <Link to="/login" className="text-sm text-gray-500 hover:text-gray-800 underline">

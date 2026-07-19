@@ -4,12 +4,14 @@ import { Link } from 'react-router-dom'
 import { useAlertsContext } from '../../context/AlertsContext'
 import { useAuthenticationContext } from '../../context/AuthenticationContext';
 import type { RegisterErrors } from '../../types/components-types/auth';
+import SubmitButton from '../util/SubmitButton';
 
 export default function RegisterForm() {
   const { errorMessage, setSuccessMessage, successMessage } = useAlertsContext();
   const { registerUser } = useAuthenticationContext();
 
   const [errors, setErrors] = useState<RegisterErrors | null>(null);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<RegisterRequest>({
     email: '',
     username: '',
@@ -20,11 +22,9 @@ export default function RegisterForm() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // SubmitButton owns the loading lifecycle; this just does the work.
+  const handleSubmit = async (): Promise<void> => {
     setErrors(null);
-
     await registerUser(form, setErrors);
     setSuccessMessage("Account created successfully, check your email to validate.");
   }
@@ -48,7 +48,7 @@ export default function RegisterForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700">Email</label>
           <input
@@ -83,18 +83,20 @@ export default function RegisterForm() {
             placeholder="••••••••"
             value={form.password}
             onChange={handleChange}
+            onKeyDown={(e) => e.key === "Enter" && !loading && handleSubmit()}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
           {errors && errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
         </div>
 
-        <button
-          type="submit"
-          className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-2.5 rounded-lg transition mt-2"
-        >
-          Create account
-        </button>
-      </form>
+        <SubmitButton
+          text="Create account"
+          loading={loading}
+          setLoading={setLoading}
+          onSubmit={handleSubmit}
+          className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-2.5 rounded-lg transition mt-2 disabled:opacity-40"
+        />
+      </div>
 
       <p className="text-sm text-gray-400 text-center">
         Already have an account?{' '}

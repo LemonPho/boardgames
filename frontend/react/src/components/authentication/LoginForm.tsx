@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthenticationContext } from '../../context/AuthenticationContext'
 import type { LoginErrors } from '../../types/components-types/auth';
 import { useAlertsContext } from '../../context/AlertsContext';
+import SubmitButton from '../util/SubmitButton';
 
 export default function LoginForm() {
   const { errorMessage } = useAlertsContext();
@@ -15,6 +16,7 @@ export default function LoginForm() {
     isUsername: false
   });
   const [errors, setErrors] = useState<LoginErrors | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -22,21 +24,13 @@ export default function LoginForm() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  const setIsUsername = (value: boolean) => {
-    setForm({
-      ...form,
-      isUsername: value
-    })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // SubmitButton owns the loading lifecycle; this just does the work.
+  const handleSubmit = async (): Promise<void> => {
     setErrors(null);
 
+    // "@" means an email was typed; otherwise it's a username.
     const inputIsUsername = !form.primaryKey.includes("@");
-    setIsUsername(inputIsUsername);
-
-    await loginUser(form, setErrors);
+    await loginUser({ ...form, isUsername: inputIsUsername }, setErrors);
     navigate("/");
   }
 
@@ -53,7 +47,7 @@ export default function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium text-gray-700">Email or username</label>
           <input
@@ -80,18 +74,20 @@ export default function LoginForm() {
             placeholder="••••••••"
             value={form.password}
             onChange={handleChange}
+            onKeyDown={(e) => e.key === "Enter" && !loading && handleSubmit()}
             className="border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition"
           />
           {errors && errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
         </div>
 
-        <button
-          type="submit"
-          className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-2.5 rounded-lg transition mt-2"
-        >
-          Sign in
-        </button>
-      </form>
+        <SubmitButton
+          text="Sign in"
+          loading={loading}
+          setLoading={setLoading}
+          onSubmit={handleSubmit}
+          className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-2.5 rounded-lg transition mt-2 disabled:opacity-40"
+        />
+      </div>
 
       <p className="text-sm text-gray-400 text-center">
         Don't have an account?{' '}

@@ -7,6 +7,8 @@ interface AlertsContextType{
     setSuccessMessage: (message: string | null) => void;
     infoMessage: string | null,
     setInfoMessage: (message: string | null) => void;
+
+    clearAlerts: () => void;
 }
 
 const AlertsContext = createContext<AlertsContextType | null>(null);
@@ -16,9 +18,15 @@ export function AlertsContextProvider({ children }: { children: React.ReactNode 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
+    const clearAlerts = () => {
+        setErrorMessage(null);
+        setSuccessMessage(null);
+        setInfoMessage(null);
+    }
+
     return(
         <AlertsContext.Provider
-            value={{ errorMessage, setErrorMessage, successMessage, setSuccessMessage, infoMessage, setInfoMessage}}
+            value={{ errorMessage, setErrorMessage, successMessage, setSuccessMessage, infoMessage, setInfoMessage, clearAlerts}}
         >
             {children}
         </AlertsContext.Provider>

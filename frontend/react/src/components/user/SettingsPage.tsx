@@ -5,6 +5,7 @@ import { updateUsername, updateEmail, updatePassword, deleteAccount } from "../.
 import { useUserContext } from "../../context/UserContext";
 import { useAuthenticationContext } from "../../context/AuthenticationContext";
 import { useAlertsContext } from "../../context/AlertsContext";
+import SubmitButton from "../util/SubmitButton";
 
 /**
  * Account settings for the logged-in user: change username, email, password, or
@@ -33,20 +34,20 @@ export default function SettingsPage() {
     );
   }
 
+  // Loading for each action is owned by its SubmitButton (shared `busy` flag,
+  // which also disables the other actions while one runs).
   const handleUsername = async (): Promise<void> => {
     if (!username.trim()) return;
-    setBusy(true);
     try {
       await updateUsername(user.username, username.trim(), setErrorMessage);
       await retrieveCurrentUser();
       setSuccessMessage("Username updated");
       setUsername("");
-    } catch { /* surfaced */ } finally { setBusy(false); }
+    } catch { /* surfaced */ }
   };
 
   const handleEmail = async (): Promise<void> => {
     if (!email.trim() || !emailPassword) return;
-    setBusy(true);
     try {
       await updateEmail(user.username, email.trim(), emailPassword, setErrorMessage);
       // The email only changes once the new address confirms the link, so don't
@@ -54,29 +55,27 @@ export default function SettingsPage() {
       setSuccessMessage("Check your new email to confirm the change");
       setEmail("");
       setEmailPassword("");
-    } catch { /* surfaced */ } finally { setBusy(false); }
+    } catch { /* surfaced */ }
   };
 
   const handlePassword = async (): Promise<void> => {
     if (!currentPassword || !newPassword) return;
-    setBusy(true);
     try {
       await updatePassword(user.username, currentPassword, newPassword, setErrorMessage);
       setSuccessMessage("Password updated — please sign in again");
       // Changing the password ends the current session; force re-login.
       await logoutUser();
       navigate("/login");
-    } catch { /* surfaced */ } finally { setBusy(false); }
+    } catch { /* surfaced */ }
   };
 
   const handleDelete = async (): Promise<void> => {
-    setBusy(true);
     try {
       await deleteAccount(user.username, setErrorMessage);
       setSuccessMessage("Account deleted");
       await logoutUser();
       navigate("/");
-    } catch { /* surfaced */ } finally { setBusy(false); }
+    } catch { /* surfaced */ }
   };
 
   return (
@@ -94,7 +93,8 @@ export default function SettingsPage() {
         {/* Username */}
         <Section title="Username" description={`Current: ${user.username}`}>
           <Field label="New username" value={username} onChange={setUsername} placeholder="New username" />
-          <SaveButton onClick={handleUsername} disabled={busy || !username.trim()} />
+          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handleUsername}
+            disabled={!username.trim()} className={saveBtnClass} />
         </Section>
 
         {/* Email */}
@@ -102,14 +102,16 @@ export default function SettingsPage() {
           <Field label="New email" type="email" value={email} onChange={setEmail} placeholder="New email" />
           <Field label="Current password" type="password" value={emailPassword} onChange={setEmailPassword} placeholder="Confirm with your password" />
           <p className="text-xs text-gray-400">We'll send a confirmation link to the new address. Your email changes only after you confirm it.</p>
-          <SaveButton onClick={handleEmail} disabled={busy || !email.trim() || !emailPassword} />
+          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handleEmail}
+            disabled={!email.trim() || !emailPassword} className={saveBtnClass} />
         </Section>
 
         {/* Password */}
         <Section title="Password">
           <Field label="Current password" type="password" value={currentPassword} onChange={setCurrentPassword} placeholder="Current password" />
           <Field label="New password" type="password" value={newPassword} onChange={setNewPassword} placeholder="New password" />
-          <SaveButton onClick={handlePassword} disabled={busy || !currentPassword || !newPassword} />
+          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handlePassword}
+            disabled={!currentPassword || !newPassword} className={saveBtnClass} />
         </Section>
 
         {/* Delete account */}
@@ -127,13 +129,13 @@ export default function SettingsPage() {
             </button>
           ) : (
             <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={handleDelete}
-                disabled={busy}
+              <SubmitButton
+                text="Yes, delete permanently"
+                loading={busy}
+                setLoading={setBusy}
+                onSubmit={handleDelete}
                 className="text-sm font-medium px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-40"
-              >
-                Yes, delete permanently
-              </button>
+              />
               <button
                 onClick={() => setConfirmDelete(false)}
                 disabled={busy}
@@ -182,14 +184,6 @@ function Field({
   );
 }
 
-function SaveButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="self-start text-sm font-medium px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40"
-    >
-      Save
-    </button>
-  );
-}
+// Shared style for the settings save buttons (compact, left-aligned).
+const saveBtnClass =
+  "self-start text-sm font-medium px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40";

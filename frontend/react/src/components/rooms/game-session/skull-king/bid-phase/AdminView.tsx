@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useRoundData } from "../../../../../context/RoundDataContext";
 import { AdminCounterCard } from "../shared/AdminCounterCard";
+import SubmitButton from "../../../../util/SubmitButton";
 
 export default function AdminView() {
   const { teams, bids, cardCount, canEdit, bidStatus, setBid, advance, advanceLabel, startingTeamId } = useRoundData();
+  const [advancing, setAdvancing] = useState(false);
 
   return (
     <div className="p-4">
@@ -24,13 +27,13 @@ export default function AdminView() {
       </div>
 
       {advance && (
-        <button
-          type="button"
-          onClick={advance}
+        <SubmitButton
+          text={advanceLabel ?? "Continue"}
+          loading={advancing}
+          setLoading={setAdvancing}
+          onSubmit={advance}
           className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
-        >
-          {advanceLabel}
-        </button>
+        />
       )}
     </div>
   );

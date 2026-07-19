@@ -6,6 +6,7 @@ import { EMPTY_BONUS, bonusEligibility, type RoundHistory, type TeamBonus } from
 import { AdminCounterCard } from "./shared/AdminCounterCard";
 import { BonusCard } from "./shared/BonusCard";
 import { KrakenToggle } from "./shared/KrakenToggle";
+import SubmitButton from "../../../util/SubmitButton";
 import type { TeamResponse } from "../../../../types/teams";
 
 type Section = "bids" | "tricks" | "bonus";
@@ -23,7 +24,6 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
   const [history, setHistory] = useState<RoundHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Section | null>(null);
-  const [saving, setSaving] = useState(false);
 
   // Section drafts, seeded when editing starts.
   const [bidDrafts, setBidDrafts] = useState<Map<string, number>>(new Map());
@@ -73,36 +73,29 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
 
   const cancelEdit = (): void => setEditing(null);
 
+  // SubmitButton owns the loading lifecycle and clears alerts on click. A failed
+  // correction rejects here, so editing stays open and the round isn't reloaded.
   const saveBids = async (): Promise<void> => {
-    setSaving(true);
-    try {
-      await correctBids(roomName, round, teams.map((t) => ({ teamId: t.teamId, value: bidDrafts.get(t.teamId) ?? 0 })), setErrorMessage);
-      setEditing(null);
-      await load();
-    } catch { /* error surfaced */ } finally { setSaving(false); }
+    await correctBids(roomName, round, teams.map((t) => ({ teamId: t.teamId, value: bidDrafts.get(t.teamId) ?? 0 })), setErrorMessage);
+    setEditing(null);
+    await load();
   };
 
   const saveTricks = async (): Promise<void> => {
-    setSaving(true);
-    try {
-      // Set the Kraken flag first so the trick-total validation uses the new
-      // expected sum (cardCount − 1 when a Kraken destroyed a trick).
-      if (krakenDraft !== history.krakenPlayed) {
-        await setKraken(roomName, round, krakenDraft, setErrorMessage);
-      }
-      await correctTricks(roomName, round, teams.map((t) => ({ teamId: t.teamId, value: trickDrafts.get(t.teamId) ?? 0 })), setErrorMessage);
-      setEditing(null);
-      await load();
-    } catch { /* error surfaced */ } finally { setSaving(false); }
+    // Set the Kraken flag first so the trick-total validation uses the new
+    // expected sum (cardCount − 1 when a Kraken destroyed a trick).
+    if (krakenDraft !== history.krakenPlayed) {
+      await setKraken(roomName, round, krakenDraft, setErrorMessage);
+    }
+    await correctTricks(roomName, round, teams.map((t) => ({ teamId: t.teamId, value: trickDrafts.get(t.teamId) ?? 0 })), setErrorMessage);
+    setEditing(null);
+    await load();
   };
 
   const saveBonus = async (): Promise<void> => {
-    setSaving(true);
-    try {
-      await correctBonus(roomName, round, teams.map((t) => ({ teamId: t.teamId, ...(bonusDrafts.get(t.teamId) ?? EMPTY_BONUS) })), setErrorMessage);
-      setEditing(null);
-      await load();
-    } catch { /* error surfaced */ } finally { setSaving(false); }
+    await correctBonus(roomName, round, teams.map((t) => ({ teamId: t.teamId, ...(bonusDrafts.get(t.teamId) ?? EMPTY_BONUS) })), setErrorMessage);
+    setEditing(null);
+    await load();
   };
 
   // Values shown: drafts while editing that section, otherwise the loaded round.
@@ -125,7 +118,6 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           canEdit={isAdmin}
           editing={editing === "bids"}
           disabled={editing !== null && editing !== "bids"}
-          saving={saving}
           onEdit={() => startEdit("bids")}
           onCancel={cancelEdit}
           onSave={saveBids}
@@ -152,7 +144,6 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           canEdit={isAdmin}
           editing={editing === "tricks"}
           disabled={editing !== null && editing !== "tricks"}
-          saving={saving}
           onEdit={() => startEdit("tricks")}
           onCancel={cancelEdit}
           onSave={saveTricks}
@@ -188,7 +179,6 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           canEdit={isAdmin}
           editing={editing === "bonus"}
           disabled={editing !== null && editing !== "bonus"}
-          saving={saving}
           onEdit={() => startEdit("bonus")}
           onCancel={cancelEdit}
           onSave={saveBonus}
@@ -233,18 +223,20 @@ function Frame({ round, cardCount, onBack, children }: { round: number; cardCoun
 }
 
 function Section({
-  title, canEdit, editing, disabled, saving, onEdit, onCancel, onSave, children,
+  title, canEdit, editing, disabled, onEdit, onCancel, onSave, children,
 }: {
   title: string;
   canEdit: boolean;
   editing: boolean;
   disabled: boolean;
-  saving: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: () => void;
+  onSave: () => Promise<void>;
   children: React.ReactNode;
 }) {
+  // Each section owns its save loading; SubmitButton clears alerts + guards spam.
+  const [saving, setSaving] = useState(false);
+
   return (
     <div className={disabled ? "opacity-50 pointer-events-none" : ""}>
       <div className="flex items-center justify-between mb-3">
@@ -255,9 +247,13 @@ function Section({
               <button type="button" onClick={onCancel} disabled={saving} className="text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40">
                 Cancel
               </button>
-              <button type="button" onClick={onSave} disabled={saving} className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-800 text-white disabled:opacity-40">
-                {saving ? "Saving…" : "Save"}
-              </button>
+              <SubmitButton
+                text="Save"
+                loading={saving}
+                setLoading={setSaving}
+                onSubmit={onSave}
+                className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-800 text-white disabled:opacity-40"
+              />
             </div>
           ) : (
             <button type="button" onClick={onEdit} disabled={disabled} className="text-sm font-medium px-3 py-1 rounded-lg border border-gray-200 hover:border-gray-400 disabled:opacity-40">
