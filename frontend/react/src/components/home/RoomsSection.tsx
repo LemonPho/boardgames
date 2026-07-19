@@ -23,14 +23,11 @@ import skullKingImage from "../../assets/skullking/skull-king-1-jeux-Toulon-L-At
  */
 export default function RoomsSection() {
   const navigate = useNavigate();
-  const { setErrorMessage, setSuccessMessage } = useAlertsContext();
-  const { notifications, removeNotification } = useNotificationsContext();
+  const { setErrorMessage } = useAlertsContext();
+  const { notifications } = useNotificationsContext();
   const { user } = useUserContext();
 
   const [activeRoom, setActiveRoom] = useState<RoomResponse | null>(null);
-  // Which invite (by id) has an action in flight, so only that card's buttons
-  // show loading — not every invite's.
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   // Pending room invitations, surfaced live from notifications.
   const invites = notifications.filter(
@@ -54,27 +51,6 @@ export default function RoomsSection() {
     })();
     return () => { cancelled = true; };
   }, [user]);
-
-  const handleAccept = async (invite: RoomInvitationNotification): Promise<void> => {
-    try {
-      const room = await acceptInvite(invite.data.token, setErrorMessage);
-      await markNotificationRead(invite.id, setErrorMessage);
-      removeNotification(invite.id);
-      setSuccessMessage(`Joined ${invite.data.roomName}`);
-      if (room) navigate(`/rooms/${room.name}`);
-    } catch {
-      /* surfaced via alerts */
-    }
-  };
-
-  const handleDecline = async (invite: RoomInvitationNotification): Promise<void> => {
-    try {
-      await markNotificationRead(invite.id, setErrorMessage);
-      removeNotification(invite.id);
-    } catch {
-      /* surfaced via alerts */
-    }
-  };
 
   // Nothing to show -> render nothing (section only appears when relevant).
   if (!activeRoom && invites.length === 0) return null;
@@ -114,50 +90,74 @@ export default function RoomsSection() {
         )}
 
         {invites.map((invite) => (
-          <div
-            key={invite.id}
-            className="relative rounded-2xl shadow-lg overflow-hidden aspect-[3/4] flex flex-col justify-end"
-          >
-            <img
-              src={skullKingImage}
-              alt={invite.data.gameName}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-            <div className="relative z-10 p-4 flex flex-col gap-2">
-              <span className="self-start text-[10px] font-semibold uppercase tracking-wide text-white/90 bg-white/20 rounded-full px-2 py-0.5">
-                Invite
-              </span>
-              <div>
-                <p className="text-sm text-white/80 leading-snug">
-                  <span className="font-semibold text-white">{invite.data.roomAdminUsername}</span> invited you to
-                </p>
-                <p className="text-base font-semibold text-white leading-tight line-clamp-2">
-                  {invite.data.roomName}
-                </p>
-                <p className="text-xs text-white/70 mt-0.5">{invite.data.gameName}</p>
-              </div>
-              <div className="flex gap-2 mt-1">
-                <SubmitButton
-                  loading={busyId === invite.id}
-                  setLoading={(v) => setBusyId(v ? invite.id : null)}
-                  onSubmit={() => handleAccept(invite)}
-                  className="flex-1 flex items-center justify-center gap-1 text-sm font-medium py-2 rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition active:scale-[0.98] disabled:opacity-40"
-                >
-                  <Check size={15} /> Accept
-                </SubmitButton>
-                <SubmitButton
-                  loading={busyId === invite.id}
-                  setLoading={(v) => setBusyId(v ? invite.id : null)}
-                  onSubmit={() => handleDecline(invite)}
-                  className="flex items-center justify-center px-3 py-2 rounded-lg bg-white/15 text-white hover:bg-white/25 transition active:scale-[0.98] disabled:opacity-40"
-                >
-                  <X size={16} />
-                </SubmitButton>
-              </div>
-            </div>
-          </div>
+          <InviteCard key={invite.id} invite={invite} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Each invite card owns its loading state, so accepting/declining one invite
+// only disables that card's buttons — you can act on several invites at once,
+// but a single invite can't be double-submitted.
+function InviteCard({ invite }: { invite: RoomInvitationNotification }) {
+  const navigate = useNavigate();
+  const { setErrorMessage, setSuccessMessage } = useAlertsContext();
+  const { removeNotification } = useNotificationsContext();
+  const [loading, setLoading] = useState(false);
+
+  const handleAccept = async (): Promise<void> => {
+    const room = await acceptInvite(invite.data.token, setErrorMessage);
+    await markNotificationRead(invite.id, setErrorMessage);
+    removeNotification(invite.id);
+    setSuccessMessage(`Joined ${invite.data.roomName}`);
+    if (room) navigate(`/rooms/${room.name}`);
+  };
+
+  const handleDecline = async (): Promise<void> => {
+    await markNotificationRead(invite.id, setErrorMessage);
+    removeNotification(invite.id);
+  };
+
+  return (
+    <div className="relative rounded-2xl shadow-lg overflow-hidden aspect-[3/4] flex flex-col justify-end">
+      <img
+        src={skullKingImage}
+        alt={invite.data.gameName}
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div className="relative z-10 p-4 flex flex-col gap-2">
+        <span className="self-start text-[10px] font-semibold uppercase tracking-wide text-white/90 bg-white/20 rounded-full px-2 py-0.5">
+          Invite
+        </span>
+        <div>
+          <p className="text-sm text-white/80 leading-snug">
+            <span className="font-semibold text-white">{invite.data.roomAdminUsername}</span> invited you to
+          </p>
+          <p className="text-base font-semibold text-white leading-tight line-clamp-2">
+            {invite.data.roomName}
+          </p>
+          <p className="text-xs text-white/70 mt-0.5">{invite.data.gameName}</p>
+        </div>
+        <div className="flex gap-2 mt-1">
+          <SubmitButton
+            loading={loading}
+            setLoading={setLoading}
+            onSubmit={handleAccept}
+            className="flex-1 flex items-center justify-center gap-1 text-sm font-medium py-2 rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition active:scale-[0.98] disabled:opacity-40"
+          >
+            <Check size={15} /> Accept
+          </SubmitButton>
+          <SubmitButton
+            loading={loading}
+            setLoading={setLoading}
+            onSubmit={handleDecline}
+            className="flex items-center justify-center px-3 py-2 rounded-lg bg-white/15 text-white hover:bg-white/25 transition active:scale-[0.98] disabled:opacity-40"
+          >
+            <X size={16} />
+          </SubmitButton>
+        </div>
       </div>
     </div>
   );

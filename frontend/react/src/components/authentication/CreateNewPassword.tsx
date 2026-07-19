@@ -16,7 +16,7 @@ export default function CreateNewPassword() {
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const mismatch = confirm.length > 0 && password !== confirm;
   const canSubmit = !!token && password.length > 0 && password === confirm;
@@ -71,7 +71,7 @@ export default function CreateNewPassword() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Confirm password"
-                onKeyDown={(e) => e.key === "Enter" && canSubmit && !busy && submit()}
+                onKeyDown={(e) => e.key === "Enter" && canSubmit && !loading && submit()}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
               />
             </label>
@@ -79,8 +79,8 @@ export default function CreateNewPassword() {
 
             <SubmitButton
               text="Update password"
-              loading={busy}
-              setLoading={setBusy}
+              loading={loading}
+              setLoading={setLoading}
               onSubmit={submit}
               disabled={!canSubmit}
             />

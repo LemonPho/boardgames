@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   if (!user) {
     return (
@@ -34,7 +34,7 @@ export default function SettingsPage() {
     );
   }
 
-  // Loading for each action is owned by its SubmitButton (shared `busy` flag,
+  // Loading for each action is owned by its SubmitButton (shared `loading` flag,
   // which also disables the other actions while one runs).
   const handleUsername = async (): Promise<void> => {
     if (!username.trim()) return;
@@ -93,7 +93,7 @@ export default function SettingsPage() {
         {/* Username */}
         <Section title="Username" description={`Current: ${user.username}`}>
           <Field label="New username" value={username} onChange={setUsername} placeholder="New username" />
-          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handleUsername}
+          <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handleUsername}
             disabled={!username.trim()} className={saveBtnClass} />
         </Section>
 
@@ -102,7 +102,7 @@ export default function SettingsPage() {
           <Field label="New email" type="email" value={email} onChange={setEmail} placeholder="New email" />
           <Field label="Current password" type="password" value={emailPassword} onChange={setEmailPassword} placeholder="Confirm with your password" />
           <p className="text-xs text-gray-400">We'll send a confirmation link to the new address. Your email changes only after you confirm it.</p>
-          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handleEmail}
+          <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handleEmail}
             disabled={!email.trim() || !emailPassword} className={saveBtnClass} />
         </Section>
 
@@ -110,7 +110,7 @@ export default function SettingsPage() {
         <Section title="Password">
           <Field label="Current password" type="password" value={currentPassword} onChange={setCurrentPassword} placeholder="Current password" />
           <Field label="New password" type="password" value={newPassword} onChange={setNewPassword} placeholder="New password" />
-          <SubmitButton text="Save" loading={busy} setLoading={setBusy} onSubmit={handlePassword}
+          <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handlePassword}
             disabled={!currentPassword || !newPassword} className={saveBtnClass} />
         </Section>
 
@@ -131,14 +131,14 @@ export default function SettingsPage() {
             <div className="flex flex-col sm:flex-row gap-2">
               <SubmitButton
                 text="Yes, delete permanently"
-                loading={busy}
-                setLoading={setBusy}
+                loading={loading}
+                setLoading={setLoading}
                 onSubmit={handleDelete}
                 className="text-sm font-medium px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-40"
               />
               <button
                 onClick={() => setConfirmDelete(false)}
-                disabled={busy}
+                disabled={loading}
                 className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:border-gray-400 transition disabled:opacity-40"
               >
                 Cancel

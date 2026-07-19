@@ -24,7 +24,7 @@ export default function SkullKingSession() {
   const navigate = useNavigate();
 
   const [viewingRound, setViewingRound] = useState<number | null>(null);
-  const [cancelling, setCancelling] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   if (!state) return null;
 
@@ -76,8 +76,8 @@ export default function SkullKingSession() {
           {isAdmin && (
             <SubmitButton
               text="Cancel game"
-              loading={cancelling}
-              setLoading={setCancelling}
+              loading={loading}
+              setLoading={setLoading}
               onSubmit={handleCancelGame}
               className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:border-red-400 transition disabled:opacity-40"
             />

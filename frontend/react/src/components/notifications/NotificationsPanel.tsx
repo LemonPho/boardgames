@@ -84,11 +84,11 @@ function RoomInvitationRow({
   onRead: (id: string) => void;
 }) {
   const { roomName, gameName, roomAdminUsername, token } = notification.data;
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { closePanel } = useUIContext();
 
-  // SubmitButton owns the loading lifecycle for both actions (shared `busy`).
+  // SubmitButton owns the loading lifecycle for both actions (shared `loading`).
   const handleAccept = async (): Promise<void> => {
     const room = await acceptInvite(token, setErrorMessage);
     // Mark read so it doesn't reappear, then remove it from the list.
@@ -134,16 +134,16 @@ function RoomInvitationRow({
 
         <div className="flex gap-2 mt-2">
           <SubmitButton
-            loading={busy}
-            setLoading={setBusy}
+            loading={loading}
+            setLoading={setLoading}
             onSubmit={handleAccept}
             className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition disabled:opacity-40"
           >
             <Check size={13} /> Accept
           </SubmitButton>
           <SubmitButton
-            loading={busy}
-            setLoading={setBusy}
+            loading={loading}
+            setLoading={setLoading}
             onSubmit={handleDecline}
             className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:border-gray-400 transition disabled:opacity-40"
           >

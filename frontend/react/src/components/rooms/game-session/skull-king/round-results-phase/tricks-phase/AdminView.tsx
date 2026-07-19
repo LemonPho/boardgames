@@ -6,7 +6,7 @@ import SubmitButton from "../../../../../util/SubmitButton";
 
 export default function AdminView() {
   const { teams, trickResults, cardCount, canEdit, trickStatus, setTricks, advance, advanceLabel, krakenPlayed, setKrakenPlayed, startingTeamId, advancedCards } = useRoundData();
-  const [advancing, setAdvancing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // The Kraken is a round-level fact registered by the admin; `advance` is the
   // admin-only signal for the live round.
@@ -41,8 +41,8 @@ export default function AdminView() {
       {advance && (
         <SubmitButton
           text={advanceLabel ?? "Continue"}
-          loading={advancing}
-          setLoading={setAdvancing}
+          loading={loading}
+          setLoading={setLoading}
           onSubmit={advance}
           className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
         />

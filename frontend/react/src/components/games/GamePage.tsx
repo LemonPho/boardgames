@@ -21,7 +21,7 @@ export default function GamePage() {
   const [game, setGame] = useState<GameResponse | null>(null)
   const [trackingMode, setTrackingMode] = useState<TrackingMode>("SELF")
   const [advancedCards, setAdvancedCards] = useState<boolean>(false)
-  const [creating, setCreating] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const navigate = useNavigate();
 
@@ -137,8 +137,8 @@ export default function GamePage() {
           {/* CTA */}
           <SubmitButton
             text="Create room"
-            loading={creating}
-            setLoading={setCreating}
+            loading={loading}
+            setLoading={setLoading}
             onSubmit={handleCreateRoom}
             className="w-full bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-40"
           />

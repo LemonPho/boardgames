@@ -19,7 +19,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
   const [usernameMatches, setUsernameMatches] = useState<UserAvailabilityResponse[]>([]);
   const [displayNameInput, setDisplayNameInput] = useState<string>("");
   const [anonymousPlayers, setAnonymousPlayers] = useState<RoomUserResponse[]>([]);
-  const [addingAnon, setAddingAnon] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Pending invitations reserve a seat, so the room is full once current
   // players + outstanding invites reach the game's max. Mirrors the backend.
@@ -150,8 +150,8 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
             />
             <SubmitButton
               text="Add"
-              loading={addingAnon}
-              setLoading={setAddingAnon}
+              loading={loading}
+              setLoading={setLoading}
               onSubmit={handleCreateAnonymousPlayer}
               disabled={isFull}
               className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

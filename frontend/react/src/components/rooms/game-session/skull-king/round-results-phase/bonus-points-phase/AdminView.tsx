@@ -6,7 +6,7 @@ import SubmitButton from "../../../../../util/SubmitButton";
 
 export default function AdminView() {
   const { teams, bonuses, canEdit, bonusEligibilityFor, bonusStatus, setBonus, advance, advanceLabel, advancedCards } = useRoundData();
-  const [advancing, setAdvancing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className="p-4">
@@ -34,8 +34,8 @@ export default function AdminView() {
       {advance && (
         <SubmitButton
           text={advanceLabel ?? "Continue"}
-          loading={advancing}
-          setLoading={setAdvancing}
+          loading={loading}
+          setLoading={setLoading}
           onSubmit={advance}
           className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
         />

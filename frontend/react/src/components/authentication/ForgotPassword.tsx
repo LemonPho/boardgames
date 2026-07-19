@@ -8,7 +8,7 @@ export default function ForgotPassword() {
   const { setErrorMessage } = useAlertsContext();
 
   const [primaryKeyInput, setPrimaryKeyInput] = useState<string>("");
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
   const handlePrimaryKeyInput = (event: React.ChangeEvent<HTMLInputElement>): void => {
@@ -68,8 +68,8 @@ export default function ForgotPassword() {
 
             <SubmitButton
               text="Send reset link"
-              loading={busy}
-              setLoading={setBusy}
+              loading={loading}
+              setLoading={setLoading}
               onSubmit={submitFindAccount}
               disabled={!primaryKeyInput.trim()}
             />

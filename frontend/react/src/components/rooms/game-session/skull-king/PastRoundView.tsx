@@ -235,7 +235,7 @@ function Section({
   children: React.ReactNode;
 }) {
   // Each section owns its save loading; SubmitButton clears alerts + guards spam.
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className={disabled ? "opacity-50 pointer-events-none" : ""}>
@@ -244,13 +244,13 @@ function Section({
         {canEdit && (
           editing ? (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={onCancel} disabled={saving} className="text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40">
+              <button type="button" onClick={onCancel} disabled={loading} className="text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40">
                 Cancel
               </button>
               <SubmitButton
                 text="Save"
-                loading={saving}
-                setLoading={setSaving}
+                loading={loading}
+                setLoading={setLoading}
                 onSubmit={onSave}
                 className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-800 text-white disabled:opacity-40"
               />
