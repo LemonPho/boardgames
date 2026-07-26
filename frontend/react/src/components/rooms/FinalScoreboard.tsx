@@ -47,17 +47,17 @@ export default function FinalScoreboard() {
   }, [name]);
 
   if (loading) {
-    return <p className="max-w-lg mx-auto px-4 py-8 text-sm text-gray-400">Loading…</p>;
+    return <p className="w-full max-w-lg text-sm text-gray-400">Loading…</p>;
   }
 
   if (!scoreboard) {
-    return <p className="max-w-lg mx-auto px-4 py-8 text-sm text-gray-500">Scoreboard not found.</p>;
+    return <p className="w-full max-w-lg text-sm text-gray-500">Scoreboard not found.</p>;
   }
 
   const winner = scoreboard.teams.find((t) => t.won);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
+    <div className="w-full max-w-lg">
       <Link to={backTo} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6">
         <ArrowLeft size={15} /> {backLabel}
       </Link>

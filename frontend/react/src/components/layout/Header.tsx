@@ -14,6 +14,9 @@ export default function Header() {
   const { unreadCount } = useNotificationsContext();
 
   const handleLogout = async (): Promise<void> => {
+    // logoutUser clears the token, which drives UserContext to clear the user.
+    // Don't re-fetch the current user here — doing so fires a needless (and
+    // now-unauthenticated) /users/current call right after logging out.
     await logoutUser();
     closePanel();
   }
@@ -24,22 +27,23 @@ export default function Header() {
 
       <div className="flex items-center gap-2">
       {/* Notification bell */}
-        <div className="relative">
-          <button
-            onClick={(event) => {togglePanel('notifications'); event.stopPropagation();}}
-            className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 transition relative"
-          >
-            <Bell size={18} className="text-gray-600" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 flex items-center justify-center text-[10px] font-semibold text-white bg-red-500 rounded-full">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-          <NotificationsPanel />
+        {user && 
+          <div className="relative">
+            <button
+              onClick={(event) => {togglePanel('notifications'); event.stopPropagation();}}
+              className="w-9 h-9 flex items-center justify-center border border-gray-200 rounded-lg hover:bg-gray-50 transition relative"
+            >
+              <Bell size={18} className="text-gray-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 flex items-center justify-center text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <NotificationsPanel />
 
-        </div>
-        
+          </div>
+        }
         {/* Profile */}
         <div className="relative">
           <button
@@ -61,7 +65,7 @@ export default function Header() {
               <hr className="border-gray-100" />
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50"
+                className="block w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 Sign out
               </button>
@@ -72,7 +76,7 @@ export default function Header() {
             <Dropdown id="profile">
               <Link 
                 to={"/login"}
-                className="w-full text-left px-4 py-2 text-sm text-grey-500 hover:bg-gray-50"
+                className="block w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 Login
               </Link>
@@ -81,7 +85,7 @@ export default function Header() {
 
               <Link 
                 to={"/register"}
-                className="w-full text-left px-4 py-2 text-sm text-grey-500 hover:bg-gray-50"
+                className="block w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
                 Register
               </Link>

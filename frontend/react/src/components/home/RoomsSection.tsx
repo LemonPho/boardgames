@@ -40,15 +40,15 @@ export default function RoomsSection() {
       setActiveRoom(null);
       return;
     }
+    
     let cancelled = false;
-    (async () => {
-      try {
-        const room = await getActiveRoom(setErrorMessage);
-        if (!cancelled) setActiveRoom(room);
-      } catch {
-        /* surfaced via alerts */
-      }
-    })();
+
+    const fetchData = async (): Promise<void> => {
+      const room = await getActiveRoom(setErrorMessage);
+      if (!cancelled) setActiveRoom(room);
+    }
+
+    fetchData();
     return () => { cancelled = true; };
   }, [user]);
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { getGame } from "../../api/games"
 import { useAlertsContext } from "../../context/AlertsContext"
+import { useUserContext } from "../../context/UserContext"
 import type { GameResponse } from "../../types/games"
 
 import skullKingImage from '../../assets/skullking/skull-king-1-jeux-Toulon-L-Ataniere.webp'
@@ -16,6 +17,7 @@ const TRACKING_OPTIONS: { value: TrackingMode; label: string; description: strin
 
 export default function GamePage() {
   const { setErrorMessage } = useAlertsContext()
+  const { user } = useUserContext()
   const { name } = useParams()
 
   const [game, setGame] = useState<GameResponse | null>(null)
@@ -47,8 +49,8 @@ export default function GamePage() {
   if (!game) return null
 
   return (
-    <div className="min-h-screen flex justify-center p-6">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-lg overflow-hidden">
+    <div className="w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-lg w-full overflow-hidden">
 
         {/* Hero */}
         <div className="relative h-48">
@@ -85,6 +87,16 @@ export default function GamePage() {
 
           <hr className="border-gray-100" />
 
+          {/* Room creation is only available to logged-in users. */}
+          {!user ? (
+            <Link
+              to="/login"
+              className="w-full text-center bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors"
+            >
+              Log in to create a room
+            </Link>
+          ) : (
+          <>
           {/* Tracking mode */}
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-3">Tracking mode</p>
@@ -142,6 +154,8 @@ export default function GamePage() {
             onSubmit={handleCreateRoom}
             className="w-full bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors disabled:opacity-40"
           />
+          </>
+          )}
         </div>
       </div>
     </div>

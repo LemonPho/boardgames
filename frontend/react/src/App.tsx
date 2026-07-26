@@ -26,10 +26,10 @@ export default function App() {
 
   return (
     <AlertsContextProvider>
-      <UserContextProvider>
-        <UIProvider>
-          <BrowserRouter>
-            <AuthenticationContextProvider>
+      <UIProvider>
+        <BrowserRouter>
+          <AuthenticationContextProvider>
+            <UserContextProvider>
               <NotificationsContextProvider>
                 <Routes>
                   <Route path="/" element={<LayoutPage />}>
@@ -52,10 +52,10 @@ export default function App() {
                   </Route>
                 </Routes>
               </NotificationsContextProvider>
-            </AuthenticationContextProvider>
-          </BrowserRouter>
-        </UIProvider>
-      </UserContextProvider>
+            </UserContextProvider>
+          </AuthenticationContextProvider>
+        </BrowserRouter>
+      </UIProvider>
     </AlertsContextProvider >
   )
 }

@@ -58,12 +58,12 @@ export default function ProfilePage() {
   }, [username]);
 
   if (loading) {
-    return <p className="max-w-2xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-400">Loading…</p>;
+    return <p className="w-full max-w-2xl text-sm text-gray-400">Loading…</p>;
   }
 
   if (!profile) {
     return (
-      <p className="max-w-2xl mx-auto px-4 sm:px-6 py-8 text-sm text-gray-500">
+      <p className="w-full max-w-2xl text-sm text-gray-500">
         User not found.
       </p>
     );
@@ -77,7 +77,7 @@ export default function ProfilePage() {
     : "—";
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+    <div className="w-full max-w-2xl">
       {/* Identity header */}
       <div className="flex items-center gap-4 mb-8">
         <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-full bg-gray-100 flex items-center justify-center">

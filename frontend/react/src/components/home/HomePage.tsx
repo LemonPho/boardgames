@@ -31,7 +31,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
+    <div className="w-full">
       <RoomsSection />
 
       <h1 className="text-2xl font-medium text-gray-900 mb-1">Games</h1>

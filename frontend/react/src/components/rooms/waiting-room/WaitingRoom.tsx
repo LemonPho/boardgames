@@ -42,7 +42,7 @@ export default function WaitingRoom() {
   if (!room) return null;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start p-6 gap-6">
+    <div className="w-full max-w-2xl flex flex-col items-center gap-6">
 
       {/* Room header */}
       <div className="bg-white rounded-2xl shadow-lg w-full max-w-2xl p-6">

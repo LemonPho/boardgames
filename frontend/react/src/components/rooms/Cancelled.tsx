@@ -10,10 +10,10 @@ export default function Cancelled() {
   if (!room) return null;
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 gap-6">
+    <div className="w-full max-w-md flex flex-col gap-6">
 
       {/* Status card */}
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-8 flex flex-col items-center gap-4 text-center">
+      <div className="bg-white rounded-2xl shadow-lg w-full p-8 flex flex-col items-center gap-4 text-center">
         <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center">
           <span className="text-red-400 text-xl">✕</span>
         </div>

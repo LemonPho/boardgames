@@ -52,8 +52,10 @@ export default function LayoutPage() {
         )}
       </div>
 
-      {/* Main content */}
-      <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
+      {/* Main content. One centered, width-limited column holds every page, with
+          a consistent top gap — so pages just render their content without their
+          own full-height/centering/width wrappers. */}
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-10 pb-8 flex flex-col items-center">
         <Outlet />
       </main>
 

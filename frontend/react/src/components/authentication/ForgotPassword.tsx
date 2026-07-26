@@ -32,8 +32,8 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-6">
+    <div className="w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-lg w-full p-6">
         {sent ? (
           <div className="text-center">
             <div className="w-12 h-12 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl mb-3">

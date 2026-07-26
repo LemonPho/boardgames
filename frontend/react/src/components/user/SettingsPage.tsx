@@ -28,7 +28,7 @@ export default function SettingsPage() {
 
   if (!user) {
     return (
-      <p className="max-w-lg mx-auto px-4 py-8 text-sm text-gray-500">
+      <p className="w-full max-w-lg text-sm text-gray-500">
         You must be <Link to="/login" className="underline">logged in</Link> to manage settings.
       </p>
     );
@@ -79,7 +79,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
+    <div className="w-full max-w-lg">
       <Link
         to={`/profile/${user.username}`}
         className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6"

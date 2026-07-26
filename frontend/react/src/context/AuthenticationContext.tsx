@@ -3,8 +3,7 @@ import { csrf, login, logout, refresh, register } from "../api/auth";
 import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
 import { useAlertsContext } from "./AlertsContext";
 import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
-import { setupInterceptors } from "../api/axiosSetup";
-import { useUserContext } from "./UserContext";
+import { setupInterceptors, setLoggingOut } from "../api/axiosSetup";
 
 interface AuthenticationContextType {
   accessToken: string | null,
@@ -21,7 +20,6 @@ export const AuthenticationContext = createContext<AuthenticationContextType | n
 
 export function AuthenticationContextProvider({ children }: { children: React.ReactNode }) {
   const { setErrorMessage } = useAlertsContext();
-  const { retrieveCurrentUser } = useUserContext();
 
   const [loading, setLoading] = useState(true);
 
@@ -43,8 +41,15 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   }
 
   const logoutUser = async (): Promise<void> => {
-    const response = await logout(setErrorMessage);
-    if (response) setAccessToken(null);
+    // Suppress the interceptor's refresh→logout reaction to 401s that fire while
+    // auth tears down. Clearing the token drives UserContext to clear the user.
+    setLoggingOut(true);
+    try {
+      await logout();
+      deleteAccessToken();
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   const csrfInit = async (): Promise<void> => {
@@ -67,13 +72,7 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
   }
 
   useEffect(() => {
-    const fetchData = async (): Promise<void> => {
-      if(accessToken) await retrieveCurrentUser();
-    }
-
-    fetchData();
     tokenRef.current = accessToken;
-
   }, [accessToken]);
 
   useEffect(() => {

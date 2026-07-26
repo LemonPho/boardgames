@@ -82,19 +82,16 @@ export const refresh = async(): Promise<AuthResponse> => {
     return response.data;
 }
 
-export const logout = async (setErrorMessage: (message: string) => void): Promise<boolean> => {
+export const logout = async (): Promise<boolean> => {
+    // Logout is best-effort from the client's view: even if the server call
+    // fails (e.g. the session/refresh cookie is already gone), we still clear
+    // local auth state. So swallow errors rather than surfacing them.
     try{
-        const response = await auth.post("/logout");
-        if(response.status == 200){
-            return true;
-        } else {
-            return false;
-        }
-    } catch(error) {
-        setAxiosError(error, setErrorMessage);
-        throw error;
+        await auth.post("/logout");
+    } catch {
+        /* ignore — we clear client state regardless */
     }
-    
+    return true;
 }
 
 export const csrf = async (setErrorMessage: (message: string) => void): Promise<void> => {

@@ -35,7 +35,7 @@ export default function VerifyPage() {
   }, [token]);
 
   return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
+    <div className="w-full max-w-md text-center">
       {status === "verifying" && (
         <p className="text-sm text-gray-500">Verifying…</p>
       )}
