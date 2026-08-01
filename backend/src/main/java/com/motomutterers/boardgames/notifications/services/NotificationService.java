@@ -16,6 +16,7 @@ import com.motomutterers.boardgames.notifications.dto.CreateRoomInvitationNotifi
 import com.motomutterers.boardgames.notifications.dto.NotificationResponse;
 import com.motomutterers.boardgames.notifications.dto.RoomInvitationPayload;
 import com.motomutterers.boardgames.notifications.events.NotificationCreatedEvent;
+import com.motomutterers.boardgames.notifications.events.NotificationReadEvent;
 import com.motomutterers.boardgames.notifications.model.Notification;
 import com.motomutterers.boardgames.notifications.model.NotificationType;
 import com.motomutterers.boardgames.notifications.repositories.NotificationRepository;
@@ -56,6 +57,34 @@ public class NotificationService {
 
         notification.setRead(true);
         notificationRepository.save(notification);
+    }
+
+    // Dismiss the invitation notification for a token once the invite is accepted,
+    // so it stops showing as unread. Scoped to the token, so it only clears the
+    // one invite that was acted on. Publishes a read event per notification so an
+    // open client drops it live (see NotificationEventListener).
+    @Transactional
+    public void markInvitationRead(String token){
+        for(Notification notification : notificationRepository.findUnreadByInvitationToken(token)){
+            notification.setRead(true);
+            notificationRepository.save(notification);
+            eventPublisher.publishEvent(
+                new NotificationReadEvent(notification.getUser().getUsername(), notification.getId()));
+        }
+    }
+
+    // Delete the invitation notification for a token once the invite is revoked —
+    // a revoked invite is gone, not just dismissed, so the notification is removed
+    // entirely. Scoped to the token, so it only clears the one revoked invite.
+    // Publishes a read event per notification so an open client drops it live.
+    @Transactional
+    public void deleteInvitation(String token){
+        List<Notification> notifications = notificationRepository.findByInvitationToken(token);
+        for(Notification notification : notifications){
+            eventPublisher.publishEvent(
+                new NotificationReadEvent(notification.getUser().getUsername(), notification.getId()));
+        }
+        notificationRepository.deleteAll(notifications);
     }
 
     public List<NotificationResponse> getNotifications(Authentication authentication){

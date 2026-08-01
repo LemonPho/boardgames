@@ -19,9 +19,21 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Query(value = "DELETE FROM notifications WHERE payload->>'roomName' = :roomName AND type = 'ROOM_INVITATION'", nativeQuery=true)
     void deleteByRoomName(@Param("roomName") String roomName);
 
+    // The invitation notification(s) tied to a token — read as entities before
+    // deleting so the caller can push a live removal per notification.
+    @Query(value = "SELECT * FROM notifications WHERE payload->>'token' = :token AND type = 'ROOM_INVITATION'", nativeQuery=true)
+    List<Notification> findByInvitationToken(@Param("token") String token);
+
     // Dismiss a room's invitations once it's over (completed/cancelled) — the
     // invite is no longer actionable, so it shouldn't linger as unread.
     @Modifying
     @Query(value = "UPDATE notifications SET read = true WHERE payload->>'roomName' = :roomName AND type = 'ROOM_INVITATION' AND read = false", nativeQuery=true)
     void markReadByRoomName(@Param("roomName") String roomName);
+
+    // The unread invitation(s) tied to a token — the token uniquely identifies
+    // one invite, so this leaves other invitees to the same room untouched. Read
+    // as entities (not a bulk update) so the caller can push a live dismissal
+    // per notification.
+    @Query(value = "SELECT * FROM notifications WHERE payload->>'token' = :token AND type = 'ROOM_INVITATION' AND read = false", nativeQuery=true)
+    List<Notification> findUnreadByInvitationToken(@Param("token") String token);
 }

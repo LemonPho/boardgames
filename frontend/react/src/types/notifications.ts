@@ -23,3 +23,9 @@ export type RoomInvitationNotification = BaseNotification<"ROOM_INVITATION", Roo
 
 // Union of every notification shape. Add new members as new types are introduced.
 export type NotificationResponse = RoomInvitationNotification;
+
+// Envelope pushed on the user's notification topic. `CREATED` carries a new
+// notification to add; `READ` carries the id of one to dismiss (remove locally).
+export type NotificationSocketMessage =
+  | { event: "CREATED"; notification: NotificationResponse }
+  | { event: "READ"; id: string };

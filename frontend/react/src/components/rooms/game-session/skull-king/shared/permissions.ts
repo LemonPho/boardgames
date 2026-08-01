@@ -1,29 +1,23 @@
 import type { RoomResponse, RoomUserResponse } from "../../../../../types/rooms";
-import type { TeamResponse } from "../../../../../types/teams";
 
 /**
  * Whether the current user may edit the given team's values (bids, tricks, bonus).
- * Admin-tracked rooms let the admin set every team; self-tracked rooms let each
- * player — including the admin, who also plays — set only their own team, plus
- * anonymous players' teams (they can't log in to submit for themselves, so the
- * admin enters their points).
+ * The admin is the room authority and may edit every team regardless of tracking
+ * mode. In self-tracked rooms, other players may set only their own team.
  */
 export function canEditTeam(
   room: RoomResponse,
   currentPlayer: RoomUserResponse,
   teamId: string,
-  teams: TeamResponse[],
 ): boolean {
-  if (room.trackingMode === "ADMIN") {
-    return currentPlayer.role === "ADMIN";
-  }
-  if (currentPlayer.team?.id === teamId) {
+  // The admin can always edit any team's values, in either tracking mode.
+  if (currentPlayer.role === "ADMIN") {
     return true;
   }
-  // In self-tracked rooms the admin still covers anonymous players.
-  if (currentPlayer.role === "ADMIN") {
-    const team = teams.find((t) => t.id === teamId);
-    return team?.player?.role === "ANONYMOUS";
+  // Admin-tracked rooms only ever let the admin edit; non-admins get nothing.
+  if (room.trackingMode === "ADMIN") {
+    return false;
   }
-  return false;
+  // Self-tracked: a player may edit their own team.
+  return currentPlayer.team?.id === teamId;
 }

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
-import type { NotificationResponse } from "../types/notifications";
+import type { NotificationResponse, NotificationSocketMessage } from "../types/notifications";
 import { getNotifications } from "../api/notifications";
 import { useAlertsContext } from "./AlertsContext";
 import { useUserContext } from "./UserContext";
@@ -64,8 +64,14 @@ export function NotificationsContextProvider({ children }: { children: React.Rea
       },
       onConnect: () => {
         client.subscribe(`/topic/notifications/${user.username}`, (message) => {
-          const incoming = JSON.parse(message.body) as NotificationResponse;
-          addNotification(incoming);
+          const incoming = JSON.parse(message.body) as NotificationSocketMessage;
+          if (incoming.event === "CREATED") {
+            addNotification(incoming.notification);
+          } else {
+            // READ: the notification was dismissed elsewhere (e.g. an invite
+            // accepted from the email link) — drop it from the open client.
+            removeNotification(incoming.id);
+          }
         });
       },
     });

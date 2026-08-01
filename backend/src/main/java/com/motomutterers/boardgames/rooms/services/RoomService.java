@@ -273,6 +273,10 @@ public class RoomService {
         invite.setStatus(InvitationStatus.CANCELLED);
         roomInvitationTokenRepository.save(invite);
 
+        // The invite is revoked, so its notification is gone for good — delete it
+        // (and push a live removal to the invited user's open client).
+        notificationService.deleteInvitation(invite.getToken());
+
         roomsUtilityService.updateRoomLastUpdated(room);
 
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
@@ -312,6 +316,10 @@ public class RoomService {
         roomUserRepository.save(roomUser);
         roomInvitationToken.setStatus(InvitationStatus.USED);
         roomInvitationTokenRepository.save(roomInvitationToken);
+
+        // The invite has been accepted, so its notification is no longer
+        // actionable — mark it read so it stops lingering as unread.
+        notificationService.markInvitationRead(token);
 
         roomsUtilityService.updateRoomLastUpdated(room);
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
