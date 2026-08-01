@@ -1,7 +1,7 @@
-import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
+import type { AuthResponse, GoogleAuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
 import { auth } from "./axiosSetup";
 import { setAxiosError } from "../util/api";
-import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
+import type { GoogleRegisterErrors, LoginErrors, RegisterErrors } from "../types/components-types/auth";
 import axios from "axios";
 
 export const verifyEmail = async (token: string, setErrorMessage: (message: string) => void): Promise<string> => {
@@ -57,6 +57,37 @@ export const login = async (data: LoginRequest, setErrors: (errors: LoginErrors 
         throw error;
     }
     
+}
+
+// Exchanges the Google ID token ("credential") for either an access token or a
+// registration token — see GoogleAuthResponse.
+export const googleLogin = async (credential: string, setErrorMessage: (message: string) => void): Promise<GoogleAuthResponse> => {
+    try{
+        const response = await auth.post("/google/login", { credential });
+        return response.data;
+    } catch(error) {
+        setAxiosError(error, setErrorMessage);
+        throw error;
+    }
+}
+
+// Completes a first-time Google sign-in with the username the player chose.
+export const googleRegister = async (
+    registrationToken: string,
+    username: string,
+    setErrors: (errors: GoogleRegisterErrors | null) => void,
+    setErrorMessage: (message: string) => void
+): Promise<AuthResponse> => {
+    try{
+        const response = await auth.post("/google/register", { registrationToken, username });
+        return response.data;
+    } catch(error) {
+        if(axios.isAxiosError<GoogleRegisterErrors>(error) && error.response?.data){
+            setErrors({ username: error.response.data.username });
+        }
+        setAxiosError(error, setErrorMessage);
+        throw error;
+    }
 }
 
 export const forgotPassword = async (isUsername: boolean, primaryKey: string, setErrorMessage: (message: string) => void): Promise<void> => {

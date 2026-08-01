@@ -9,8 +9,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
+import com.motomutterers.boardgames.auth.dto.GoogleAuthResponse;
+import com.motomutterers.boardgames.auth.dto.GoogleIdentity;
+import com.motomutterers.boardgames.auth.dto.GoogleLoginRequest;
+import com.motomutterers.boardgames.auth.dto.GoogleRegisterRequest;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
+import com.motomutterers.boardgames.auth.exceptions.AuthMethodMismatchException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
@@ -21,6 +26,7 @@ import com.motomutterers.boardgames.auth.repositories.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.repositories.VerificationTokenRepository;
 import com.motomutterers.boardgames.email.EmailService;
 import com.motomutterers.boardgames.email.EmailTemplates;
+import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
 import com.motomutterers.boardgames.user.UserRepository;
 import com.motomutterers.boardgames.user.model.User;
@@ -38,6 +44,7 @@ public class AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
@@ -57,7 +64,8 @@ public class AuthService {
         RefreshTokenRepository refreshTokenRepository,
         VerificationTokenRepository verificationTokenRepository,
         EmailService emailService,
-        PasswordEncoder passwordEncoder
+        PasswordEncoder passwordEncoder,
+        GoogleTokenVerifier googleTokenVerifier
     ) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -65,6 +73,7 @@ public class AuthService {
         this.verificationTokenRepository = verificationTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.googleTokenVerifier = googleTokenVerifier;
     }
 
     private VerificationToken createVerificationToken(User user){
@@ -155,10 +164,17 @@ public class AuthService {
         }
 
         User user = result.get();
+
+        // A Google account has no password to check — point them at the right
+        // button rather than failing with "password is incorrect".
+        if(!user.hasPassword()){
+            throw new AuthMethodMismatchException("This account uses Google sign-in, continue with Google instead");
+        }
+
         validationBuilder.addError(!user.isActive(), "isActive", "You need to verify your email before logging in");
         validationBuilder.addError(
             !passwordEncoder.matches(request.getPassword(), user.getPasswordHash()),
-            "password", 
+            "password",
             "Password is incorrect");
         validationBuilder.validate();
                 
@@ -166,6 +182,72 @@ public class AuthService {
         response = createRefreshToken(user, response);
 
         return new AuthResponse(accessToken);
+    }
+
+    // Signs in with a Google ID token. Three cases:
+    //   1. we've seen this Google sub before -> log that account in
+    //   2. a local account owns that email   -> reject; they must use their password
+    //   3. brand new                         -> ask for a username first
+    //
+    // No account is created here; case 3 returns a short-lived registration
+    // token that completeGoogleRegistration consumes.
+    @Transactional
+    public GoogleAuthResponse loginWithGoogle(GoogleLoginRequest request, HttpServletResponse response){
+        GoogleIdentity identity = googleTokenVerifier.verify(request.getCredential());
+
+        Optional<User> bySub = userRepository.findByGoogleSub(identity.sub());
+        if(bySub.isPresent()){
+            return GoogleAuthResponse.loggedIn(issueTokens(bySub.get(), response));
+        }
+
+        throwIfEmailBelongsToPasswordAccount(identity.email());
+
+        return GoogleAuthResponse.registrationRequired(
+            jwtService.generateGoogleRegistrationToken(identity),
+            identity.email());
+    }
+
+    // Creates the account once the player has chosen a username.
+    @Transactional
+    public AuthResponse completeGoogleRegistration(GoogleRegisterRequest request, HttpServletResponse response){
+        GoogleIdentity identity = jwtService.parseGoogleRegistrationToken(request.getRegistrationToken());
+
+        // The token is valid for a while, so re-check what could have changed
+        // since it was issued: this Google account may have finished signing up
+        // in another tab, and the username may have been taken.
+        Optional<User> existing = userRepository.findByGoogleSub(identity.sub());
+        if(existing.isPresent()){
+            return new AuthResponse(issueTokens(existing.get(), response));
+        }
+
+        throwIfEmailBelongsToPasswordAccount(identity.email());
+
+        new ValidationBuilder()
+            .addError(userRepository.findByUsername(request.getUsername()).isPresent(), "username", "Username is already taken")
+            .validate();
+
+        User user = User.fromGoogle(identity.email(), request.getUsername(), identity.sub());
+        userRepository.save(user);
+
+        return new AuthResponse(issueTokens(user, response));
+    }
+
+    // Accounts aren't linked across sign-in methods: if this email already
+    // belongs to a password account, that's how they have to sign in. Keeps one
+    // email to one account without letting a Google identity take over an
+    // account someone else may have registered with that address.
+    private void throwIfEmailBelongsToPasswordAccount(String email){
+        if(userRepository.findByEmail(email).isPresent()){
+            throw new AuthMethodMismatchException(
+                "An account with this email already exists, sign in with your email and password instead");
+        }
+    }
+
+    // Mints the access token and sets the refresh cookie — the shared tail of
+    // every successful sign-in, whatever proved the identity.
+    private String issueTokens(User user, HttpServletResponse response){
+        createRefreshToken(user, response);
+        return jwtService.generateToken(user);
     }
 
     @Transactional
@@ -221,6 +303,12 @@ public class AuthService {
     // the link, so a typo can't lock the account. Guarded by the current password.
     @Transactional
     public void requestEmailChange(User user, String newEmail, String currentPassword){
+        // Google accounts don't own their email here — it comes from the provider
+        // and is the identity Google signs them in with. Nothing to change.
+        if(!user.hasPassword()){
+            throw new AuthMethodMismatchException("Google accounts can't change their email, it's managed by Google");
+        }
+
         new ValidationBuilder()
             .addError(!passwordEncoder.matches(currentPassword, user.getPasswordHash()), "currentPassword", "Password is incorrect")
             .validate();
@@ -255,6 +343,12 @@ public class AuthService {
         if(result.isEmpty()) return;
 
         User user = result.get();
+        // Nothing to reset on a Google account — tell them so, rather than
+        // sending an email that could never work.
+        if(!user.hasPassword()){
+            throw new BadActionException("This account uses Google sign-in, there's no password to reset");
+        }
+
         VerificationToken token = new VerificationToken(
             user,
             UUID.randomUUID().toString(),

@@ -1,8 +1,13 @@
 package com.motomutterers.boardgames.auth.services;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
+import com.motomutterers.boardgames.auth.dto.GoogleAuthResponse;
+import com.motomutterers.boardgames.auth.dto.GoogleIdentity;
+import com.motomutterers.boardgames.auth.dto.GoogleLoginRequest;
+import com.motomutterers.boardgames.auth.dto.GoogleRegisterRequest;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
+import com.motomutterers.boardgames.auth.exceptions.AuthMethodMismatchException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.VerificationTokenNotFoundException;
@@ -11,8 +16,10 @@ import com.motomutterers.boardgames.auth.models.VerificationToken;
 import com.motomutterers.boardgames.auth.repositories.RefreshTokenRepository;
 import com.motomutterers.boardgames.auth.repositories.VerificationTokenRepository;
 import com.motomutterers.boardgames.email.EmailService;
+import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.exceptions.ValidationException;
 import com.motomutterers.boardgames.user.UserRepository;
+import com.motomutterers.boardgames.user.model.AuthProvider;
 import com.motomutterers.boardgames.user.model.User;
 import com.motomutterers.boardgames.user.model.UserStatus;
 
@@ -49,6 +56,7 @@ public class AuthServiceTest {
     @Mock private VerificationTokenRepository verificationTokenRepository;
     @Mock private EmailService emailService;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private GoogleTokenVerifier googleTokenVerifier;
     @Mock private HttpServletResponse httpServletResponse;
     @Mock private HttpServletRequest httpServletRequest;
 
@@ -276,5 +284,165 @@ public class AuthServiceTest {
 
         assertThrows(VerificationTokenExpiredException.class, () -> authService.verifyEmail("verify"));
         verify(userRepository, never()).save(any());
+    }
+
+    // --- loginWithGoogle ---
+
+    private static final GoogleIdentity GOOGLE_IDENTITY =
+        new GoogleIdentity("google-sub-1", "test@gmail.com", true);
+
+    private User googleUser() {
+        return User.fromGoogle("test@gmail.com", "testuser", "google-sub-1");
+    }
+
+    @Test
+    void loginWithGoogle_knownSub_logsInWithoutRegistration() {
+        User user = googleUser();
+        when(googleTokenVerifier.verify("credential")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.of(user));
+        when(jwtService.generateToken(user)).thenReturn("jwt-token");
+
+        GoogleAuthResponse response =
+            authService.loginWithGoogle(new GoogleLoginRequest("credential"), httpServletResponse);
+
+        assertFalse(response.getRegistrationRequired());
+        assertEquals("jwt-token", response.getAccessToken());
+        // Same tail as a password login: refresh token persisted + cookie set.
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+        verify(httpServletResponse).addCookie(any(Cookie.class));
+    }
+
+    @Test
+    void loginWithGoogle_newIdentity_requiresRegistrationAndCreatesNoUser() {
+        when(googleTokenVerifier.verify("credential")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.empty());
+        when(jwtService.generateGoogleRegistrationToken(GOOGLE_IDENTITY)).thenReturn("reg-token");
+
+        GoogleAuthResponse response =
+            authService.loginWithGoogle(new GoogleLoginRequest("credential"), httpServletResponse);
+
+        assertTrue(response.getRegistrationRequired());
+        assertEquals("reg-token", response.getRegistrationToken());
+        assertEquals("test@gmail.com", response.getEmail());
+        assertNull(response.getAccessToken());
+        // Nothing persisted until a username is chosen.
+        verify(userRepository, never()).save(any());
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void loginWithGoogle_abandonedRegistration_asksForUsernameAgain() {
+        // Nothing was persisted the first time, so signing in again simply lands
+        // back on the username step with a fresh token — no stuck half-account,
+        // and nothing to clean up.
+        when(googleTokenVerifier.verify("credential")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.empty());
+        when(jwtService.generateGoogleRegistrationToken(GOOGLE_IDENTITY)).thenReturn("reg-token-2");
+
+        GoogleAuthResponse response =
+            authService.loginWithGoogle(new GoogleLoginRequest("credential"), httpServletResponse);
+
+        assertTrue(response.getRegistrationRequired());
+        assertEquals("reg-token-2", response.getRegistrationToken());
+        assertEquals("test@gmail.com", response.getEmail());
+    }
+
+    @Test
+    void loginWithGoogle_emailBelongsToPasswordAccount_throwsMismatch() {
+        when(googleTokenVerifier.verify("credential")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.empty());
+        // Accounts are never linked — they must use the password they registered with.
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.of(activeUser()));
+
+        assertThrows(AuthMethodMismatchException.class,
+            () -> authService.loginWithGoogle(new GoogleLoginRequest("credential"), httpServletResponse));
+        verify(userRepository, never()).save(any());
+    }
+
+    // --- completeGoogleRegistration ---
+
+    @Test
+    void completeGoogleRegistration_validToken_createsActiveGoogleUser() {
+        when(jwtService.parseGoogleRegistrationToken("reg-token")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("chosenname")).thenReturn(Optional.empty());
+        when(jwtService.generateToken(any(User.class))).thenReturn("jwt-token");
+
+        AuthResponse response = authService.completeGoogleRegistration(
+            new GoogleRegisterRequest("reg-token", "chosenname"), httpServletResponse);
+
+        assertEquals("jwt-token", response.getAccessToken());
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        User saved = userCaptor.getValue();
+        assertEquals("chosenname", saved.getUsername());
+        assertEquals("test@gmail.com", saved.getEmail());
+        assertEquals("google-sub-1", saved.getGoogleSub());
+        assertEquals(AuthProvider.GOOGLE, saved.getAuthProvider());
+        // Google already proved the address — no email verification step.
+        assertEquals(UserStatus.ACTIVE, saved.getStatus());
+        assertTrue(saved.getVerified());
+        assertFalse(saved.hasPassword());
+    }
+
+    @Test
+    void completeGoogleRegistration_usernameTaken_throwsValidationException() {
+        when(jwtService.parseGoogleRegistrationToken("reg-token")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("taken")).thenReturn(Optional.of(activeUser()));
+
+        assertThrows(ValidationException.class, () -> authService.completeGoogleRegistration(
+            new GoogleRegisterRequest("reg-token", "taken"), httpServletResponse));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void completeGoogleRegistration_subAlreadyRegistered_logsInInstead() {
+        // Signing up twice (e.g. a second tab) logs the existing account in
+        // rather than failing on the unique google_sub constraint.
+        User user = googleUser();
+        when(jwtService.parseGoogleRegistrationToken("reg-token")).thenReturn(GOOGLE_IDENTITY);
+        when(userRepository.findByGoogleSub("google-sub-1")).thenReturn(Optional.of(user));
+        when(jwtService.generateToken(user)).thenReturn("jwt-token");
+
+        AuthResponse response = authService.completeGoogleRegistration(
+            new GoogleRegisterRequest("reg-token", "chosenname"), httpServletResponse);
+
+        assertEquals("jwt-token", response.getAccessToken());
+        verify(userRepository, never()).save(any());
+    }
+
+    // --- password flows are unavailable to Google accounts ---
+
+    @Test
+    void login_googleAccount_throwsMismatchRatherThanWrongPassword() {
+        LoginRequest request = new LoginRequest(false, "test@gmail.com", "anything");
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.of(googleUser()));
+
+        assertThrows(AuthMethodMismatchException.class,
+            () -> authService.login(request, httpServletResponse));
+    }
+
+    @Test
+    void requestEmailChange_googleAccount_throwsMismatch() {
+        assertThrows(AuthMethodMismatchException.class,
+            () -> authService.requestEmailChange(googleUser(), "new@gmail.com", "irrelevant"));
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void requestPasswordReset_googleAccount_throwsBadAction() {
+        when(userRepository.findByEmail("test@gmail.com")).thenReturn(Optional.of(googleUser()));
+
+        // There's no password to reset, so say so rather than sending a link
+        // that could never work.
+        assertThrows(BadActionException.class,
+            () -> authService.requestPasswordReset(false, "test@gmail.com"));
+        verify(verificationTokenRepository, never()).save(any());
+        verify(emailService, never()).sendEmail(anyString(), anyString(), anyString());
     }
 }

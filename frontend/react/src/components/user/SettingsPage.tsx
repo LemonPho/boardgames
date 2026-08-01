@@ -11,6 +11,9 @@ import SubmitButton from "../util/SubmitButton";
  * Account settings for the logged-in user: change username, email, password, or
  * delete the account. Each section submits independently. Requires a user; if
  * none is loaded, sends the visitor to login.
+ *
+ * Google accounts only get the username and delete sections — they have no
+ * password, and their email belongs to the Google account.
  */
 export default function SettingsPage() {
   const { user, retrieveCurrentUser } = useUserContext();
@@ -33,6 +36,9 @@ export default function SettingsPage() {
       </p>
     );
   }
+
+  // Google accounts have no password, so only the username is editable here.
+  const isGoogleAccount = user.authProvider === "GOOGLE";
 
   // Loading for each action is owned by its SubmitButton (shared `loading` flag,
   // which also disables the other actions while one runs).
@@ -97,22 +103,34 @@ export default function SettingsPage() {
             disabled={!username.trim()} className={saveBtnClass} />
         </Section>
 
-        {/* Email */}
-        <Section title="Email" description={`Current: ${user.email}`}>
-          <Field label="New email" type="email" value={email} onChange={setEmail} placeholder="New email" />
-          <Field label="Current password" type="password" value={emailPassword} onChange={setEmailPassword} placeholder="Confirm with your password" />
-          <p className="text-xs text-gray-400">We'll send a confirmation link to the new address. Your email changes only after you confirm it.</p>
-          <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handleEmail}
-            disabled={!email.trim() || !emailPassword} className={saveBtnClass} />
-        </Section>
+        {/* Email and password are managed by Google for Google accounts — they
+            have no password here, and their email is the Google identity. */}
+        {isGoogleAccount ? (
+          <Section title="Email" description={`Current: ${user.email}`}>
+            <p className="text-xs text-gray-400">
+              You sign in with Google, so your email and password are managed by your Google account.
+            </p>
+          </Section>
+        ) : (
+          <>
+            {/* Email */}
+            <Section title="Email" description={`Current: ${user.email}`}>
+              <Field label="New email" type="email" value={email} onChange={setEmail} placeholder="New email" />
+              <Field label="Current password" type="password" value={emailPassword} onChange={setEmailPassword} placeholder="Confirm with your password" />
+              <p className="text-xs text-gray-400">We'll send a confirmation link to the new address. Your email changes only after you confirm it.</p>
+              <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handleEmail}
+                disabled={!email.trim() || !emailPassword} className={saveBtnClass} />
+            </Section>
 
-        {/* Password */}
-        <Section title="Password">
-          <Field label="Current password" type="password" value={currentPassword} onChange={setCurrentPassword} placeholder="Current password" />
-          <Field label="New password" type="password" value={newPassword} onChange={setNewPassword} placeholder="New password" />
-          <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handlePassword}
-            disabled={!currentPassword || !newPassword} className={saveBtnClass} />
-        </Section>
+            {/* Password */}
+            <Section title="Password">
+              <Field label="Current password" type="password" value={currentPassword} onChange={setCurrentPassword} placeholder="Current password" />
+              <Field label="New password" type="password" value={newPassword} onChange={setNewPassword} placeholder="New password" />
+              <SubmitButton text="Save" loading={loading} setLoading={setLoading} onSubmit={handlePassword}
+                disabled={!currentPassword || !newPassword} className={saveBtnClass} />
+            </Section>
+          </>
+        )}
 
         {/* Delete account */}
         <div className="rounded-xl border border-red-200 bg-red-50/40 p-4">

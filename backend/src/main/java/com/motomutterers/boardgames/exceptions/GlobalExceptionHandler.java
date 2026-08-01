@@ -8,6 +8,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.motomutterers.boardgames.auth.exceptions.AuthMethodMismatchException;
+import com.motomutterers.boardgames.auth.exceptions.GoogleAuthException;
 import com.motomutterers.boardgames.auth.exceptions.PasswordIncorrectException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenExpiredException;
 import com.motomutterers.boardgames.auth.exceptions.RefreshTokenNotFoundException;
@@ -46,6 +48,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PasswordIncorrectException.class)
     public ResponseEntity<String> handleIncorrectPassword(PasswordIncorrectException e){
         return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    // Wrong sign-in method for this account — the message names the right one.
+    @ExceptionHandler(AuthMethodMismatchException.class)
+    public ResponseEntity<String> handleAuthMethodMismatch(AuthMethodMismatchException e){
+        return ResponseEntity.status(409).body(e.getMessage());
+    }
+
+    @ExceptionHandler(GoogleAuthException.class)
+    public ResponseEntity<String> handleGoogleAuth(GoogleAuthException e){
+        return ResponseEntity.status(401).body(e.getMessage());
     }
 
     @ExceptionHandler(UserUnauthorizedException.class)

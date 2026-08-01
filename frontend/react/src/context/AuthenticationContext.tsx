@@ -1,14 +1,20 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import { csrf, login, logout, refresh, register } from "../api/auth";
-import type { AuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
+import { csrf, googleLogin, googleRegister, login, logout, refresh, register } from "../api/auth";
+import type { AuthResponse, GoogleAuthResponse, LoginRequest, RegisterRequest } from "../types/auth";
 import { useAlertsContext } from "./AlertsContext";
-import type { LoginErrors, RegisterErrors } from "../types/components-types/auth";
+import type { GoogleRegisterErrors, LoginErrors, RegisterErrors } from "../types/components-types/auth";
 import { setupInterceptors, setLoggingOut } from "../api/axiosSetup";
 
 interface AuthenticationContextType {
   accessToken: string | null,
   registerUser: (request: RegisterRequest, setErrors: (errors: RegisterErrors | null) => void) => Promise<void>,
   loginUser: (request: LoginRequest, setErrors: (errors: LoginErrors | null) => void) => Promise<AuthResponse>,
+  loginWithGoogle: (credential: string) => Promise<GoogleAuthResponse>,
+  registerWithGoogle: (
+    registrationToken: string,
+    username: string,
+    setErrors: (errors: GoogleRegisterErrors | null) => void
+  ) => Promise<AuthResponse>,
   logoutUser: () => Promise<void>,
   csrfInit: () => Promise<void>,
 
@@ -33,6 +39,31 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
 
   const loginUser = async (request: LoginRequest, setErrors: (errors: LoginErrors | null) => void): Promise<AuthResponse> => {
     const response = await login(request, setErrors, setErrorMessage);
+    if (response?.accessToken) {
+      setAccessToken(response.accessToken);
+    }
+
+    return response;
+  }
+
+  // Signs in with a Google ID token. Returns the raw response so the caller can
+  // branch: an existing account is now logged in, a new one needs a username.
+  const loginWithGoogle = async (credential: string): Promise<GoogleAuthResponse> => {
+    const response = await googleLogin(credential, setErrorMessage);
+    if (response?.accessToken) {
+      setAccessToken(response.accessToken);
+    }
+
+    return response;
+  }
+
+  // Completes a first-time Google sign-in, which logs them straight in.
+  const registerWithGoogle = async (
+    registrationToken: string,
+    username: string,
+    setErrors: (errors: GoogleRegisterErrors | null) => void
+  ): Promise<AuthResponse> => {
+    const response = await googleRegister(registrationToken, username, setErrors, setErrorMessage);
     if (response?.accessToken) {
       setAccessToken(response.accessToken);
     }
@@ -94,7 +125,7 @@ export function AuthenticationContextProvider({ children }: { children: React.Re
 
   return (
     <AuthenticationContext.Provider
-      value={{ accessToken, registerUser, loginUser, logoutUser, csrfInit, deleteAccessToken, restoreSession }}
+      value={{ accessToken, registerUser, loginUser, loginWithGoogle, registerWithGoogle, logoutUser, csrfInit, deleteAccessToken, restoreSession }}
     >
       {children}
     </AuthenticationContext.Provider>

@@ -18,8 +18,17 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
-    @Column(nullable = false)
+    // Null for accounts created through Google — they authenticate with the
+    // provider, never a local password. Guard with hasPassword().
     private String passwordHash;
+
+    @Enumerated(EnumType.STRING)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    // Google's immutable subject id. The identity key for Google accounts —
+    // emails can be reassigned, this can't.
+    @Column(unique = true)
+    private String googleSub;
 
     private boolean verified = false;
 
@@ -47,11 +56,26 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
+    // Google-authenticated account: no password, and already active/verified —
+    // Google has proven the address, so there's nothing left to email-confirm.
+    public static User fromGoogle(String email, String username, String googleSub){
+        User user = new User();
+        user.email = email;
+        user.username = username;
+        user.passwordHash = null;
+        user.authProvider = AuthProvider.GOOGLE;
+        user.googleSub = googleSub;
+        user.verified = true;
+        user.status = UserStatus.ACTIVE;
+        return user;
+    }
+
     @PrePersist
     protected void onCreate() {
        this.createdAt = LocalDateTime.now();
        this.usernameLastEdited = null;
-       this.status = UserStatus.PENDING_VERIFICATION;
+       // status is not reset here — the field default already covers local
+       // registration, and Google accounts are created ACTIVE.
     }
 
     public boolean canChangeUsername(){
@@ -74,6 +98,14 @@ public class User {
 
     public String getPasswordHash(){
         return passwordHash;
+    }
+
+    public AuthProvider getAuthProvider(){
+        return authProvider;
+    }
+
+    public String getGoogleSub(){
+        return googleSub;
     }
 
     public boolean getVerified(){
@@ -106,6 +138,10 @@ public class User {
     
     public void setPasswordHash(String passwordHash){
         this.passwordHash = passwordHash;
+    }
+
+    public void setGoogleSub(String googleSub){
+        this.googleSub = googleSub;
     }
 
     public void setVerified(boolean verified){
@@ -151,6 +187,17 @@ public class User {
 
     public boolean isAdmin(){
         return role.equals(UserRole.ADMIN);
+    }
+
+    // Whether local-password flows (login, change password, change email,
+    // password reset) apply to this account. False for Google-only accounts,
+    // which have no password to verify against.
+    public boolean hasPassword(){
+        return passwordHash != null;
+    }
+
+    public boolean isGoogleLinked(){
+        return googleSub != null;
     }
 
     public void setIsPendingVerification(){

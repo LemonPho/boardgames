@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.motomutterers.boardgames.auth.exceptions.AuthMethodMismatchException;
 import com.motomutterers.boardgames.auth.exceptions.UserUnauthorizedException;
 import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.exceptions.ValidationBuilder;
@@ -74,6 +75,11 @@ public class UserService {
     @Transactional
     public void updatePassword(UUID id, String currentPassword, String newPassword) {
         User user = getUserById(id);
+
+        // Google accounts have no password to verify against or replace.
+        if(!user.hasPassword()){
+            throw new AuthMethodMismatchException("Google accounts don't have a password to change");
+        }
 
         new ValidationBuilder()
             .addError(!passwordEncoder.matches(currentPassword, user.getPasswordHash()), "currentPassword", "Password is incorrect")

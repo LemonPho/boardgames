@@ -95,6 +95,12 @@ public class SecurityConfig {
         return username -> {
             User user = userRepository.findByEmail(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+            // Google accounts have no password hash. UserDetails forbids a null
+            // password, and there's nothing to authenticate with anyway, so treat
+            // them as not found for any password-based lookup.
+            if(!user.hasPassword()){
+                throw new UsernameNotFoundException("User not found");
+            }
             return org.springframework.security.core.userdetails.User
                 .withUsername(user.getId().toString())
                 .password(user.getPasswordHash())

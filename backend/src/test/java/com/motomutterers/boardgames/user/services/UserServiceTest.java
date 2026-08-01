@@ -1,5 +1,6 @@
 package com.motomutterers.boardgames.user.services;
 
+import com.motomutterers.boardgames.auth.exceptions.AuthMethodMismatchException;
 import com.motomutterers.boardgames.auth.exceptions.UserUnauthorizedException;
 import com.motomutterers.boardgames.exceptions.BadActionException;
 import com.motomutterers.boardgames.user.UserRepository;
@@ -143,6 +144,20 @@ public class UserServiceTest {
         assertEquals("newname", user.getUsername());
         assertNotNull(user.getUsernameLastEdited());
         verify(userRepository).save(user);
+    }
+
+    // --- updatePassword ---
+
+    @Test
+    void updatePassword_googleAccount_throwsMismatch() {
+        UUID userId = UUID.randomUUID();
+        // No password hash to verify against or replace.
+        User user = User.fromGoogle("test@gmail.com", "testuser", "google-sub-1");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        assertThrows(AuthMethodMismatchException.class,
+            () -> userService.updatePassword(userId, "current", "newpassword1"));
+        verify(userRepository, never()).save(any());
     }
 
     // --- deleteUser ---

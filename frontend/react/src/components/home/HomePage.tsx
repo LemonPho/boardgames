@@ -42,17 +42,13 @@ export default function HomePage() {
           <Link
             key={game.name}
             to={`/games/${game.name}`}
-            className="relative rounded-2xl shadow-lg overflow-hidden aspect-[3/4] flex flex-col justify-end hover:shadow-xl transition-shadow"
+            className="rounded-2xl shadow-lg overflow-hidden aspect-[3/4] hover:shadow-xl transition-shadow"
           >
             <img
               src={skullKingImage}
               alt={game.name}
-              className="absolute inset-0 w-full h-full object-cover"
+              className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
-            <div className="relative z-10 p-5">
-              <p className="text-xl font-semibold text-white">{game.name}</p>
-            </div>
           </Link>
         ))}
       </div>

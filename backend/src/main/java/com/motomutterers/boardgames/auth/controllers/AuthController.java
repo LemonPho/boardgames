@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.motomutterers.boardgames.auth.dto.AuthResponse;
 import com.motomutterers.boardgames.auth.dto.ForgotPasswordRequest;
+import com.motomutterers.boardgames.auth.dto.GoogleAuthResponse;
+import com.motomutterers.boardgames.auth.dto.GoogleLoginRequest;
+import com.motomutterers.boardgames.auth.dto.GoogleRegisterRequest;
 import com.motomutterers.boardgames.auth.dto.LoginRequest;
 import com.motomutterers.boardgames.auth.dto.RegisterRequest;
 import com.motomutterers.boardgames.auth.dto.ResetPasswordRequest;
@@ -42,6 +45,26 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response){
         AuthResponse authResponse = authService.login(request, response);
         return ResponseEntity.ok(authResponse);
+    }
+
+    // Google sign-in. Returns either an access token (existing account) or a
+    // registration token + a flag telling the client to collect a username.
+    @PostMapping("/google/login")
+    public ResponseEntity<GoogleAuthResponse> googleLogin(
+        @Valid @RequestBody GoogleLoginRequest request,
+        HttpServletResponse response
+    ){
+        return ResponseEntity.ok(authService.loginWithGoogle(request, response));
+    }
+
+    // Second half of a first-time Google sign-in: creates the account with the
+    // chosen username and logs them straight in.
+    @PostMapping("/google/register")
+    public ResponseEntity<AuthResponse> googleRegister(
+        @Valid @RequestBody GoogleRegisterRequest request,
+        HttpServletResponse response
+    ){
+        return new ResponseEntity<>(authService.completeGoogleRegistration(request, response), HttpStatus.CREATED);
     }
 
     @PostMapping("/refresh")

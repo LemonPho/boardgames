@@ -99,6 +99,13 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
 		</dependency>
+		<!-- Verifies Google ID tokens (JWKS fetch + signature/claim validation) via
+		     NimbusJwtDecoder. Just the JOSE library, not the resource-server
+		     starter: we mint our own JWTs and don't want its auto-configuration. -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

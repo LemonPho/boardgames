@@ -2,11 +2,12 @@ import { useState } from 'react'
 import type { LoginRequest } from '../../types/auth'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthenticationContext } from '../../context/AuthenticationContext'
-import type { LoginErrors } from '../../types/components-types/auth';
+import type { GoogleRegistrationHandoff, LoginErrors } from '../../types/components-types/auth';
 import { useAlertsContext } from '../../context/AlertsContext';
 import SubmitButton from '../util/SubmitButton';
+import GoogleSignInButton from './GoogleSignInButton';
 
-export default function LoginForm() {
+export default function LoginForm({ onGoogleRegistrationRequired }: GoogleRegistrationHandoff) {
   const { errorMessage } = useAlertsContext();
   const { loginUser } = useAuthenticationContext();
 
@@ -86,6 +87,17 @@ export default function LoginForm() {
           setLoading={setLoading}
           onSubmit={handleSubmit}
           className="bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium py-2.5 rounded-lg transition mt-2 disabled:opacity-40"
+        />
+
+        <div className="flex items-center gap-3 mt-1">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        <GoogleSignInButton
+          text="signin_with"
+          onRegistrationRequired={onGoogleRegistrationRequired}
         />
       </div>
 
