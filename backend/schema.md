@@ -46,7 +46,7 @@ erDiagram
   Invitations {
     uuid id PK
     uuid room_id FK
-    uuid user_id FK
+    uuid room_user_id FK
     string token
     string status
     timestamp expires_at
@@ -120,8 +120,9 @@ erDiagram
     uuid room_id FK
     uuid user_id FK
     string display_name
-    boolean is_anonymous
     string role
+    string status
+    int playing_position
     timestamp joined_at
   }
 
@@ -171,7 +172,7 @@ erDiagram
   Sessions ||--o{ TeamSessionEvent : "logs"
   Teams ||--o{ TeamSessionEvent : "participates"
   Rooms ||--o{ Invitations : "sends"
-  Users |o--o{ Invitations : "receives"
+  RoomUser ||--o| Invitations : "invited via"
   Users ||--o{ UserRatings : "has"
   Games ||--o{ UserRatings : "tracked in"
   UserRatings ||--o{ RatingHistory : "logs"
