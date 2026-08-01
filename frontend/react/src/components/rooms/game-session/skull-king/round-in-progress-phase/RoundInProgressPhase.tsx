@@ -8,8 +8,8 @@ import SubmitButton from "../../../../util/SubmitButton";
 
 export default function RoundInProgressPhase() {
   const { room, currentPlayer } = useRoomContext();
-  const { state } = useSkullKingSessionContext();
-  const { setErrorMessage } = useAlertsContext();
+  const { state, refreshState } = useSkullKingSessionContext();
+  const { setErrorMessage, clearAlerts } = useAlertsContext();
   const [loading, setLoading] = useState(false);
 
   if (!room || !currentPlayer || !state) return null;
@@ -19,7 +19,19 @@ export default function RoundInProgressPhase() {
   const myBid = currentPlayer.team ? bids[currentPlayer.team.id] ?? null : null;
 
   const handleStartTrickResults = async (): Promise<void> => {
-    await startTrickResults(room.name, setErrorMessage);
+    try {
+      await startTrickResults(room.name, setErrorMessage);
+    } catch (error) {
+      // On a flaky connection the server may have advanced while the response was
+      // lost, so a retry errors with "wrong phase". Re-sync: if we've moved past
+      // IN_PROGRESS the transition already worked, so drop the error.
+      const fresh = await refreshState();
+      if (fresh && fresh.gameState !== "IN_PROGRESS") {
+        clearAlerts();
+        return;
+      }
+      throw error;
+    }
   }
 
   return (

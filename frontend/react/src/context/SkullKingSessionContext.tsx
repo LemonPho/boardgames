@@ -10,6 +10,10 @@ import type { SkullKingState } from "../types/skull-king";
 interface SkullKingSessionContextType {
   state: SkullKingState | null;
   loading: boolean;
+  // Re-fetch the current state from the server and apply it. Normally state
+  // arrives over the WebSocket, but a dropped push can leave the client on a
+  // stale phase — callers use this to re-sync. Returns the state (null on error).
+  refreshState: () => Promise<SkullKingState | null>;
 }
 
 const SkullKingContext = createContext<SkullKingSessionContextType | null>(null);
@@ -25,6 +29,17 @@ export function SkullKingContextProvider({ children }: { children: React.ReactNo
   const roomName = room?.name;
   const role = currentPlayer?.role;
   const teamId = currentPlayer?.team?.id;
+
+  const refreshState = async (): Promise<SkullKingState | null> => {
+    if (!roomName) return null;
+    try {
+      const fetched = await getSkullKingState(roomName, () => {});
+      setState(fetched);
+      return fetched;
+    } catch {
+      return null;
+    }
+  };
 
   // Fetch the initial state whenever the room changes.
   useEffect(() => {
@@ -73,7 +88,7 @@ export function SkullKingContextProvider({ children }: { children: React.ReactNo
   }, [roomName, role, teamId, accessToken]);
 
   return (
-    <SkullKingContext.Provider value={{ state, loading }}>
+    <SkullKingContext.Provider value={{ state, loading, refreshState }}>
       {children}
     </SkullKingContext.Provider>
   );

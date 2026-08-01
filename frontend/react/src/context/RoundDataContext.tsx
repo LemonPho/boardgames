@@ -72,9 +72,9 @@ const MAX_ROUNDS = 10;
  * owns the drafts + debounced saves, and wires the phase-advance action.
  */
 export function LiveRoundDataProvider({ children }: { children: React.ReactNode }) {
-  const { state } = useSkullKingSessionContext();
+  const { state, refreshState } = useSkullKingSessionContext();
   const { room, currentPlayer } = useRoomContext();
-  const { setErrorMessage } = useAlertsContext();
+  const { setErrorMessage, clearAlerts } = useAlertsContext();
   const { schedule, flush } = useDebouncedSave();
 
   const [bidDrafts, setBidDrafts] = useState<Map<string, number>>(new Map());
@@ -142,18 +142,37 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
 
   // --- Phase advance (admin only; each phase submits any stragglers, flushes, then transitions) ---
 
+  // The phase transition can fail on a flaky connection even though the server
+  // already advanced (its response or the WebSocket push was lost) — a retry then
+  // errors with "wrong phase". So on failure we re-sync state: if the server moved
+  // past the phase we started from, the advance already worked, so we swallow the
+  // error and let the fresh state re-render the correct phase. Otherwise (a real
+  // validation error, e.g. not all bids in) we surface it.
+  const runTransition = async (fromPhase: SkullKingGameState, transition: () => Promise<void>): Promise<void> => {
+    try {
+      await transition();
+    } catch (error) {
+      const fresh = await refreshState();
+      if (fresh && fresh.gameState !== fromPhase) {
+        clearAlerts();
+        return;
+      }
+      throw error;
+    }
+  };
+
   const advanceBids = async (): Promise<void> => {
     const pending = state.teams.filter((t) => !(t.id in serverBids) && !bidDrafts.has(t.id));
     for (const t of pending) await submitBid(room.name, t.id, bids[t.id] ?? 0, setErrorMessage);
     await flush();
-    await startRound(room.name, setErrorMessage);
+    await runTransition("BIDS", () => startRound(room.name, setErrorMessage));
   };
 
   const advanceTricks = async (): Promise<void> => {
     const pending = state.teams.filter((t) => !(t.id in serverTricks) && !trickDrafts.has(t.id));
     for (const t of pending) await submitTrickResult(room.name, t.id, trickResults[t.id] ?? 0, setErrorMessage);
     await flush();
-    await startBonusPoints(room.name, setErrorMessage);
+    await runTransition("TRICK_RESULTS", () => startBonusPoints(room.name, setErrorMessage));
   };
 
   const advanceBonus = async (): Promise<void> => {
@@ -163,7 +182,7 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
       await submitBonusPoints(room.name, t.id, eligible ? (bonuses[t.id] ?? EMPTY_BONUS) : EMPTY_BONUS, setErrorMessage);
     }
     await flush();
-    await finishRound(room.name, setErrorMessage);
+    await runTransition("BONUS_POINTS", () => finishRound(room.name, setErrorMessage));
   };
 
   const isAdmin = currentPlayer.role === "ADMIN";
