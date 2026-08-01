@@ -89,6 +89,20 @@ export const removePlayer = async (roomUserId: string, roomName: string, setErro
   }
 }
 
+// Move a player to a new seat/turn position; the backend renumbers the rest.
+export const movePlayer = async (roomUserId: string, newLocation: number, roomName: string, setErrorMessage: (message: string) => void): Promise<void> => {
+  try{
+    await api.post(`/rooms/${roomName}/move-player`, {
+      roomUserId: roomUserId,
+      newLocation: newLocation
+    });
+
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
 export const searchUsersAvailability = async (username: string, roomName: string, setErrorMessage: (message: string) => void): Promise<Array<UserAvailabilityResponse>> => {
   try {
     const response = await api.get(`/rooms/${roomName}/search-users?username=${username}`);
@@ -103,6 +117,16 @@ export const acceptInvite = async (token: string, setErrorMessage: (message: str
   try{
     const response = await api.put(`/rooms/accept?token=${token}`);
     return response.data
+  } catch(error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}
+
+// Decline an invite: records the decline (blocks re-invite spam) and removes it.
+export const declineInvite = async (token: string, setErrorMessage: (message: string) => void): Promise<void> => {
+  try{
+    await api.put(`/rooms/decline?token=${token}`);
   } catch(error) {
     setAxiosError(error, setErrorMessage);
     throw error;

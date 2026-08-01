@@ -5,7 +5,6 @@ import { cancelRoom, leaveRoom } from "../../../api/rooms";
 import { useNavigate } from "react-router-dom";
 import PlayersList from "./PlayersList";
 import AddPlayersModal from "./AddPlayersModal";
-import InvitationsList from "./InvitationsList";
 import { useSessionContext } from "../../../context/SessionContext";
 import SubmitButton from "../../util/SubmitButton";
 
@@ -57,11 +56,9 @@ export default function WaitingRoom() {
         </div>
       </div>
 
-      {/* Players */}
+      {/* Players (includes pending invites) */}
       <PlayersList currentPlayer={currentPlayer} INVITE_PLAYERS_PANEL={INVITE_PLAYERS_PANEL}/>
       <AddPlayersModal INVITE_PLAYERS_PANEL={INVITE_PLAYERS_PANEL}/>
-
-      <InvitationsList currentPlayer={currentPlayer}/>
 
       {/* Actions */}
       <div className="w-full max-w-2xl flex gap-3">

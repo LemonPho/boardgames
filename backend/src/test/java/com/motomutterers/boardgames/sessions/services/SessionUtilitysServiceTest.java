@@ -43,7 +43,7 @@ public class SessionUtilitysServiceTest {
 
     private RoomUser roomUser(RoomUserRoles role) {
         User user = new User("test@test.com", "testuser", "hash");
-        return new RoomUser(user, room(), role);
+        return new RoomUser(user, room(), role, 0);
     }
 
     // --- throwIfSessionExistsInRoom ---

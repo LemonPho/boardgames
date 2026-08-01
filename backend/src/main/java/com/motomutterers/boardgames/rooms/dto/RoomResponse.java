@@ -1,12 +1,11 @@
 package com.motomutterers.boardgames.rooms.dto;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.motomutterers.boardgames.games.dto.SimpleGameResponse;
-import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
@@ -18,8 +17,10 @@ public class RoomResponse {
     private RoomStatus status;
     private RoomConfiguration configuration;
     private TrackingMode trackingMode;
-    private List<RoomUserResponse> players = new ArrayList<RoomUserResponse>();
-    private List<RoomInvitationResponse> invitations = new ArrayList<RoomInvitationResponse>();
+    // Players include pending invites (RoomUsers with status PENDING_INVITE) and
+    // declines; each carries its status, so the client renders invite state
+    // without a separate list. Ordered by playing position (seat/turn order).
+    private List<RoomUserResponse> players = new java.util.ArrayList<RoomUserResponse>();
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
     private LocalDateTime createdAt;
@@ -32,25 +33,13 @@ public class RoomResponse {
         this.status = room.getStatus();
         this.configuration = room.getConfiguration();
         this.trackingMode = room.getTrackingMode();
+        // Declined invites are kept in the DB (to block re-invite spam) but are not
+        // room members, so they're excluded here. Active players and pending invites
+        // are shown, ordered by playing position.
         this.players = room.getPlayers().stream()
+            .filter(p -> p.getStatus() != com.motomutterers.boardgames.rooms.model.Room.RoomUserStatus.DECLINED)
+            .sorted(Comparator.comparingInt(com.motomutterers.boardgames.rooms.model.Room.RoomUser::getPlayingPosition))
             .map(RoomUserResponse::new)
-            .collect(Collectors.toList());
-        this.startedAt = room.getStartedAt();
-        this.endedAt = room.getEndedAt();
-        this.createdAt = room.getCreatedAt();
-    }
-
-    public RoomResponse(Room room, List<RoomInvitationToken> invitations){
-        this.name = room.getName();
-        this.game = new SimpleGameResponse(room.getGame());
-        this.status = room.getStatus();
-        this.configuration = room.getConfiguration();
-        this.trackingMode = room.getTrackingMode();
-        this.players = room.getPlayers().stream()
-            .map(RoomUserResponse::new)
-            .collect(Collectors.toList());
-        this.invitations = invitations.stream()
-            .map(RoomInvitationResponse::new)
             .collect(Collectors.toList());
         this.startedAt = room.getStartedAt();
         this.endedAt = room.getEndedAt();
@@ -79,10 +68,6 @@ public class RoomResponse {
 
     public List<RoomUserResponse> getPlayers(){
         return players;
-    }
-
-    public List<RoomInvitationResponse> getInvitations(){
-        return invitations;
     }
 
     public LocalDateTime getStartedAt(){

@@ -6,13 +6,13 @@ import com.motomutterers.boardgames.notifications.repositories.NotificationRepos
 import com.motomutterers.boardgames.rooms.exceptions.RoomExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
-import com.motomutterers.boardgames.rooms.model.Invitation.InvitationStatus;
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUserStatus;
 import com.motomutterers.boardgames.rooms.model.Room.TrackingMode;
 import com.motomutterers.boardgames.rooms.repository.RoomInvitationTokenRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomRepository;
@@ -35,6 +35,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,7 +87,16 @@ public class RoomsUtilityServiceTest {
 
     private void addPlayers(Room room, int count) {
         for (int i = 0; i < count; i++) {
-            room.addPlayer(new RoomUser(userWithId(UUID.randomUUID()), room, RoomUserRoles.PLAYER));
+            room.addPlayer(new RoomUser(userWithId(UUID.randomUUID()), room, RoomUserRoles.PLAYER, i));
+        }
+    }
+
+    // Add `count` players with a specific membership status (e.g. pending invites,
+    // declines) so capacity tests can express the new status model.
+    private void addPlayersWithStatus(Room room, int count, RoomUserStatus status) {
+        int base = room.getPlayers().size();
+        for (int i = 0; i < count; i++) {
+            room.addPlayer(new RoomUser(userWithId(UUID.randomUUID()), room, status, base + i));
         }
     }
 
@@ -137,7 +147,7 @@ public class RoomsUtilityServiceTest {
     void getRoomByName_expired_cancelsAndThrows() {
         Room room = room(RoomStatus.WAITING, LocalDateTime.now().minusSeconds(WAITING_EXPIRATION + 60));
         when(roomRepository.findByName("room")).thenReturn(Optional.of(room));
-        when(roomInvitationTokenRepository.findRoomInvitations(room)).thenReturn(List.of());
+        when(roomInvitationTokenRepository.findAllByRoom(room)).thenReturn(List.of());
 
         assertThrows(RoomExpiredException.class, () -> roomsUtilityService.getRoomByName("room"));
         assertEquals(RoomStatus.CANCELLED, room.getStatus());
@@ -185,7 +195,7 @@ public class RoomsUtilityServiceTest {
         UUID adminId = UUID.randomUUID();
         User admin = userWithId(adminId);
         Room room = room(RoomStatus.WAITING, LocalDateTime.now());
-        room.addPlayer(new RoomUser(admin, room, RoomUserRoles.ADMIN));
+        room.addPlayer(new RoomUser(admin, room, RoomUserRoles.ADMIN, 0));
 
         assertDoesNotThrow(() -> roomsUtilityService.throwIfUserIsNotRoomAdmin(room, admin));
     }
@@ -193,7 +203,7 @@ public class RoomsUtilityServiceTest {
     @Test
     void throwIfUserIsNotRoomAdmin_nonAdmin_throws() {
         Room room = room(RoomStatus.WAITING, LocalDateTime.now());
-        room.addPlayer(new RoomUser(userWithId(UUID.randomUUID()), room, RoomUserRoles.ADMIN));
+        room.addPlayer(new RoomUser(userWithId(UUID.randomUUID()), room, RoomUserRoles.ADMIN, 0));
 
         User other = userWithId(UUID.randomUUID());
         assertThrows(BadActionException.class, () -> roomsUtilityService.throwIfUserIsNotRoomAdmin(room, other));
@@ -216,7 +226,7 @@ public class RoomsUtilityServiceTest {
     @Test
     void getIsUserInActiveRoom_none_false() {
         User user = userWithId(UUID.randomUUID());
-        when(roomUserRepository.findActiveRoomByUser(eq(user), any())).thenReturn(Optional.empty());
+        when(roomUserRepository.findActiveRoomByUser(eq(user), any(), any())).thenReturn(Optional.empty());
 
         assertFalse(roomsUtilityService.getIsUserInActiveRoom(user));
     }
@@ -225,7 +235,7 @@ public class RoomsUtilityServiceTest {
     void getIsUserInActiveRoom_activeAndFresh_true() {
         User user = userWithId(UUID.randomUUID());
         Room room = room(RoomStatus.WAITING, LocalDateTime.now());
-        when(roomUserRepository.findActiveRoomByUser(eq(user), any())).thenReturn(Optional.of(room));
+        when(roomUserRepository.findActiveRoomByUser(eq(user), any(), any())).thenReturn(Optional.of(room));
 
         assertTrue(roomsUtilityService.getIsUserInActiveRoom(user));
     }
@@ -234,8 +244,8 @@ public class RoomsUtilityServiceTest {
     void getIsUserInActiveRoom_activeButExpired_cancelsAndReturnsFalse() {
         User user = userWithId(UUID.randomUUID());
         Room room = room(RoomStatus.WAITING, LocalDateTime.now().minusSeconds(WAITING_EXPIRATION + 60));
-        when(roomUserRepository.findActiveRoomByUser(eq(user), any())).thenReturn(Optional.of(room));
-        when(roomInvitationTokenRepository.findRoomInvitations(room)).thenReturn(List.of());
+        when(roomUserRepository.findActiveRoomByUser(eq(user), any(), any())).thenReturn(Optional.of(room));
+        when(roomInvitationTokenRepository.findAllByRoom(room)).thenReturn(List.of());
 
         assertFalse(roomsUtilityService.getIsUserInActiveRoom(user));
         assertEquals(RoomStatus.CANCELLED, room.getStatus());
@@ -245,19 +255,19 @@ public class RoomsUtilityServiceTest {
     void throwIsUserInActiveRoom_active_throws() {
         User user = userWithId(UUID.randomUUID());
         Room room = room(RoomStatus.WAITING, LocalDateTime.now());
-        when(roomUserRepository.findActiveRoomByUser(eq(user), any())).thenReturn(Optional.of(room));
+        when(roomUserRepository.findActiveRoomByUser(eq(user), any(), any())).thenReturn(Optional.of(room));
 
         assertThrows(UserInActiveRoomException.class, () -> roomsUtilityService.throwIsUserInActiveRoom(user));
     }
 
     // --- throwIfRoomIsFull ---
+    // Capacity now counts non-DECLINED RoomUsers directly (active players +
+    // pending invites), since pending invites are themselves PENDING_INVITE rows.
 
     @Test
     void throwIfRoomIsFull_underCapacity_passes() {
         Room room = roomWithGame(gameWithMax(4));
         addPlayers(room, 2);
-        when(roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING))
-            .thenReturn(List.of());
 
         assertDoesNotThrow(() -> roomsUtilityService.throwIfRoomIsFull(room));
     }
@@ -266,8 +276,6 @@ public class RoomsUtilityServiceTest {
     void throwIfRoomIsFull_atCapacityByPlayers_throws() {
         Room room = roomWithGame(gameWithMax(4));
         addPlayers(room, 4);
-        when(roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING))
-            .thenReturn(List.of());
 
         assertThrows(BadActionException.class, () -> roomsUtilityService.throwIfRoomIsFull(room));
     }
@@ -276,9 +284,8 @@ public class RoomsUtilityServiceTest {
     void throwIfRoomIsFull_pendingInvitesReserveSeats_throws() {
         Room room = roomWithGame(gameWithMax(4));
         addPlayers(room, 2);
-        // 2 players + 2 pending invites == cap of 4.
-        when(roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING))
-            .thenReturn(List.of(mock(RoomInvitationToken.class), mock(RoomInvitationToken.class)));
+        // 2 active players + 2 pending invites == cap of 4.
+        addPlayersWithStatus(room, 2, RoomUserStatus.PENDING_INVITE);
 
         assertThrows(BadActionException.class, () -> roomsUtilityService.throwIfRoomIsFull(room));
     }
@@ -287,10 +294,25 @@ public class RoomsUtilityServiceTest {
     void throwIfRoomIsFull_playersPlusInvitesUnderCap_passes() {
         Room room = roomWithGame(gameWithMax(8));
         addPlayers(room, 3);
-        when(roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING))
-            .thenReturn(List.of(mock(RoomInvitationToken.class)));
+        addPlayersWithStatus(room, 1, RoomUserStatus.PENDING_INVITE);
 
         assertDoesNotThrow(() -> roomsUtilityService.throwIfRoomIsFull(room));
+    }
+
+    @Test
+    void throwIfRoomIsFull_declinedDoNotOccupySeats_passes() {
+        Room room = roomWithGame(gameWithMax(4));
+        addPlayers(room, 4);
+        // Declines don't hold a seat, so a full room of declines is still open... but
+        // here 4 active already fills it; add declines on top and it must still throw,
+        // proving declines aren't the ones being counted.
+        addPlayersWithStatus(room, 2, RoomUserStatus.DECLINED);
+        assertThrows(BadActionException.class, () -> roomsUtilityService.throwIfRoomIsFull(room));
+
+        // With only declines present, the room reads as empty (0 occupied).
+        Room declinedOnly = roomWithGame(gameWithMax(4));
+        addPlayersWithStatus(declinedOnly, 4, RoomUserStatus.DECLINED);
+        assertDoesNotThrow(() -> roomsUtilityService.throwIfRoomIsFull(declinedOnly));
     }
 
     // --- throwIfPlayerLimitReached ---
@@ -325,14 +347,74 @@ public class RoomsUtilityServiceTest {
     // --- cancelRoom ---
 
     @Test
-    void cancelRoom_setsCancelled_cancelsInvitations_andSession() {
+    void cancelRoom_setsCancelled_deletesInvitations_andSession() {
         Room room = room(RoomStatus.WAITING, LocalDateTime.now());
-        when(roomInvitationTokenRepository.findRoomInvitations(room)).thenReturn(List.of());
+        List<RoomInvitationToken> tokens = List.of(mock(RoomInvitationToken.class));
+        when(roomInvitationTokenRepository.findAllByRoom(room)).thenReturn(tokens);
 
         roomsUtilityService.cancelRoom(room);
 
         assertEquals(RoomStatus.CANCELLED, room.getStatus());
+        // A cancelled room's outstanding invitations are deleted (no longer actionable).
+        verify(roomInvitationTokenRepository).deleteAll(tokens);
         verify(roomRepository).save(room);
         verify(sessionUtilitysService).cancelSessionIfExists(room);
+    }
+
+    // --- nextPlayingPosition ---
+
+    @Test
+    void nextPlayingPosition_emptyRoom_isZero() {
+        Room room = roomWithGame(gameWithMax(8));
+        when(roomUserRepository.findMaxPlayingPosition(room)).thenReturn(null);
+
+        // The first occupant takes seat 0.
+        assertEquals(0, roomsUtilityService.nextPlayingPosition(room));
+    }
+
+    @Test
+    void nextPlayingPosition_afterFirst_isOne() {
+        Room room = roomWithGame(gameWithMax(8));
+        // One occupant already seated at position 0.
+        when(roomUserRepository.findMaxPlayingPosition(room)).thenReturn(0);
+
+        // The second occupant takes seat 1.
+        assertEquals(1, roomsUtilityService.nextPlayingPosition(room));
+    }
+
+    @Test
+    void nextPlayingPosition_isAlwaysMaxPlusOne() {
+        Room room = roomWithGame(gameWithMax(8));
+        when(roomUserRepository.findMaxPlayingPosition(room)).thenReturn(4);
+
+        // Positions are contiguous from the current max, so the next seat is max + 1.
+        assertEquals(5, roomsUtilityService.nextPlayingPosition(room));
+    }
+
+    // --- clearPendingInvitesForGameStart ---
+
+    @Test
+    void clearPendingInvitesForGameStart_deletesTokens_andRemovesNonActivePlayers() {
+        Room room = roomWithGame(gameWithMax(8));
+        addPlayers(room, 2);                                       // 2 ACTIVE
+        addPlayersWithStatus(room, 1, RoomUserStatus.PENDING_INVITE);
+        addPlayersWithStatus(room, 1, RoomUserStatus.DECLINED);
+        List<RoomInvitationToken> tokens = List.of(mock(RoomInvitationToken.class));
+        when(roomInvitationTokenRepository.findAllByRoom(room)).thenReturn(tokens);
+
+        roomsUtilityService.clearPendingInvitesForGameStart(room);
+
+        // All tokens deleted, and only ACTIVE players survive for team creation.
+        verify(roomInvitationTokenRepository).deleteAll(tokens);
+        verify(roomUserRepository).deleteAll(argThat(iterable -> {
+            int count = 0;
+            for (RoomUser ru : iterable) {
+                count++;
+                assertNotEquals(RoomUserStatus.ACTIVE, ru.getStatus());
+            }
+            return count == 2;   // the PENDING_INVITE + DECLINED rows
+        }));
+        assertEquals(2, room.getPlayers().size());
+        assertTrue(room.getPlayers().stream().allMatch(p -> p.getStatus() == RoomUserStatus.ACTIVE));
     }
 }

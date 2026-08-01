@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
@@ -77,6 +78,17 @@ abstract class SkullKingTestSupport {
             sessionEventService, teamSessionEventService, teamSessionEventRepository,
             stateBuilder, objectMapper);
         ReflectionTestUtils.setField(service, "eventPublisher", eventPublisher);
+
+        // orderedTeams is delegated to TeamUtilityService (mocked here); mirror its
+        // real behavior — sort the session's teams by seat position — so rotation
+        // and round-history tests exercise the actual ordering.
+        lenient().when(teamUtilityService.orderedTeams(any(Session.class))).thenAnswer(invocation -> {
+            Session session = invocation.getArgument(0);
+            return session.getTeams().stream()
+                .sorted(java.util.Comparator.comparingInt(
+                    t -> t.getRoomUser() != null ? t.getRoomUser().getPlayingPosition() : Integer.MAX_VALUE))
+                .toList();
+        });
     }
 
     // --- domain builders ---
@@ -96,20 +108,36 @@ abstract class SkullKingTestSupport {
         return session;
     }
 
-    /** A team with a stable id; join order (for rotation tests) is set via joinedAt. */
+    /** A team with a stable id; turn order (for rotation tests) is set via playing position. */
     protected Team team() {
-        return team(null);
+        return team((LocalDateTime) null);
     }
 
+    /**
+     * A team whose RoomUser's playing position derives from joinedAt so that an
+     * earlier join sorts to an earlier seat — orderedTeams now sorts by playing
+     * position, so ordering tests that express order through joinedAt still work.
+     */
     protected Team team(LocalDateTime joinedAt) {
         Team team = new Team();
         ReflectionTestUtils.setField(team, "id", UUID.randomUUID());
         if (joinedAt != null) {
             User user = new User("p@test.com", "player", "hash");
-            RoomUser roomUser = new RoomUser(user, room(false), RoomUserRoles.PLAYER);
+            int position = (int) joinedAt.toEpochSecond(java.time.ZoneOffset.UTC);
+            RoomUser roomUser = new RoomUser(user, room(false), RoomUserRoles.PLAYER, position);
             roomUser.setJoinedAt(joinedAt);
             ReflectionTestUtils.setField(team, "roomUser", roomUser);
         }
+        return team;
+    }
+
+    /** A team seated at an explicit playing position (turn order). */
+    protected Team team(int playingPosition) {
+        Team team = new Team();
+        ReflectionTestUtils.setField(team, "id", UUID.randomUUID());
+        User user = new User("p@test.com", "player", "hash");
+        RoomUser roomUser = new RoomUser(user, room(false), RoomUserRoles.PLAYER, playingPosition);
+        ReflectionTestUtils.setField(team, "roomUser", roomUser);
         return team;
     }
 

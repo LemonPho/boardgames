@@ -14,6 +14,7 @@ import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUserStatus;
 import com.motomutterers.boardgames.rooms.services.RoomsUtilityService;
 import com.motomutterers.boardgames.sessions.dto.CreateSessionRequest;
 import com.motomutterers.boardgames.sessions.dto.SessionResponse;
@@ -75,8 +76,14 @@ public class SessionService {
         sessionRepository.save(session);
 
         roomsUtilityService.changeRoomStatus(room, RoomStatus.IN_PROGRESS);
-        
+
+        // Starting the game closes the door: drop outstanding invites (tokens and
+        // their PENDING_INVITE RoomUsers) so no one can join mid-game, leaving only
+        // the ACTIVE players to get teams.
+        roomsUtilityService.clearPendingInvitesForGameStart(room);
+
         for(RoomUser player : room.getPlayers()){
+            if(player.getStatus() != RoomUserStatus.ACTIVE) continue;
             session.addTeam(teamUtilityService.createTeam(player, session));
         }
 

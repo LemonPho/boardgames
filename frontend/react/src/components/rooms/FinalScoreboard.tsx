@@ -83,7 +83,8 @@ export default function FinalScoreboard() {
       {/* Standings */}
       <div className="flex flex-col gap-2">
         {scoreboard.teams.map((team) => (
-          <div
+          <Link
+            to={`profile/${team.playerName}`}
             key={team.teamId}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
               team.won ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"
@@ -100,7 +101,7 @@ export default function FinalScoreboard() {
               {team.playerName ?? "—"}
             </p>
             <p className="text-sm font-semibold text-gray-900">{team.score}</p>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

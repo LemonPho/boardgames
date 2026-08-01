@@ -7,4 +7,5 @@ export interface UserResponse {
 export interface UserAvailabilityResponse extends UserResponse{
     inGame: boolean;
     invited: boolean;
+    declined: boolean;
 }

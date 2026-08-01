@@ -52,6 +52,16 @@ public class RoomUser {
     @Column(name = "role", columnDefinition = "room_user_roles")
     private RoomUserRoles role;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private RoomUserStatus status;
+
+    // Turn/seat order within the room. Set on creation (admin, invite, anonymous)
+    // and rewritten when the admin reorders players; the game uses it for the
+    // first-round leader and round rotation.
+    @Column(name = "playing_position")
+    private int playingPosition;
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id")
     private Team team;
@@ -61,17 +71,34 @@ public class RoomUser {
 
     public RoomUser(){}
 
-    public RoomUser(User user, Room room, RoomUserRoles role){
+    // A joined player (admin on room creation, or an accepted invitee): ACTIVE.
+    public RoomUser(User user, Room room, RoomUserRoles role, int playingPosition){
       this.user = user;
       this.room = room;
       this.role = role;
       this.displayName = user.getUsername();
+      this.status = RoomUserStatus.ACTIVE;
+      this.playingPosition = playingPosition;
     }
 
-    public RoomUser(String displayName, Room room){
+    // An invited real player: the RoomUser exists up front as PENDING_INVITE and
+    // becomes ACTIVE when they accept.
+    public RoomUser(User user, Room room, RoomUserStatus status, int playingPosition){
+      this.user = user;
+      this.room = room;
+      this.role = RoomUserRoles.PLAYER;
+      this.displayName = user.getUsername();
+      this.status = status;
+      this.playingPosition = playingPosition;
+    }
+
+    // An anonymous placeholder: always ACTIVE (no login, added directly by admin).
+    public RoomUser(String displayName, Room room, int playingPosition){
       this.displayName = displayName;
       this.room = room;
       this.role = RoomUserRoles.ANONYMOUS;
+      this.status = RoomUserStatus.ACTIVE;
+      this.playingPosition = playingPosition;
     }
 
     public UUID getId(){
@@ -94,6 +121,14 @@ public class RoomUser {
       return role;
     }
 
+    public RoomUserStatus getStatus(){
+      return status;
+    }
+
+    public int getPlayingPosition(){
+      return playingPosition;
+    }
+
     public LocalDateTime getJoinedAt(){
       return joinedAt;
     }
@@ -112,6 +147,14 @@ public class RoomUser {
 
     public void setRole(RoomUserRoles role) {
         this.role = role;
+    }
+
+    public void setStatus(RoomUserStatus status){
+        this.status = status;
+    }
+
+    public void setPlayingPosition(int playingPosition){
+        this.playingPosition = playingPosition;
     }
 
     public Team getTeam(){

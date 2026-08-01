@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.motomutterers.boardgames.rooms.model.Room.Room;
-import com.motomutterers.boardgames.user.model.User;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,9 +22,12 @@ public class RoomInvitationToken {
     @GeneratedValue
     private UUID id;
 
+    // The invited player's RoomUser (created up front as PENDING_INVITE). The
+    // user is reachable via roomUser.getUser(). ON DELETE CASCADE at the DB level
+    // drops the token if the RoomUser is removed (kick/leave/revoke).
     @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "room_user_id", nullable = false)
+    private RoomUser roomUser;
 
     @ManyToOne
     @JoinColumn(name = "room_id", nullable = false)
@@ -39,12 +42,12 @@ public class RoomInvitationToken {
 
     public RoomInvitationToken(){}
     public RoomInvitationToken(
-        User user,
+        RoomUser roomUser,
         Room room,
         String token,
         LocalDateTime expiresAt
     ) {
-        this.user = user;
+        this.roomUser = roomUser;
         this.room = room;
         this.status = InvitationStatus.PENDING;
         this.token = token;
@@ -52,8 +55,8 @@ public class RoomInvitationToken {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void setUser(User user){
-        this.user = user;
+    public void setRoomUser(RoomUser roomUser){
+        this.roomUser = roomUser;
     }
 
     public void setRoom(Room room) {
@@ -80,8 +83,8 @@ public class RoomInvitationToken {
         return id;
     }
 
-    public User getUser(){
-        return user;
+    public RoomUser getRoomUser(){
+        return roomUser;
     }
 
     public InvitationStatus getStatus(){

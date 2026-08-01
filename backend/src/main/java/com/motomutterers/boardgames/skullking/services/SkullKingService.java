@@ -114,13 +114,10 @@ public class SkullKingService {
         return Math.min(round, deckSize / players);
     }
 
-    // Teams in a stable display/turn order: by their player's join time ascending.
+    // Teams in stable display/turn order (by seat position). Delegates to the
+    // shared TeamUtilityService so ordering lives in one place.
     private List<Team> orderedTeams(Session session){
-        return session.getTeams().stream()
-            .sorted(Comparator.comparing(
-                t -> t.getRoomUser() != null ? t.getRoomUser().getJoinedAt() : null,
-                Comparator.nullsLast(Comparator.naturalOrder())))
-            .toList();
+        return teamUtilityService.orderedTeams(session);
     }
 
     // The leader of the next round is the next seat in join order after this round's leader.

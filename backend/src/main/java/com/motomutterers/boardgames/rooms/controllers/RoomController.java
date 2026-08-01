@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
+import com.motomutterers.boardgames.rooms.dto.MovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
@@ -125,12 +126,35 @@ public class RoomController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{roomName}/move-player")
+    public ResponseEntity<Void> movePlayer(
+        @RequestBody MovePlayerRequest request,
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID adminId = UUID.fromString(authentication.getName());
+        request.setAdminId(adminId);
+        request.setRoomName(roomName);
+        roomService.movePlayer(request);
+
+        return ResponseEntity.ok().build();
+    }
+
     @PutMapping("/accept")
     public ResponseEntity<RoomResponse> acceptInvite(
         @RequestParam String token,
         Authentication authentication
     ) {
         return ResponseEntity.ok(roomService.acceptInvite(token, authentication));
+    }
+
+    @PutMapping("/decline")
+    public ResponseEntity<Void> declineInvite(
+        @RequestParam String token,
+        Authentication authentication
+    ) {
+        roomService.declineInvite(token, authentication);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/active")

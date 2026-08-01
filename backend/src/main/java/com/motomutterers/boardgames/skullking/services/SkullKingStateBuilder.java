@@ -1,6 +1,5 @@
 package com.motomutterers.boardgames.skullking.services;
 
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +24,7 @@ import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.TeamBonusResponse;
 import com.motomutterers.boardgames.skullking.dto.TrickResultsStateResponse;
 import com.motomutterers.boardgames.teams.dto.TeamResponse;
+import com.motomutterers.boardgames.teams.services.TeamUtilityService;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -33,25 +33,26 @@ public class SkullKingStateBuilder {
     private final SessionEventService sessionEventService;
     private final TeamSessionEventRepository teamSessionEventRepository;
     private final ObjectMapper objectMapper;
+    private final TeamUtilityService teamUtilityService;
 
     public SkullKingStateBuilder(
         SessionEventService sessionEventService,
         TeamSessionEventRepository teamSessionEventRepository,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        TeamUtilityService teamUtilityService
     ){
         this.sessionEventService = sessionEventService;
         this.teamSessionEventRepository = teamSessionEventRepository;
         this.objectMapper = objectMapper;
+        this.teamUtilityService = teamUtilityService;
     }
 
     public SkullKingStateResponse buildState(Session session, RoomUser roomUser, boolean isAdmin){
         SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
 
-        // Stable display/turn order: by each player's join time ascending.
-        List<TeamResponse> teams = session.getTeams().stream()
-            .sorted(Comparator.comparing(
-                t -> t.getRoomUser() != null ? t.getRoomUser().getJoinedAt() : null,
-                Comparator.nullsLast(Comparator.naturalOrder())))
+        // Stable display/turn order by seat position (shared with the game's
+        // leader/rotation logic), so the UI and gameplay order always match.
+        List<TeamResponse> teams = teamUtilityService.orderedTeams(session).stream()
             .map(TeamResponse::new)
             .toList();
 

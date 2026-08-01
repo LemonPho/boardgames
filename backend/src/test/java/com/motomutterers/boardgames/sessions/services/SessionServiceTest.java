@@ -133,8 +133,8 @@ public class SessionServiceTest {
     void createSession_valid_savesSessionMovesRoomInProgressCreatesTeamsAndInitialRound() {
         Room room = room(RoomStatus.WAITING);
         User admin = user();
-        room.addPlayer(new RoomUser(admin, room, RoomUserRoles.ADMIN));
-        room.addPlayer(new RoomUser(user(), room, RoomUserRoles.PLAYER));
+        room.addPlayer(new RoomUser(admin, room, RoomUserRoles.ADMIN, 0));
+        room.addPlayer(new RoomUser(user(), room, RoomUserRoles.PLAYER, 1));
         Authentication auth = auth();
 
         when(userService.getAuthenticatedUser(auth)).thenReturn(admin);

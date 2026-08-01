@@ -1,6 +1,8 @@
 package com.motomutterers.boardgames.rooms.services;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +23,7 @@ import com.motomutterers.boardgames.notifications.dto.CreateRoomInvitationNotifi
 import com.motomutterers.boardgames.notifications.services.NotificationService;
 import com.motomutterers.boardgames.rooms.dto.CreateAnonymousPlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.CreateRoomRequest;
+import com.motomutterers.boardgames.rooms.dto.MovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RemovePlayerRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomInvitationRequest;
 import com.motomutterers.boardgames.rooms.dto.RoomResponse;
@@ -28,12 +31,12 @@ import com.motomutterers.boardgames.rooms.events.RoomUpdatedEvent;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenCancelledException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenExpiredException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedException;
-import com.motomutterers.boardgames.rooms.model.Invitation.InvitationStatus;
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
+import com.motomutterers.boardgames.rooms.model.Room.RoomUserStatus;
 import com.motomutterers.boardgames.rooms.repository.RoomInvitationTokenRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomRepository;
 import com.motomutterers.boardgames.rooms.repository.RoomUserRepository;
@@ -123,7 +126,8 @@ public class RoomService {
             ? request.getConfiguration()
             : new RoomConfiguration();
         Room room = new Room(game, roomName, configuration);
-        RoomUser roomUser = new RoomUser(user, room, RoomUserRoles.ADMIN);
+        // The admin is the first seat (position 0) and always ACTIVE.
+        RoomUser roomUser = new RoomUser(user, room, RoomUserRoles.ADMIN, 0);
         room.addPlayer(roomUser);
 
         roomRepository.save(room);
@@ -170,7 +174,8 @@ public class RoomService {
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
         roomsUtilityService.throwIfRoomIsFull(room);
 
-        RoomUser anonymous = new RoomUser(request.getDisplayName(), room);
+        RoomUser anonymous = new RoomUser(
+            request.getDisplayName(), room, roomsUtilityService.nextPlayingPosition(room));
         roomUserRepository.save(anonymous);
 
         roomsUtilityService.updateRoomLastUpdated(room);
@@ -191,6 +196,46 @@ public class RoomService {
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
+    }
+
+    /**
+     * Move a player to a new seat/turn position. The moved player lands at
+     * newLocation and everyone else keeps their relative order, with positions
+     * renumbered contiguously (0..n-1) so the ordering can't drift. This order is
+     * what the game uses for the first-round leader and round rotation.
+     */
+    @Transactional
+    public void movePlayer(MovePlayerRequest request){
+        User user = userService.getUserById(request.getAdminId());
+        Room room = roomsUtilityService.getRoomByName(request.getRoomName());
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+
+        RoomUser moving = roomsUtilityService.getOrThrowRoomUserById(request.getRoomUserId());
+        if(moving.getRoom() == null || !moving.getRoom().getId().equals(room.getId())){
+            throw new BadActionException("That player is not in this room");
+        }
+
+        // Work on the room's players in current order, pull out the mover, and
+        // reinsert at the requested slot (clamped to the valid range).
+        List<RoomUser> ordered = new ArrayList<>(room.getPlayers());
+        ordered.sort(Comparator.comparingInt(RoomUser::getPlayingPosition));
+        ordered.removeIf(ru -> ru.getId().equals(moving.getId()));
+
+        int target = Math.max(0, Math.min(request.getNewLocation(), ordered.size()));
+        ordered.add(target, moving);
+
+        // Renumber everyone so positions stay contiguous, only saving rows that moved.
+        for(int i = 0; i < ordered.size(); i++){
+            RoomUser ru = ordered.get(i);
+            if(ru.getPlayingPosition() != i){
+                ru.setPlayingPosition(i);
+                roomUserRepository.save(ru);
+            }
+        }
+
+        roomsUtilityService.updateRoomLastUpdated(room);
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
@@ -221,20 +266,30 @@ public class RoomService {
 
         if(roomsUtilityService.getIsUserInActiveRoom(user)) throw new BadActionException("User is in an active session");
         if(!user.isActive()) throw new BadActionException("User needs to verify their email to be able to play");
-        if(roomInvitationTokenRepository.isUserAlreadyInvitedAndNotExpired(user, room, InvitationStatus.PENDING, LocalDateTime.now())) {
-            throw new BadActionException("User is already invited");
+
+        // The user's standing in THIS room decides whether we can invite: already
+        // playing or already invited is a no-op; a prior decline blocks re-inviting
+        // (anti-spam). Only a user with no RoomUser here can be freshly invited.
+        Optional<RoomUserStatus> existingStatus = roomsUtilityService.getRoomUserStatus(room, user);
+        if(existingStatus.isPresent()){
+            switch(existingStatus.get()){
+                case ACTIVE -> throw new BadActionException("User is already in the room");
+                case PENDING_INVITE -> throw new BadActionException("User is already invited");
+                case DECLINED -> throw new BadActionException("User has declined an invite to this room");
+            }
         }
 
-        Optional<RoomInvitationToken> invitationResult = roomInvitationTokenRepository.findByRoomAndUser(room, user);
-        if(invitationResult.isPresent()){
-            RoomInvitationToken currentInvitation = invitationResult.get();
-            roomInvitationTokenRepository.delete(currentInvitation);
-        }
+        // Create the invited player's RoomUser up front (PENDING_INVITE), so their
+        // seat/turn position is fixed at invite time and the game's ordering is
+        // known before they even accept.
+        RoomUser roomUser = new RoomUser(
+            user, room, RoomUserStatus.PENDING_INVITE, roomsUtilityService.nextPlayingPosition(room));
+        roomUserRepository.save(roomUser);
 
         RoomInvitationToken roomInvitationToken = new RoomInvitationToken(
-            user, 
+            roomUser,
             room,
-            UUID.randomUUID().toString(), 
+            UUID.randomUUID().toString(),
             LocalDateTime.now().plusSeconds(roomInvitationExpiration));
 
         room.setLastUpdated(LocalDateTime.now());
@@ -269,13 +324,17 @@ public class RoomService {
 
         roomsUtilityService.throwIfUserIsNotRoomAdmin(room, roomAdmin);
 
-        RoomInvitationToken invite = roomsUtilityService.getOrThrowRoomInvitationTokenByRoomAndUser(room, user);
-        invite.setStatus(InvitationStatus.CANCELLED);
-        roomInvitationTokenRepository.save(invite);
+        RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
+        RoomInvitationToken invite = roomsUtilityService.getOrThrowRoomInvitationTokenByRoomUser(roomUser);
+        String inviteToken = invite.getToken();
+
+        // Revoking removes the invited player entirely — deleting the RoomUser
+        // cascades to its token, so the seat is freed and they can be re-invited.
+        roomUserRepository.delete(roomUser);
 
         // The invite is revoked, so its notification is gone for good — delete it
         // (and push a live removal to the invited user's open client).
-        notificationService.deleteInvitation(invite.getToken());
+        notificationService.deleteInvitation(inviteToken);
 
         roomsUtilityService.updateRoomLastUpdated(room);
 
@@ -289,7 +348,8 @@ public class RoomService {
     
         User authenticatedUser = userService.getUserById(userId);
         Room room = roomInvitationToken.getRoom();
-        User invitationUser = roomInvitationToken.getUser();
+        RoomUser roomUser = roomInvitationToken.getRoomUser();
+        User invitationUser = roomUser.getUser();
 
         if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
@@ -298,24 +358,18 @@ public class RoomService {
         }
 
         if(roomInvitationToken.getExpiresAt().isBefore(LocalDateTime.now().minusSeconds(roomInvitationExpiration))){
-            roomInvitationTokenRepository.delete(roomInvitationToken);
+            // Expired: drop the invited player entirely (cascades to the token).
+            roomUserRepository.delete(roomUser);
             throw new RoomInvitationTokenExpiredException("This token is expired, please request a new invitation");
-        }
-
-        if(roomInvitationToken.getStatus().equals(InvitationStatus.CANCELLED)){
-            throw new RoomInvitationTokenCancelledException("The invitation was cancelled");
-        }
-
-        if(roomInvitationToken.getStatus().equals(InvitationStatus.USED)){
-            throw new RoomInvitationTokenUsedException("The invitation was already used, ask for a new one");
         }
 
         roomsUtilityService.throwIfPlayerLimitReached(room);
 
-        RoomUser roomUser = new RoomUser(invitationUser, room, RoomUserRoles.PLAYER);
+        // Convert the reserved seat into a joined player, keeping its position, and
+        // delete the token so there's no lingering invitation backlog.
+        roomUser.setStatus(RoomUserStatus.ACTIVE);
         roomUserRepository.save(roomUser);
-        roomInvitationToken.setStatus(InvitationStatus.USED);
-        roomInvitationTokenRepository.save(roomInvitationToken);
+        roomInvitationTokenRepository.delete(roomInvitationToken);
 
         // The invite has been accepted, so its notification is no longer
         // actionable — mark it read so it stops lingering as unread.
@@ -325,6 +379,32 @@ public class RoomService {
         eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
 
         return new RoomResponse(room);
+    }
+
+    // Decline an invite: mark the RoomUser DECLINED (retained so the admin can't
+    // re-invite/spam) and delete the token. The seat is released from the active
+    // count but the row stays as a record of the decline.
+    @Transactional
+    public void declineInvite(String token, Authentication authentication){
+        UUID userId = UUID.fromString(authentication.getName());
+        RoomInvitationToken roomInvitationToken = roomsUtilityService.getRoomInvitationTokenByToken(token);
+
+        RoomUser roomUser = roomInvitationToken.getRoomUser();
+        Room room = roomInvitationToken.getRoom();
+
+        if(!roomUser.getUser().getId().equals(userId)){
+            throw new BadActionException("A user cannot decline the invitation of another user for them!");
+        }
+
+        roomUser.setStatus(RoomUserStatus.DECLINED);
+        roomUserRepository.save(roomUser);
+        roomInvitationTokenRepository.delete(roomInvitationToken);
+
+        // The invite is no longer actionable — dismiss its notification live.
+        notificationService.deleteInvitation(token);
+
+        roomsUtilityService.updateRoomLastUpdated(room);
+        eventPublisher.publishEvent(new RoomUpdatedEvent(room.getName()));
     }
 
     // The room the user is currently in (WAITING or IN_PROGRESS), or null if none.
@@ -347,9 +427,9 @@ public class RoomService {
 
         if(roomsUtilityService.isRoomExpired(room)) roomsUtilityService.cancelRoom(room);
 
-        List<RoomInvitationToken> invitations = roomInvitationTokenRepository.findAllByRoomAndStatus(room, InvitationStatus.PENDING);
-
-        response = new RoomResponse(room, invitations);
+        // Players now include pending invites (as PENDING_INVITE RoomUsers), so the
+        // response carries invite state on each player — no separate invite list.
+        response = new RoomResponse(room);
 
         return response;
     }

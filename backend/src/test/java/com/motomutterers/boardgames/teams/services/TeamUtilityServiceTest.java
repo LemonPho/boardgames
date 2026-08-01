@@ -43,7 +43,7 @@ public class TeamUtilityServiceTest {
 
     private RoomUser roomUser(Room room) {
         User user = new User("test@test.com", "testuser", "hash");
-        return new RoomUser(user, room, RoomUserRoles.PLAYER);
+        return new RoomUser(user, room, RoomUserRoles.PLAYER, 0);
     }
 
     // --- createTeam ---

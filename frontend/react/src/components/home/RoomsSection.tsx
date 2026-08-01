@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, X } from "lucide-react";
 import type { RoomResponse } from "../../types/rooms";
 import type { RoomInvitationNotification } from "../../types/notifications";
-import { getActiveRoom, acceptInvite } from "../../api/rooms";
+import { getActiveRoom, acceptInvite, declineInvite } from "../../api/rooms";
 import { markNotificationRead } from "../../api/notifications";
 import { useAlertsContext } from "../../context/AlertsContext";
 import { useNotificationsContext } from "../../context/NotificationsContext";
@@ -115,7 +115,7 @@ function InviteCard({ invite }: { invite: RoomInvitationNotification }) {
   };
 
   const handleDecline = async (): Promise<void> => {
-    await markNotificationRead(invite.id, setErrorMessage);
+    await declineInvite(invite.data.token, setErrorMessage);
     removeNotification(invite.id);
   };
 

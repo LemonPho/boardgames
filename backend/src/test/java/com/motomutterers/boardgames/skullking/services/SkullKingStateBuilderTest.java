@@ -20,6 +20,7 @@ import com.motomutterers.boardgames.skullking.dto.BonusPointsStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.TrickResultsStateResponse;
 import com.motomutterers.boardgames.teams.models.Team;
+import com.motomutterers.boardgames.teams.services.TeamUtilityService;
 import com.motomutterers.boardgames.user.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,7 +55,10 @@ public class SkullKingStateBuilderTest {
 
     @BeforeEach
     void setUp() {
-        builder = new SkullKingStateBuilder(sessionEventService, teamSessionEventRepository, objectMapper);
+        // orderedTeams() is a pure sort over the session's teams — it touches
+        // neither repository — so a repo-less instance is fine here.
+        TeamUtilityService teamUtilityService = new TeamUtilityService(null, null);
+        builder = new SkullKingStateBuilder(sessionEventService, teamSessionEventRepository, objectMapper, teamUtilityService);
     }
 
     // helpers
@@ -65,12 +68,12 @@ public class SkullKingStateBuilderTest {
         return new Room(game, "room", new RoomConfiguration(TrackingMode.ADMIN, false));
     }
 
-    private Team team(LocalDateTime joinedAt) {
+    // A team seated at the given playing position (teams are ordered by it).
+    private Team team(int playingPosition) {
         Team team = new Team();
         ReflectionTestUtils.setField(team, "id", UUID.randomUUID());
         User user = new User("p@test.com", "player", "hash");
-        RoomUser roomUser = new RoomUser(user, room(), RoomUserRoles.PLAYER);
-        roomUser.setJoinedAt(joinedAt);
+        RoomUser roomUser = new RoomUser(user, room(), RoomUserRoles.PLAYER, playingPosition);
         ReflectionTestUtils.setField(team, "roomUser", roomUser);
         return team;
     }
@@ -82,7 +85,7 @@ public class SkullKingStateBuilderTest {
     }
 
     private RoomUser roomUser(RoomUserRoles role, Team team) {
-        RoomUser ru = new RoomUser(new User("u@test.com", "u", "h"), room(), role);
+        RoomUser ru = new RoomUser(new User("u@test.com", "u", "h"), room(), role, 0);
         ru.setTeam(team);
         return ru;
     }
@@ -119,8 +122,8 @@ public class SkullKingStateBuilderTest {
 
     @Test
     void bidsPhase_returnsBidsStateWithVisibleBids() {
-        Team a = team(LocalDateTime.now().minusMinutes(2));
-        Team b = team(LocalDateTime.now().minusMinutes(1));
+        Team a = team(0);
+        Team b = team(1);
         Session session = session(a, b);
 
         SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
@@ -144,8 +147,8 @@ public class SkullKingStateBuilderTest {
 
     @Test
     void bidsPhase_nonAdminSeesOnlyOwnBid() {
-        Team a = team(LocalDateTime.now().minusMinutes(2));
-        Team b = team(LocalDateTime.now().minusMinutes(1));
+        Team a = team(0);
+        Team b = team(1);
         Session session = session(a, b);
 
         SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
@@ -168,7 +171,7 @@ public class SkullKingStateBuilderTest {
 
     @Test
     void trickResultsPhase_returnsTrickStateWithKrakenFlag() {
-        Team a = team(LocalDateTime.now().minusMinutes(1));
+        Team a = team(0);
         Session session = session(a);
 
         SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
@@ -193,7 +196,7 @@ public class SkullKingStateBuilderTest {
 
     @Test
     void bonusPhase_returnsBonusStateWithAllMaps() {
-        Team a = team(LocalDateTime.now().minusMinutes(1));
+        Team a = team(0);
         Session session = session(a);
 
         SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
@@ -222,21 +225,21 @@ public class SkullKingStateBuilderTest {
     // --- team ordering ---
 
     @Test
-    void teamsOrderedByJoinTime() {
-        Team later = team(LocalDateTime.now().minusMinutes(1));
-        Team earlier = team(LocalDateTime.now().minusMinutes(5));
-        // Added out of join order.
-        Session session = session(later, earlier);
+    void teamsOrderedByPlayingPosition() {
+        Team second = team(1);
+        Team first = team(0);
+        // Added out of seat order.
+        Session session = session(second, first);
 
-        SessionEvent bidsEvent = bids(1, 5, earlier.getId().toString());
+        SessionEvent bidsEvent = bids(1, 5, first.getId().toString());
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bidsEvent);
         when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
         lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent)).thenReturn(List.of());
 
-        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, earlier), true);
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, first), true);
 
-        // Earlier joiner comes first regardless of insertion order.
-        assertEquals(earlier.getId(), state.getTeams().get(0).getId());
-        assertEquals(later.getId(), state.getTeams().get(1).getId());
+        // Lower seat position comes first regardless of insertion order.
+        assertEquals(first.getId(), state.getTeams().get(0).getId());
+        assertEquals(second.getId(), state.getTeams().get(1).getId());
     }
 }

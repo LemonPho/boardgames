@@ -52,7 +52,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         Authentication authentication = auth();
         Team a = team(LocalDateTime.now().minusMinutes(2));
         Team b = team(LocalDateTime.now().minusMinutes(1));
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN, 0);
         Session session = readSession(user, authentication, roomUser, a, b);
 
         SessionEvent bids = bidsEvent(1, 5, id(a));
@@ -85,7 +85,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         User user = user();
         Authentication authentication = auth();
         Team a = team();
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN, 0);
         Session session = readSession(user, authentication, roomUser, a);
 
         // Only round 1 exists.
@@ -99,7 +99,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         User user = user();
         Authentication authentication = auth();
         Team a = team();
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN, 0);
         Session session = readSession(user, authentication, roomUser, a);
 
         // Bids only: round in progress, not scorable.
@@ -121,7 +121,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         User user = user();
         Authentication authentication = auth();
         Team a = team();
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN, 0);
         Session session = readSession(user, authentication, roomUser, a);
 
         SessionEvent bids = bidsEvent(1, 5, id(a));
@@ -143,7 +143,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         User user = user();
         Authentication authentication = auth();
         Team a = team();
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.ADMIN, 0);
         Session session = readSession(user, authentication, roomUser, a);
 
         SkullKingStateResponse expected = mock(SkullKingStateResponse.class);
@@ -161,7 +161,7 @@ public class SkullKingReadPathsTest extends SkullKingTestSupport {
         User user = user();
         Authentication authentication = auth();
         Team a = team();
-        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.PLAYER);
+        RoomUser roomUser = new RoomUser(user, null, RoomUserRoles.PLAYER, 0);
         Session session = readSession(user, authentication, roomUser, a);
 
         service.getState("room", authentication);

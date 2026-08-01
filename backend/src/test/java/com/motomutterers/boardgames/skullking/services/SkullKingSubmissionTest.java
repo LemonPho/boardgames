@@ -44,7 +44,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
      */
     private Session submitSession(User user, Authentication authentication, RoomUserRoles role, Team team, Team... teams) {
         Session session = session(false, teams);
-        RoomUser roomUser = new RoomUser(user, session.getRoom(), role);
+        RoomUser roomUser = new RoomUser(user, session.getRoom(), role, 0);
         roomUser.setTeam(team);
 
         when(userService.getAuthenticatedUser(authentication)).thenReturn(user);

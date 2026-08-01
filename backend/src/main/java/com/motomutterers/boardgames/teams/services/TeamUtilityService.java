@@ -1,5 +1,7 @@
 package com.motomutterers.boardgames.teams.services;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -40,6 +42,19 @@ public class TeamUtilityService {
     public Team getOrThrowTeamById(String teamId){
         return teamRepository.findById(UUID.fromString(teamId))
             .orElseThrow(() -> new TeamNotFoundException("Team with id: " + teamId + " not found."));
+    }
+
+    /**
+     * A session's teams in stable display/turn order: by each player's seat
+     * position (set at room setup, rewritten when the admin reorders players).
+     * This is the single ordering used for the first-round leader, round rotation,
+     * and the per-user game state, so display and gameplay can't diverge.
+     */
+    public List<Team> orderedTeams(Session session){
+        return session.getTeams().stream()
+            .sorted(Comparator.comparingInt(
+                t -> t.getRoomUser() != null ? t.getRoomUser().getPlayingPosition() : Integer.MAX_VALUE))
+            .toList();
     }
 
     @Transactional

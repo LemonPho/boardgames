@@ -21,11 +21,11 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
   const [anonymousPlayers, setAnonymousPlayers] = useState<RoomUserResponse[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Pending invitations reserve a seat, so the room is full once current
-  // players + outstanding invites reach the game's max. Mirrors the backend.
+  // Pending invitations reserve a seat and now live in the players list (declined
+  // ones are excluded by the backend), so occupancy is just the players count.
+  // Mirrors the backend capacity rule.
   const maxPlayers = room?.game.maxPlayers ?? 0;
-  const pendingInvites = room?.invitations.filter((i) => i.status === "PENDING").length ?? 0;
-  const occupied = (room?.players.length ?? 0) + pendingInvites;
+  const occupied = room?.players.length ?? 0;
   const isFull = maxPlayers > 0 && occupied >= maxPlayers;
 
   const handleUsernameInputChange = (event: React.ChangeEvent<HTMLInputElement>): void => {

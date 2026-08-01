@@ -5,7 +5,7 @@ import { useUIContext } from "../../context/UIContext";
 import { useAlertsContext } from "../../context/AlertsContext";
 import { useNotificationsContext } from "../../context/NotificationsContext";
 import { markNotificationRead } from "../../api/notifications";
-import { acceptInvite } from "../../api/rooms";
+import { acceptInvite, declineInvite } from "../../api/rooms";
 import SubmitButton from "../util/SubmitButton";
 import type { NotificationResponse, RoomInvitationNotification } from "../../types/notifications";
 
@@ -101,8 +101,9 @@ function RoomInvitationRow({
   };
 
   const handleDecline = async (): Promise<void> => {
-    // No decline endpoint yet — dismiss by marking read so it disappears.
-    await markNotificationRead(notification.id, setErrorMessage);
+    // Record the decline (blocks re-invite spam) and delete the invite; the
+    // backend also pushes a live removal, but drop it locally right away too.
+    await declineInvite(token, setErrorMessage);
     onRead(notification.id);
   };
 

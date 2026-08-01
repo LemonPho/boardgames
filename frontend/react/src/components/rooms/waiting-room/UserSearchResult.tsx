@@ -41,7 +41,28 @@ export default function UserSearchResult({ user, handleInviteUserToRoom }: { use
         </span>
       </div>
     )
-  } 
+  }
+
+  // The user turned down an invite to this room; the backend blocks re-inviting,
+  // so we show the state instead of an Invite button.
+  if (user.declined) {
+    return (
+      <div
+        key={user.username}
+        className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-100 opacity-60"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+            {user.username[0].toUpperCase()}
+          </div>
+          <span className="text-sm text-gray-800">{user.username}</span>
+        </div>
+        <span className="text-xs text-gray-500 bg-red-50 px-2 py-1 rounded-full">
+          Declined
+        </span>
+      </div>
+    )
+  }
 
   return(
     <div
