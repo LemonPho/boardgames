@@ -85,6 +85,7 @@ export default function FinalScoreboard() {
         {scoreboard.teams.map((team) => (
           <Link
             to={`profile/${team.playerName}`}
+            replace
             key={team.teamId}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
               team.won ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"
