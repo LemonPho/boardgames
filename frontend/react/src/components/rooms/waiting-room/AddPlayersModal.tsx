@@ -17,6 +17,7 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
   const [inviteTab, setInviteTab] = useState<"search" | "anonymous">("search");
   const [usernameInput, setUsernameInput] = useState<string>("");
   const [usernameMatches, setUsernameMatches] = useState<UserAvailabilityResponse[]>([]);
+  const [usernameMatchesLoading, setUsernameMatchesLoading] = useState<boolean>(false);
   const [displayNameInput, setDisplayNameInput] = useState<string>("");
   const [anonymousPlayers, setAnonymousPlayers] = useState<RoomUserResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,7 +74,9 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
+      setUsernameMatchesLoading(true);
       await fetchUsernameMatches();
+      setUsernameMatchesLoading(false);
     }, 500);
 
     return () => clearTimeout(timeout);
@@ -134,8 +137,8 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
               ))}
             </div>
           )}
-          {usernameMatches.length == 0 && usernameInput != "" && (
-            <div>No users found</div>
+          {usernameMatches.length == 0 && usernameInput != "" && !usernameMatchesLoading && (
+            <div className="text-xs text-gray-400 bg-gray-100 px-2 py-1">No users found</div>
           )}
         </div>
       )}
