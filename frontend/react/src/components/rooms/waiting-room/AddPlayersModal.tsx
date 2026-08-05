@@ -134,6 +134,9 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
               ))}
             </div>
           )}
+          {usernameMatches.length == 0 && usernameInput != "" && (
+            <div>No users found</div>
+          )}
         </div>
       )}
 
