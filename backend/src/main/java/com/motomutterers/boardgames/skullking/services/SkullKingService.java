@@ -32,6 +32,7 @@ import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryResponse;
+import com.motomutterers.boardgames.skullking.dto.ScoreboardPlayerType;
 import com.motomutterers.boardgames.skullking.dto.ScoreboardResponse;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryTeamResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
@@ -169,9 +170,12 @@ public class SkullKingService {
                 int placement = (int) ranked.stream()
                     .filter(t -> t.getFinalScore() > team.getFinalScore())
                     .count() + 1;
+                RoomUser roomUser = team.getRoomUser();
                 return new ScoreboardResponse.ScoreboardTeamResponse(
                     team.getId().toString(),
-                    team.getRoomUser() != null ? team.getRoomUser().getDisplayName() : null,
+                    roomUser != null ? roomUser.getDisplayName() : null,
+                    profileUsername(roomUser),
+                    scoreboardPlayerType(roomUser),
                     team.getFinalScore(),
                     placement,
                     placement == 1);
@@ -184,6 +188,19 @@ public class SkullKingService {
             session.getStatus().equals(SessionStatus.COMPLETED),
             session.getEndedAt(),
             teamRows);
+    }
+
+    // Only a live account has a profile page. An anonymous placeholder has no
+    // account, and a deleted one has no page to visit — both report null so the
+    // frontend renders a plain name instead of a dead link.
+    private String profileUsername(RoomUser roomUser){
+        if(roomUser == null || roomUser.getUser() == null) return null;
+        return roomUser.getUser().isDeleted() ? null : roomUser.getUser().getUsername();
+    }
+
+    private ScoreboardPlayerType scoreboardPlayerType(RoomUser roomUser){
+        if(roomUser == null || roomUser.getUser() == null) return ScoreboardPlayerType.ANONYMOUS;
+        return roomUser.getUser().isDeleted() ? ScoreboardPlayerType.DELETED : ScoreboardPlayerType.ACTIVE;
     }
 
     public RoundHistoryResponse getRoundHistory(String roomName, int round, Authentication authentication){
@@ -529,6 +546,11 @@ public class SkullKingService {
             throw new BadActionException("A round can only be started from the bidding phase");
         }
 
+        // Default any team the admin left blank to a bid of 0, inside this transaction,
+        // so advancing is one atomic request rather than a burst of client-side submits
+        // racing the transition. The admin confirms the entered bids before advancing.
+        prefillMissingValues(session, currentEvent, TeamSessionEventType.BIDS, new TeamSessionEventPayload.Bids(0));
+
         int submittedBids = teamSessionEventRepository.countBySessionEvent(currentEvent);
         if(submittedBids < session.getTeams().size()){
             throw new BadActionException("All teams must submit their bids before the round can start");
@@ -579,6 +601,11 @@ public class SkullKingService {
         if(!currentEvent.getType().equals(SessionEventType.TRICK_RESULTS)){
             throw new BadActionException("Bonus points can only be entered from the trick results phase");
         }
+
+        // Default any team left blank to 0 tricks (see startRound). Zeroes don't change
+        // the total, so the trick-total check below still gates the transition exactly
+        // as before — this only saves the client from submitting the zeroes itself.
+        prefillMissingValues(session, currentEvent, TeamSessionEventType.TRICK_RESULTS, new TeamSessionEventPayload.TrickResults(0));
 
         int submittedResults = teamSessionEventRepository.countBySessionEvent(currentEvent);
         if(submittedResults < session.getTeams().size()){
@@ -840,6 +867,20 @@ public class SkullKingService {
 
         // A zero bid takes no tricks, so no cards are captured — no bonuses possible.
         return bid > 0 && bid.equals(tricksWon);
+    }
+
+    // Writes `payload` for every team with no value yet on this phase event. Teams
+    // that already submitted are left untouched, so a real entry is never overwritten.
+    private void prefillMissingValues(
+        Session session,
+        SessionEvent phaseEvent,
+        TeamSessionEventType type,
+        TeamSessionEventPayload payload
+    ){
+        for(Team team : session.getTeams()){
+            if(teamSessionEventRepository.findBySessionEventAndTeam(phaseEvent, team).isPresent()) continue;
+            teamSessionEventService.upsertTeamSessionEvent(session, phaseEvent, team, type, payload);
+        }
     }
 
     private Integer teamValue(SessionEvent sessionEvent, Team team, TeamSessionEventType type){

@@ -40,15 +40,30 @@ public class ScoreboardResponse {
     public static class ScoreboardTeamResponse {
         private String teamId;
         private String playerName;
+        // The account's username, for the profile link. Null for an ANONYMOUS or
+        // DELETED row, which has no profile to link to. Kept separate from
+        // playerName so the frontend never has to guess a URL from a display name.
+        private String username;
+        private ScoreboardPlayerType playerType;
         private long score;
         private int placement;
         private boolean won;
 
         public ScoreboardTeamResponse(){}
 
-        public ScoreboardTeamResponse(String teamId, String playerName, long score, int placement, boolean won){
+        public ScoreboardTeamResponse(
+            String teamId,
+            String playerName,
+            String username,
+            ScoreboardPlayerType playerType,
+            long score,
+            int placement,
+            boolean won
+        ){
             this.teamId = teamId;
             this.playerName = playerName;
+            this.username = username;
+            this.playerType = playerType;
             this.score = score;
             this.placement = placement;
             this.won = won;
@@ -56,6 +71,8 @@ public class ScoreboardResponse {
 
         public String getTeamId(){return this.teamId;}
         public String getPlayerName(){return this.playerName;}
+        public String getUsername(){return this.username;}
+        public ScoreboardPlayerType getPlayerType(){return this.playerType;}
         public long getScore(){return this.score;}
         public int getPlacement(){return this.placement;}
         public boolean getWon(){return this.won;}

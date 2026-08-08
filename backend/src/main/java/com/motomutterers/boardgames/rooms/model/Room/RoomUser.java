@@ -113,8 +113,15 @@ public class RoomUser {
       return user;
     }
 
+    /**
+     * The name to show for this player. A real account's name follows the account,
+     * so a username change is reflected everywhere at once — including completed
+     * matches, whose scoreboards should link to the profile that exists *now*.
+     * Only an anonymous placeholder owns its name, since it has no account to
+     * follow. The stored column is therefore just the anonymous label.
+     */
     public String getDisplayName(){
-      return displayName;
+      return user != null ? user.getUsername() : displayName;
     }
 
     public RoomUserRoles getRole(){

@@ -161,16 +161,15 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     }
   };
 
+  // Teams without a bid/trick value are defaulted to 0 by the server, inside the
+  // transition's own transaction — so advancing is a flush plus one request, with
+  // no burst of client-side 0 submits racing the transition.
   const advanceBids = async (): Promise<void> => {
-    const pending = state.teams.filter((t) => !(t.id in serverBids) && !bidDrafts.has(t.id));
-    for (const t of pending) await submitBid(room.name, t.id, bids[t.id] ?? 0, setErrorMessage);
     await flush();
     await runTransition("BIDS", () => startRound(room.name, setErrorMessage));
   };
 
   const advanceTricks = async (): Promise<void> => {
-    const pending = state.teams.filter((t) => !(t.id in serverTricks) && !trickDrafts.has(t.id));
-    for (const t of pending) await submitTrickResult(room.name, t.id, trickResults[t.id] ?? 0, setErrorMessage);
     await flush();
     await runTransition("TRICK_RESULTS", () => startBonusPoints(room.name, setErrorMessage));
   };

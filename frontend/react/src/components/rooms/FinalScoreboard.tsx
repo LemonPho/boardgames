@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import { Crown, ArrowLeft } from "lucide-react";
-import type { ScoreboardResponse } from "../../types/scoreboard";
+import type { ScoreboardResponse, ScoreboardTeam } from "../../types/scoreboard";
 import { getScoreboard } from "../../api/skullKing";
 import { useAlertsContext } from "../../context/AlertsContext";
 
@@ -83,29 +83,52 @@ export default function FinalScoreboard() {
       {/* Standings */}
       <div className="flex flex-col gap-2">
         {scoreboard.teams.map((team) => (
-          <Link
-            to={`profile/${team.playerName}`}
-            replace={true}
-            key={team.teamId}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
-              team.won ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"
-            }`}
-          >
-            <div
-              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold ${
-                team.won ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              {team.won ? <Crown size={16} /> : `#${team.placement}`}
-            </div>
-            <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">
-              {team.playerName ?? "—"}
-            </p>
-            <p className="text-sm font-semibold text-gray-900">{team.score}</p>
-          </Link>
+          <StandingsRow key={team.teamId} team={team} />
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * One standings row. Only a live account has a profile to visit, so anonymous and
+ * deleted players render as plain rows rather than dead links.
+ */
+function StandingsRow({ team }: { team: ScoreboardTeam }) {
+  const className = `flex items-center gap-3 px-4 py-3 rounded-xl border ${
+    team.won ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-white"
+  }`;
+
+  const contents = (
+    <>
+      <div
+        className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold ${
+          team.won ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-600"
+        }`}
+      >
+        {team.won ? <Crown size={16} /> : `#${team.placement}`}
+      </div>
+      <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">
+        {team.playerName ?? "—"}
+      </p>
+      {team.playerType === "DELETED" && (
+        <span className="shrink-0 text-xs text-gray-400">Deleted</span>
+      )}
+      <p className="text-sm font-semibold text-gray-900">{team.score}</p>
+    </>
+  );
+
+  if (team.playerType !== "ACTIVE" || !team.username) {
+    return <div className={className}>{contents}</div>;
+  }
+
+  // An absolute path: this page is mounted at two depths (/scoreboard/:name and
+  // /rooms/:name/final), so a relative one would resolve against the current
+  // route and append instead of navigating to the profile.
+  return (
+    <Link to={`/profile/${team.username}`} className={`${className} hover:border-gray-300 transition-colors`}>
+      {contents}
+    </Link>
   );
 }
 
