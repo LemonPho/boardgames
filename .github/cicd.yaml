@@ -1,0 +1,123 @@
+name: Boardgames CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Newer pushes to a PR cancel its older runs; master runs are never cancelled
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend-build:
+    runs-on: self-hosted
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: './frontend/package-lock.json'
+
+    - name: Install dependencies
+      run: npm ci
+      working-directory: frontend
+
+    - name: Build frontend
+      run: npm run build
+      working-directory: frontend
+
+    - name: Upload build
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-dist
+        path: frontend/dist
+        if-no-files-found: error
+
+  backend-build:
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+        cache: maven
+
+    - name: Build and test
+      run: ./mvnw -B verify
+
+    - name: Upload jar
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-jar
+        path: backend/target/app.jar
+        if-no-files-found: error
+
+  deploy:
+    needs: [frontend-build, backend-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: self-hosted
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    env:
+      SERVICE: boardgames-prod-backend
+      HEALTH_URL: http://127.0.0.1:8080/actuator/health
+
+    steps:
+    - name: Download frontend build
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-dist
+        path: ${{ runner.temp }}/frontend-dist
+
+    - name: Download backend jar
+      uses: actions/download-artifact@v4
+      with:
+        name: backend-jar
+        path: ${{ runner.temp }}/backend-jar
+
+    - name: Install backend jar
+      run: |
+        mkdir -p /var/www/apps/boardgames-prod/backend
+        if [ -f /var/www/apps/boardgames-prod/backend/app.jar ]; then
+          cp -f /var/www/apps/boardgames-prod/backend/app.jar /var/www/apps/boardgames-prod/backend/app.jar.prev
+        fi
+        install -m 644 "$RUNNER_TEMP/backend-jar/app.jar" /var/www/apps/boardgames-prod/backend/app.jar.new
+        mv -f /var/www/apps/boardgames-prod/backend/app.jar.new /var/www/apps/boardgames-prod/backend/app.jar
+
+    - name: Deploy frontend
+      run: rsync -a --delete "$RUNNER_TEMP/frontend-dist/" /var/www/apps/boardgames-prod/frontend/dist/
+
+    - name: Restart backend
+      run: sudo systemctl restart boardgames-prod
+
+    - name: Smoke test
+      id: smoke
+      run: |
+        curl --fail --silent --show-error \
+          --retry 20 --retry-delay 3 --retry-connrefused \
+          "$HEALTH_URL"
+
+    - name: Roll back backend
+      if: failure() && steps.smoke.outcome == 'failure'
+      run: |
+        if [ -f /var/www/apps/boardgames-prod/backend/app.jar.prev ]; then
+          mv -f /var/www/apps/boardgames-prod/backend/app.jar.prev /var/www/apps/boardgames-prod/backend/app.jar
+          sudo systemctl restart "$SERVICE"
+        fi
