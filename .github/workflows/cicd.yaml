@@ -82,8 +82,7 @@ jobs:
       group: production-deploy
       cancel-in-progress: false
     env:
-      SERVICE: boardgames-prod-backend
-      HEALTH_URL: http://127.0.0.1:8080/actuator/health
+      SERVICE: boardgames-prod
 
     steps:
     - name: Download frontend build
@@ -111,19 +110,4 @@ jobs:
       run: rsync -a --delete "$RUNNER_TEMP/frontend-dist/" /var/www/apps/boardgames-prod/frontend/dist/
 
     - name: Restart backend
-      run: sudo systemctl restart boardgames-prod
-
-    - name: Smoke test
-      id: smoke
-      run: |
-        curl --fail --silent --show-error \
-          --retry 20 --retry-delay 3 --retry-connrefused \
-          "$HEALTH_URL"
-
-    - name: Roll back backend
-      if: failure() && steps.smoke.outcome == 'failure'
-      run: |
-        if [ -f /var/www/apps/boardgames-prod/backend/app.jar.prev ]; then
-          mv -f /var/www/apps/boardgames-prod/backend/app.jar.prev /var/www/apps/boardgames-prod/backend/app.jar
-          sudo systemctl restart "$SERVICE"
-        fi
+      run: sudo systemctl restart "$SERVICE"
