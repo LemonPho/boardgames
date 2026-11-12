@@ -24,21 +24,21 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-        cache-dependency-path: './frontend/package-lock.json'
+        cache-dependency-path: frontend/react/package-lock.json
 
     - name: Install dependencies
       run: npm ci
-      working-directory: frontend
+      working-directory: frontend/react
 
     - name: Build frontend
       run: npm run build
-      working-directory: frontend
+      working-directory: frontend/react
 
     - name: Upload build
       uses: actions/upload-artifact@v4
       with:
         name: frontend-dist
-        path: frontend/dist
+        path: frontend/react/dist
         if-no-files-found: error
 
   backend-build:
@@ -59,6 +59,12 @@ jobs:
 
     - name: Build and test
       run: ./mvnw -B verify
+
+    - name: Normalize jar name
+      run: |
+        JAR=$(find target -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -n 1)
+        test -n "$JAR" || { echo "No jar found in target/"; exit 1; }
+        cp "$JAR" target/app.jar
 
     - name: Upload jar
       uses: actions/upload-artifact@v4
