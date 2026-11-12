@@ -75,7 +75,7 @@ jobs:
 
   deploy:
     needs: [frontend-build, backend-build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: self-hosted
     environment: production
     concurrency:
