@@ -12,6 +12,9 @@ interface RoomContextType {
   room: RoomResponse | null;
   currentPlayer: RoomUserResponse | null;
   loading: boolean;
+  // Re-fetch the room over REST. Used after admin mutations so the UI doesn't
+  // depend solely on the WebSocket push (which a poor connection can drop).
+  refreshRoom: () => Promise<void>;
 }
 
 const RoomContext = createContext<RoomContextType | null>(null);
@@ -26,22 +29,38 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
   const [currentPlayer, setCurrentPlayer] = useState<RoomUserResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const stompClientRef = useRef<Client | null>(null);
+  // Latest token, read on every (re)connect — the access token is short-lived, so a
+  // reconnect with the token captured at first connect would be rejected.
+  const tokenRef = useRef(accessToken);
+  tokenRef.current = accessToken;
 
   const handleRoomUpdate = (updatedRoom: RoomResponse) => {
     setRoom(updatedRoom);
   };
 
+  const refreshRoom = async (): Promise<void> => {
+    if (!name) return;
+    try {
+      const fetchedRoom = await getRoom(name, () => {});
+      if (fetchedRoom) setRoom(fetchedRoom);
+    } catch {
+      // Best-effort resync; the triggering action surfaces its own errors.
+    }
+  };
+
   const connectWebSocket = (roomName: string) => {
     const client = new Client({
       webSocketFactory: () => new SockJS("/ws"),
-      connectHeaders: {
-        Authorization: `Bearer ${accessToken}`
+      beforeConnect: () => {
+        client.connectHeaders = { Authorization: `Bearer ${tokenRef.current}` };
       },
       onConnect: () => {
         client.subscribe(`/topic/rooms/${roomName}`, (message) => {
           const updatedRoom = JSON.parse(message.body) as RoomResponse;
           handleRoomUpdate(updatedRoom);
         });
+        // Pushes sent while disconnected are lost, so resync on every (re)connect.
+        refreshRoom();
       },
       onDisconnect: () => {
         console.log("WebSocket disconnected");
@@ -88,7 +107,7 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
   }, [room, user])
 
   return (
-    <RoomContext.Provider value={{ room, currentPlayer, loading }}>
+    <RoomContext.Provider value={{ room, currentPlayer, loading, refreshRoom }}>
       {children}
     </RoomContext.Provider>
   );

@@ -30,8 +30,9 @@ export default function LayoutPage() {
 
       <Header/>
 
-      {/* Alerts */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80">
+      {/* Alerts. Above modals (z-50), so errors raised from inside a modal aren't
+          hidden behind its overlay. Width capped to the viewport on small phones. */}
+      <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]">
         {errorMessage && (
           <div onClick={(event) => {setErrorMessage(""); event.stopPropagation()}} className="flex items-start gap-3 bg-white border border-red-200 text-red-700 rounded-xl shadow-lg px-4 py-3">
             <span className="text-red-400 mt-0.5">✕</span>
