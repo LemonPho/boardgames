@@ -80,6 +80,9 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
   const [bidDrafts, setBidDrafts] = useState<Map<string, number>>(new Map());
   const [trickDrafts, setTrickDrafts] = useState<Map<string, number>>(new Map());
   const [bonusDrafts, setBonusDrafts] = useState<Map<string, TeamBonus>>(new Map());
+  // Optimistic Kraken value: the toggle reflects the tap immediately instead of
+  // waiting for debounce + POST + WebSocket push. null = no local edit, use server.
+  const [krakenDraft, setKrakenDraft] = useState<boolean | null>(null);
 
   if (!state || !room || !currentPlayer) return null;
 
@@ -137,7 +140,16 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
   };
 
   const setKrakenPlayed = (value: boolean): void => {
-    schedule("__kraken__", () => setKraken(room.name, state.round, value, setErrorMessage));
+    setKrakenDraft(value);
+    schedule("__kraken__", async () => {
+      try {
+        await setKraken(room.name, state.round, value, setErrorMessage);
+      } catch (error) {
+        // Save failed: drop the optimistic value so the toggle shows the server's.
+        setKrakenDraft(null);
+        throw error;
+      }
+    });
   };
 
   // --- Phase advance (admin only; each phase submits any stragglers, flushes, then transitions) ---
@@ -217,7 +229,7 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     setBid,
     setTricks,
     setBonus,
-    krakenPlayed: state.krakenPlayed ?? false,
+    krakenPlayed: krakenDraft ?? state.krakenPlayed ?? false,
     setKrakenPlayed,
     advance,
     advanceLabel,

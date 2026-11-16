@@ -59,9 +59,12 @@ export default function SkullKingSession() {
     }
   };
 
+  // w-full: the layout's <main> centers its children (items-center), so without an
+  // explicit width this column shrinks to its content — which collapses phases with
+  // little content (e.g. the in-progress bid card) on narrow screens.
   return (
-    <div>
-      <header className="flex items-center justify-between px-4 h-12 border-b border-neutral-200 dark:border-neutral-800">
+    <div className="w-full">
+      <header className="flex items-center justify-between gap-2 px-4 h-12 border-b border-neutral-200 dark:border-neutral-800">
         <span className="text-sm text-neutral-500 dark:text-neutral-400">
           Round {state.round} · {state.cardCount} cards
         </span>

@@ -69,21 +69,34 @@ function PlayerRow({
   total: number;
 }) {
   const { setErrorMessage } = useAlertsContext();
+  const { refreshRoom } = useRoomContext();
   const [loading, setLoading] = useState(false);
+
+  // Resync after every admin action (success or failure) instead of relying only on
+  // the WebSocket push: on a poor connection the push can be lost, leaving a stale
+  // row that then can't be kicked/revoked ("not found") until a reload.
+  const withResync = async (action: () => Promise<void>): Promise<void> => {
+    try {
+      await action();
+    } finally {
+      await refreshRoom();
+    }
+  };
 
   const isPending = player.status === "PENDING_INVITE";
 
   const handleRemove = async (): Promise<void> => {
-    await removePlayer(player.id, roomName, setErrorMessage);
+    await withResync(() => removePlayer(player.id, roomName, setErrorMessage));
   };
 
   // Revoking a pending invite is keyed by the invited user's username.
   const handleRevoke = async (): Promise<void> => {
-    if (player.user?.username) await revokeRoomInvite(player.user.username, roomName, setErrorMessage);
+    const username = player.user?.username;
+    if (username) await withResync(() => revokeRoomInvite(username, roomName, setErrorMessage));
   };
 
   const handleMove = async (newLocation: number): Promise<void> => {
-    await movePlayer(player.id, newLocation, roomName, setErrorMessage);
+    await withResync(() => movePlayer(player.id, newLocation, roomName, setErrorMessage));
   };
 
   return (

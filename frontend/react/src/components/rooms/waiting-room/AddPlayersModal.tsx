@@ -22,7 +22,7 @@ interface SearchResults {
 const NO_RESULTS: SearchResults = { term: "", matches: [] };
 
 export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYERS_PANEL: string}) {
-  const { room } = useRoomContext();
+  const { room, refreshRoom } = useRoomContext();
   const { setSuccessMessage, setErrorMessage } = useAlertsContext();
   const { user } = useUserContext();
 
@@ -56,7 +56,11 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
       return;
     }
 
-    await invitePlayerToRoom(username, room.name, setErrorMessage);
+    try {
+      await invitePlayerToRoom(username, room.name, setErrorMessage);
+    } finally {
+      await refreshRoom();
+    }
     setSuccessMessage("User invited");
     // Re-run the current search so the invited user's row flips to "Invited".
     await runSearch(query);
@@ -73,7 +77,12 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
       return;
     }
 
-    await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
+    try {
+      await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
+    } finally {
+      // Don't rely only on the WebSocket push to show the new player (see PlayersList).
+      await refreshRoom();
+    }
   }
 
   const runSearch = async (term: string): Promise<void> => {
@@ -216,10 +225,15 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 // Own loading state per row, so removing one anonymous player only loads its button.
 function AnonymousPlayerRow({ player, roomName }: { player: RoomUserResponse; roomName: string }) {
   const { setErrorMessage } = useAlertsContext();
+  const { refreshRoom } = useRoomContext();
   const [loading, setLoading] = useState(false);
 
   const handleRemove = async (): Promise<void> => {
-    await removePlayer(player.id, roomName, setErrorMessage);
+    try {
+      await removePlayer(player.id, roomName, setErrorMessage);
+    } finally {
+      await refreshRoom();
+    }
   };
 
   return (
