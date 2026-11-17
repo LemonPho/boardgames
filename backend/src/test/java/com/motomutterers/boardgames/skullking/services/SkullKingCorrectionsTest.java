@@ -195,6 +195,109 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         verify(teamUtilityService).setScore(b, 10L);
     }
 
+    // --- corrections on the live (current) round: admin review from the session screen ---
+
+    /**
+     * Round 1 finished (a bid 1 won 1 -> +20; b bid 0 won 0 over 1 card -> +10); round 2 is
+     * the live round, currently in {@code livePhase}. Returns round 2's BIDS and TRICK_RESULTS events.
+     */
+    private SessionEvent[] stubFinishedRound1AndLiveRound2(Session session, Team a, Team b, SessionEventType livePhase) {
+        SessionEvent bids1 = bidsEvent(1, 1, id(a));
+        SessionEvent tricks1 = tricksEvent(1, 1, id(a), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(a));
+        SessionEvent bids2 = bidsEvent(2, 2, id(b));
+        SessionEvent inProgress2 = inProgressEvent(2, 2, id(b));
+        SessionEvent tricks2 = tricksEvent(2, 2, id(b), false);
+        SessionEvent bonus2 = bonusEvent(2, 2, id(b));
+        if (livePhase == SessionEventType.TRICK_RESULTS) {
+            stubAllEvents(session, bids1, tricks1, bonus1, bids2, inProgress2, tricks2);
+        } else {
+            stubAllEvents(session, bids1, tricks1, bonus1, bids2, inProgress2, tricks2, bonus2);
+            stubTeamEvents(bonus2, teamBonus(a, bonus(1, false, 0, 0, false, 0)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+        }
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(teamUtilityService.getOrThrowTeamById(id(b))).thenReturn(b);
+
+        stubTeamEvents(bids1, teamBid(a, 1), teamBid(b, 0));
+        stubTeamEvents(tricks1, teamTricks(a, 1), teamTricks(b, 0));
+        stubTeamEvents(bonus1, teamBonus(a, bonus(0, false, 0, 0, false, 0)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+        // Round 2 as corrected (the mocked upsert doesn't persist): a bid 2 won 2, b bid 0 won 0.
+        // If round 2 were scored, a would gain +40 (+10 bonus) and b +20.
+        stubTeamEvents(bids2, teamBid(a, 2), teamBid(b, 0));
+        stubTeamEvents(tricks2, teamTricks(a, 2), teamTricks(b, 0));
+        return new SessionEvent[]{bids2, tricks2};
+    }
+
+    @Test
+    void correctBids_currentRoundInTrickResults_upsertsAndDoesNotScoreIt() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+        SessionEvent bids2 = stubFinishedRound1AndLiveRound2(session, a, b, SessionEventType.TRICK_RESULTS)[0];
+
+        service.correctBids("room", 2, bidsReq(bidVal(a, 2), bidVal(b, 0)), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any());
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any());
+        // Scores stay at round 1's totals: the live round isn't finished.
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+    }
+
+    @Test
+    void correctBids_currentRoundInBonusPoints_upsertsAndDoesNotScoreIt() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+        SessionEvent bids2 = stubFinishedRound1AndLiveRound2(session, a, b, SessionEventType.BONUS_POINTS)[0];
+
+        service.correctBids("room", 2, bidsReq(bidVal(a, 2), bidVal(b, 0)), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any());
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any());
+        // The open bonus phase isn't closed by a correction, so round 2 stays unscored.
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+    }
+
+    @Test
+    void correctTricks_currentRoundInBonusPoints_upsertsAndDoesNotScoreIt() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+        SessionEvent tricks2 = stubFinishedRound1AndLiveRound2(session, a, b, SessionEventType.BONUS_POINTS)[1];
+
+        // 2 + 0 == 2 cards.
+        service.correctTricks("room", 2, tricksReq(trickVal(a, 2), trickVal(b, 0)), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(b), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+    }
+
+    @Test
+    void correctTricks_currentRoundInTrickResults_upsertsAndDoesNotScoreIt() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+        SessionEvent tricks2 = stubFinishedRound1AndLiveRound2(session, a, b, SessionEventType.TRICK_RESULTS)[1];
+
+        service.correctTricks("room", 2, tricksReq(trickVal(a, 2), trickVal(b, 0)), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+    }
+
     // --- correctTricks ---
 
     @Test

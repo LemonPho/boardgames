@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { RotateCcw, Trophy, User, Users, XCircle } from "lucide-react";
+import { Hash, ListChecks, RotateCcw, Trophy, User, Users, XCircle } from "lucide-react";
 import { useSkullKingSessionContext } from "../../../../context/SkullKingSessionContext";
 import { LiveRoundDataProvider } from "../../../../context/RoundDataContext";
+import { CurrentRoundReviewProvider, type ReviewPhase } from "../../../../context/CurrentRoundReviewProvider";
 import { useUIContext } from "../../../../context/UIContext";
 import { useRoomContext } from "../../../../context/RoomContext";
 import { useAlertsContext } from "../../../../context/AlertsContext";
 import { cancelRoom } from "../../../../api/rooms";
 import { resetRound } from "../../../../api/skullKing";
 import BidPhase from "./bid-phase/BidPhase";
+import BidsAdminView from "./bid-phase/AdminView";
+import TricksAdminView from "./round-results-phase/tricks-phase/AdminView";
 import RoundInProgressPhase from "./round-in-progress-phase/RoundInProgressPhase";
 import BonusPointsPhase from "./round-results-phase/bonus-points-phase/BonusPointsPhase";
 import TricksPhase from "./round-results-phase/tricks-phase/TricksPhase";
@@ -17,9 +20,17 @@ import PastRoundView from "./PastRoundView";
 import AdminActionBar from "./AdminActionBar";
 import SessionAdminMenu, { type AdminMenuItem } from "./SessionAdminMenu";
 import { usePlayerViewPreference } from "../../../../util/usePlayerViewPreference";
+import type { SkullKingGameState } from "../../../../types/skull-king";
 
 const SCOREBOARD_PANEL = "skull-king-scoreboard";
 const ADMIN_MENU_PANEL = "skull-king-admin-menu";
+
+const PHASE_LABELS: Record<SkullKingGameState, string> = {
+  BIDS: "Bids",
+  IN_PROGRESS: "Playing",
+  TRICK_RESULTS: "Tricks",
+  BONUS_POINTS: "Bonus",
+};
 
 export default function SkullKingSession() {
   const { state } = useSkullKingSessionContext();
@@ -31,8 +42,18 @@ export default function SkullKingSession() {
   const [viewingRound, setViewingRound] = useState<number | null>(null);
   // Lives here, above the round-keyed provider, so it doesn't reset every round.
   const [playerViewPref, setPlayerViewPref] = usePlayerViewPreference(room?.name);
+  // The admin's review of an earlier phase of the current round. It's tagged with the live
+  // round + phase it was opened in, so it closes by itself once the live phase moves on
+  // (round finished or reset, phase advanced from another device) rather than via an
+  // effect resetting it.
+  const [review, setReview] = useState<{ phase: ReviewPhase; liveKey: string } | null>(null);
 
   if (!state) return null;
+
+  const liveKey = `${state.roundKey ?? state.round}:${state.gameState}`;
+  const reviewPhase = review?.liveKey === liveKey ? review.phase : null;
+  const openReview = (phase: ReviewPhase): void => setReview({ phase, liveKey });
+  const closeReview = (): void => setReview(null);
 
   const isAdmin = currentPlayer?.role === "ADMIN";
   // Only in SELF rooms: in ADMIN-tracked rooms the admin must enter everyone's values.
@@ -81,6 +102,22 @@ export default function SkullKingSession() {
       icon: viewAsPlayer ? <Users size={16} /> : <User size={16} />,
       hidden: !playerViewAvailable,
       onSelect: () => setPlayerViewPref(!playerViewPref),
+    },
+    // Review an earlier phase of this round without moving the live phase. Only phases
+    // already completed this round are offered (IN_PROGRESS holds no data).
+    {
+      key: "review-bids",
+      label: "Review bids",
+      icon: <ListChecks size={16} />,
+      hidden: reviewPhase !== null || !(["IN_PROGRESS", "TRICK_RESULTS", "BONUS_POINTS"] as SkullKingGameState[]).includes(state.gameState),
+      onSelect: () => openReview("BIDS"),
+    },
+    {
+      key: "review-tricks",
+      label: "Review tricks",
+      icon: <Hash size={16} />,
+      hidden: reviewPhase !== null || state.gameState !== "BONUS_POINTS",
+      onSelect: () => openReview("TRICK_RESULTS"),
     },
     {
       key: "reset-round",
@@ -140,14 +177,39 @@ export default function SkullKingSession() {
         </div>
       </header>
 
-      {/* Key on the round's identity (its BIDS event id, falling back to the number) so
-          drafts and card state fully reset when a new round starts AND when the round is
-          reset, which keeps the same round number.
-          The action bar sits inside so it reads the same RoundData as the phase. */}
-      <LiveRoundDataProvider key={state.roundKey ?? state.round} viewAsPlayer={viewAsPlayer}>
-        {renderPhase()}
-        <AdminActionBar />
-      </LiveRoundDataProvider>
+      {reviewPhase !== null ? (
+        // Reviewing replaces the live provider and phase body, so the admin can't advance
+        // the live phase from here: the action bar reads the review's RoundData and shows
+        // Save. Leaving review remounts the live provider, which drops its drafts so the
+        // corrected server values show through.
+        <CurrentRoundReviewProvider phase={reviewPhase} onDone={closeReview}>
+          <div className="p-4 max-w-md mx-auto">
+            <div className="flex items-center justify-between gap-2 mb-4 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-sm">
+              <span className="min-w-0 text-amber-900">
+                Reviewing {PHASE_LABELS[reviewPhase]} · live phase is {PHASE_LABELS[state.gameState]}
+              </span>
+              <button
+                type="button"
+                onClick={closeReview}
+                className="shrink-0 font-medium text-amber-900 underline underline-offset-2"
+              >
+                Back to live
+              </button>
+            </div>
+            {reviewPhase === "BIDS" ? <BidsAdminView /> : <TricksAdminView />}
+          </div>
+          <AdminActionBar onCancel={closeReview} />
+        </CurrentRoundReviewProvider>
+      ) : (
+        // Key on the round's identity (its BIDS event id, falling back to the number) so
+        // drafts and card state fully reset when a new round starts AND when the round is
+        // reset, which keeps the same round number.
+        // The action bar sits inside so it reads the same RoundData as the phase.
+        <LiveRoundDataProvider key={state.roundKey ?? state.round} viewAsPlayer={viewAsPlayer}>
+          {renderPhase()}
+          <AdminActionBar />
+        </LiveRoundDataProvider>
+      )}
 
       <ScoreboardModal id={SCOREBOARD_PANEL} onOpenRound={setViewingRound} />
     </div>
