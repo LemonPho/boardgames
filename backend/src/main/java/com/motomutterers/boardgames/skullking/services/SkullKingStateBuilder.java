@@ -107,7 +107,9 @@ public class SkullKingStateBuilder {
                     ? Map.of()
                     : buildTrickResultsMap(trickResultsEvent, roomUser, isAdmin);
                 Map<UUID, TeamBonusResponse> bonuses = buildBonusMap(currentEvent, roomUser, isAdmin);
-                yield new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses);
+                boolean krakenPlayed = trickResultsEvent != null
+                    && objectMapper.readValue(trickResultsEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
+                yield new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses, krakenPlayed);
             }
         };
 

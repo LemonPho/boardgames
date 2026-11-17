@@ -288,6 +288,14 @@ export function LiveRoundDataProvider({
   return <RoundDataContext.Provider value={value}>{children}</RoundDataContext.Provider>;
 }
 
+/**
+ * Supplies a ready-made RoundData value. Lets other sources (e.g. the admin's review of an
+ * earlier phase of the current round) feed the same phase components as the live game.
+ */
+export function RoundDataProvider({ value, children }: { value: RoundData; children: React.ReactNode }) {
+  return <RoundDataContext.Provider value={value}>{children}</RoundDataContext.Provider>;
+}
+
 export function useRoundData(): RoundData {
   const ctx = useContext(RoundDataContext);
   if (!ctx) throw new Error("useRoundData must be used within a RoundData provider");

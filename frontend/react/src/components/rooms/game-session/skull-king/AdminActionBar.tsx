@@ -9,8 +9,11 @@ import SubmitButton from "../../../util/SubmitButton";
  *
  * It must sit inside a RoundData provider. The live provider is keyed by round, so
  * the loading state here resets with each round.
+ *
+ * `onCancel` adds a secondary Cancel button beside the action (used by the admin's
+ * review of an earlier phase, where the action is Save).
  */
-export default function AdminActionBar() {
+export default function AdminActionBar({ onCancel }: { onCancel?: () => void } = {}) {
   const { advance, advanceLabel, advanceDisabled } = useRoundData();
   const [loading, setLoading] = useState(false);
 
@@ -24,14 +27,24 @@ export default function AdminActionBar() {
   // it's only there to stop cards showing through while they scroll underneath.
   return (
     <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-gray-50">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md mx-auto flex gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="shrink-0 h-11 px-4 rounded-lg text-sm font-medium border border-neutral-200 bg-white text-neutral-700 disabled:opacity-40 transition active:scale-[0.98]"
+          >
+            Cancel
+          </button>
+        )}
         <SubmitButton
           text={advanceLabel ?? "Continue"}
           loading={loading}
           setLoading={setLoading}
           onSubmit={advance}
           disabled={advanceDisabled}
-          className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
+          className="flex-1 min-w-0 h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
         />
       </div>
     </div>

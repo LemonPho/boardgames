@@ -244,6 +244,29 @@ public class SkullKingStateBuilderTest {
         assertEquals(2, bonusState.getBids().get(a.getId()));
         assertEquals(2, bonusState.getTrickResults().get(a.getId()));
         assertEquals(1, bonusState.getBonuses().get(a.getId()).getStandardFourteens());
+        assertFalse(bonusState.getKrakenPlayed());
+    }
+
+    @Test
+    void bonusPhase_carriesKrakenFlagFromTrickResults() {
+        Team a = team(0);
+        Session session = session(a);
+
+        // The admin can review the tricks during the bonus phase, so the state must carry
+        // the round's Kraken flag (it sets the expected trick total).
+        SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
+        SessionEvent tricksEvent = tricks(1, 5, a.getId().toString(), true);
+        SessionEvent bonusEvent = bonus(1, 5, a.getId().toString());
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonusEvent);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricksEvent));
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent)).thenReturn(List.of());
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricksEvent)).thenReturn(List.of());
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bonusEvent)).thenReturn(List.of());
+
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, a), true);
+
+        assertTrue(((BonusPointsStateResponse) state).getKrakenPlayed());
     }
 
     // --- team ordering ---
