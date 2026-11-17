@@ -166,4 +166,13 @@ public class SkullKingController {
         skullKingService.finishRound(roomName, authentication);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/reset-round")
+    public ResponseEntity<Void> resetRound(
+        @PathVariable String roomName,
+        Authentication authentication
+    ){
+        skullKingService.resetRound(roomName, authentication);
+        return ResponseEntity.ok().build();
+    }
 }

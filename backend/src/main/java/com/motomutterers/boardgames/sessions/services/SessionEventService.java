@@ -12,6 +12,7 @@ import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventPayload;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.motomutterers.boardgames.sessions.repositories.SessionEventRepository;
+import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventRepository;
 
 import jakarta.transaction.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -19,15 +20,18 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class SessionEventService {
     private final SessionEventRepository sessionEventRepository;
+    private final TeamSessionEventRepository teamSessionEventRepository;
     private final RoomsUtilityService roomsUtilityService;
     private final ObjectMapper objectMapper;
 
     public SessionEventService(
         SessionEventRepository sessionEventRepository,
+        TeamSessionEventRepository teamSessionEventRepository,
         RoomsUtilityService roomsUtilityService,
         ObjectMapper objectMapper
     ) {
         this.sessionEventRepository = sessionEventRepository;
+        this.teamSessionEventRepository = teamSessionEventRepository;
         this.roomsUtilityService = roomsUtilityService;
         this.objectMapper = objectMapper;
     }
@@ -64,5 +68,17 @@ public class SessionEventService {
         sessionEvent.setPayload(objectMapper.writeValueAsString(payload));
         sessionEventRepository.save(sessionEvent);
         roomsUtilityService.updateRoomLastUpdated(sessionEvent.getSession().getRoom());
+    }
+
+    // Deletes these phase events and their per-team rows. Team rows are removed explicitly
+    // (not only via the DB cascade) so the persistence context doesn't hold stale entities.
+    // Flushes so a following createSessionEvent's max(sequence) query sees the deletions.
+    @Transactional
+    public void deleteEvents(List<SessionEvent> events){
+        for(SessionEvent event : events){
+            teamSessionEventRepository.deleteBySessionEvent(event);
+        }
+        sessionEventRepository.deleteAll(events);
+        sessionEventRepository.flush();
     }
 }

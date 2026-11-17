@@ -17,4 +17,5 @@ public interface TeamSessionEventRepository extends JpaRepository<TeamSessionEve
     boolean existsBySessionEventAndTeam(SessionEvent sessionEvent, Team team);
     Optional<TeamSessionEvent> findBySessionEventAndTeam(SessionEvent sessionEvent, Team team);
     List<TeamSessionEvent> findBySessionEventOrderBySequenceAsc(SessionEvent sessionEvent);
+    void deleteBySessionEvent(SessionEvent sessionEvent);
 }

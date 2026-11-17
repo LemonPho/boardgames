@@ -190,3 +190,15 @@ export const finishRound = async (
     throw error;
   }
 }
+
+export const resetRound = async (
+  roomName: string,
+  setErrorMessage: (message: string) => void
+): Promise<void> => {
+  try {
+    await api.post(`/skull-king/${roomName}/reset-round`);
+  } catch (error) {
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}

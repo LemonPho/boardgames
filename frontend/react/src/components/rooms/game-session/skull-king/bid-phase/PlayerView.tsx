@@ -1,6 +1,7 @@
 import { useRoomContext } from "../../../../../context/RoomContext";
 import { useRoundData } from "../../../../../context/RoundDataContext";
 import { PlayerCounterCard } from "../shared/PlayerCounterCard";
+import AnonymousTeamsSection from "../shared/AnonymousTeamsSection";
 
 export default function PlayerView() {
   const { currentPlayer } = useRoomContext();
@@ -11,6 +12,8 @@ export default function PlayerView() {
   const teamId = currentPlayer.team.id;
   const value = bids[teamId] ?? 0;
   const editable = canEdit(teamId);
+  // An admin here is in Player view (SELF room); they still enter anonymous players' values.
+  const isAdmin = currentPlayer.role === "ADMIN";
 
   return (
     <div>
@@ -24,6 +27,7 @@ export default function PlayerView() {
         onIncrement={editable ? () => setBid(teamId, value + 1) : undefined}
         onDecrement={editable ? () => setBid(teamId, value - 1) : undefined}
       />
+      {isAdmin && <AnonymousTeamsSection phase="bids" />}
     </div>
   );
 }

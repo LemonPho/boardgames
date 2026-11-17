@@ -103,7 +103,10 @@ public class SkullKingStateBuilderTest {
     }
 
     private SessionEvent event(SessionEventType type, SessionEventPayload payload) {
-        return new SessionEvent(null, type, 0, objectMapper.writeValueAsString(payload));
+        SessionEvent event = new SessionEvent(null, type, 0, objectMapper.writeValueAsString(payload));
+        // Persisted events always have an id; the builder exposes the BIDS event's as roundKey.
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
+        return event;
     }
 
     private TeamSessionEvent teamBid(Team team, int bid) {
@@ -165,6 +168,27 @@ public class SkullKingStateBuilderTest {
         assertEquals(1, bidsState.getBids().size());
         assertEquals(3, bidsState.getBids().get(b.getId()));
         assertNull(bidsState.getBids().get(a.getId()));
+    }
+
+    // --- roundKey ---
+
+    @Test
+    void roundKey_isTheLatestBidsEventId_inEveryPhase() {
+        Team a = team(0);
+        Session session = session(a);
+
+        // A later phase of the round still reports the round's BIDS event id, so the key only
+        // changes on a new round or a reset (which recreates the BIDS event).
+        SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
+        SessionEvent tricksEvent = tricks(1, 5, a.getId().toString(), false);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(tricksEvent);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent)).thenReturn(List.of());
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricksEvent)).thenReturn(List.of());
+
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, a), true);
+
+        assertEquals(bidsEvent.getId().toString(), state.getRoundKey());
     }
 
     // --- TRICK_RESULTS phase ---
