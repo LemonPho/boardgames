@@ -37,7 +37,9 @@ export interface RoomResponse {
     players: Array<RoomUserResponse>,
     startedAt: Date,
     endedAt: Date,
-    createdAt: Date
+    createdAt: Date,
+    // Set on a finished room once the admin pressed "Return to room": the room the table moved on to.
+    nextRoomName: string | null
 }
 
 export interface CreateRoomRequest {

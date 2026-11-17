@@ -62,10 +62,14 @@ export interface RoundHistory {
 export interface BonusEligibility {
   eligible: boolean;
   reason?: string;
+  // A made zero bid: only Loot can score (see bonusEligibility).
+  lootOnly?: boolean;
 }
 
-// A team can earn bonus points only if it made a bid of one or more. A zero bid
-// takes no tricks, so no cards are captured, and a missed bid voids all bonuses.
+// MIRRORS backend SkullKingService.bonusEligibility; keep in sync.
+// A team that made a bid of one or more can earn every bonus, and a missed bid voids
+// all bonuses. A made zero bid took no tricks, so it captured no cards (no 14s or
+// capture bonuses), but it can still have played Loot into an alliance: Loot only.
 export function bonusEligibility(bid: number | undefined, tricksWon: number | undefined): BonusEligibility {
   if (bid === undefined || tricksWon === undefined) {
     return { eligible: false, reason: "Waiting on this round's bid and tricks." };
@@ -74,7 +78,15 @@ export function bonusEligibility(bid: number | undefined, tricksWon: number | un
     return { eligible: false, reason: "No bonus points — the bid wasn't met." };
   }
   if (bid === 0) {
-    return { eligible: false, reason: "No bonus points — a zero bid takes no tricks." };
+    return { eligible: true, lootOnly: true };
   }
   return { eligible: true };
+}
+
+// MIRRORS the backend: SkullKingService.expectedTrickTotal / startBonusPoints trick-total
+// check. If you change the rule here, change it there too (and vice versa).
+// A Kraken destroys one trick (won by nobody), so the teams' tricks must sum to one
+// fewer than the cards dealt.
+export function expectedTrickTotal(cardCount: number, krakenPlayed: boolean): number {
+  return cardCount - (krakenPlayed ? 1 : 0);
 }

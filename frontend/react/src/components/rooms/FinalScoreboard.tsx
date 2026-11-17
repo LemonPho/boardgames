@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { useParams, useLocation, Link } from "react-router-dom";
+import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { Crown, ArrowLeft } from "lucide-react";
 import type { ScoreboardResponse, ScoreboardTeam } from "../../types/scoreboard";
+import type { RoomUserResponse } from "../../types/rooms";
 import { getScoreboard } from "../../api/skullKing";
+import { recreateRoom } from "../../api/rooms";
 import { useAlertsContext } from "../../context/AlertsContext";
+import { useOptionalRoomContext } from "../../context/RoomContext";
+import SubmitButton from "../util/SubmitButton";
 
 // Where the back button returns to, and its label. Passed via navigation state
 // (e.g. from the profile match history); defaults to home when absent (e.g. a
@@ -16,21 +20,35 @@ interface ScoreboardNavState {
 /**
  * Final scoreboard for a room's session. Standalone (fetches its own data by the
  * room name in the URL), so it's reachable both when a room finishes and from a
- * user's match history. Also rendered by RoomPage for a COMPLETED room.
+ * user's match history. Also rendered by RoomPage for a COMPLETED room, where it
+ * adds the end-of-game actions (Return to room / Join next game / Exit).
  */
 export default function FinalScoreboard() {
   const { name } = useParams();
-  const { setErrorMessage } = useAlertsContext();
+  const { setErrorMessage, setInfoMessage } = useAlertsContext();
   const location = useLocation();
+  const navigate = useNavigate();
   const navState = (location.state as ScoreboardNavState | null) ?? {};
   const backTo = navState.backTo ?? "/";
   const backLabel = navState.backLabel ?? "Home";
 
   const [scoreboard, setScoreboard] = useState<ScoreboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [returning, setReturning] = useState(false);
+
+  // Null on the /scoreboard/:name history route (no RoomContextProvider there).
+  const roomCtx = useOptionalRoomContext();
+  const liveRoom = roomCtx?.room ?? null;
+  // Only the live finished room gets the end-of-game actions; match history stays read-only.
+  const inRoom = liveRoom !== null && liveRoom.name === name && liveRoom.status === "COMPLETED";
+  const isAdmin = roomCtx?.currentPlayer?.role === "ADMIN";
+  // Right after navigating /rooms/A -> /rooms/B the provider still holds room A for a render
+  // before its [name] effect starts loading B. Don't fetch a scoreboard for B (it has none
+  // yet, which would flash a "not found" error toast) during that handover.
+  const switchingRoom = liveRoom !== null && liveRoom.name !== name;
 
   useEffect(() => {
-    if (!name) return;
+    if (!name || switchingRoom) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -44,7 +62,21 @@ export default function FinalScoreboard() {
       }
     })();
     return () => { cancelled = true; };
-  }, [name]);
+  }, [name, switchingRoom]);
+
+  const handleReturnToRoom = async (): Promise<void> => {
+    if (!name || !liveRoom) return;
+    const next = await recreateRoom(name, setErrorMessage);
+    // The backend skips players who are already in another live room; tell the admin who.
+    const skipped = liveRoom.players
+      .filter((p) => p.status === "ACTIVE")
+      .filter((p) => !next.players.some((np) => sameSeatPerson(np, p)))
+      .map((p) => (p.role === "ANONYMOUS" ? p.displayName : p.user?.username));
+    if (skipped.length) setInfoMessage(`${skipped.join(", ")} couldn't be added (already in another room)`);
+    navigate(`/rooms/${next.name}`);
+  };
+
+  if (switchingRoom) return null;
 
   if (loading) {
     return <p className="w-full max-w-lg text-sm text-gray-400">Loading…</p>;
@@ -58,9 +90,12 @@ export default function FinalScoreboard() {
 
   return (
     <div className="w-full max-w-lg">
-      <Link to={backTo} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6">
-        <ArrowLeft size={15} /> {backLabel}
-      </Link>
+      {/* In the live room, the Exit button below replaces the back link. */}
+      {!inRoom && (
+        <Link to={backTo} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-6">
+          <ArrowLeft size={15} /> {backLabel}
+        </Link>
+      )}
 
       {/* Header */}
       <div className="text-center mb-8">
@@ -86,8 +121,52 @@ export default function FinalScoreboard() {
           <StandingsRow key={team.teamId} team={team} />
         ))}
       </div>
+
+      {inRoom && (
+        <div className="mt-8 flex flex-col gap-2">
+          {isAdmin ? (
+            <SubmitButton
+              text="Return to room"
+              loading={returning}
+              setLoading={setReturning}
+              onSubmit={handleReturnToRoom}
+              className={PRIMARY_BUTTON}
+            />
+          ) : liveRoom.nextRoomName ? (
+            // Appears live: the old room's WebSocket push carries nextRoomName.
+            <button
+              type="button"
+              onClick={() => navigate(`/rooms/${liveRoom.nextRoomName}`)}
+              className={PRIMARY_BUTTON}
+            >
+              Join next game
+            </button>
+          ) : (
+            <p className="text-center text-sm text-gray-400">Waiting for the host to return to the room…</p>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="w-full h-11 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 transition active:scale-[0.98]"
+          >
+            Exit
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+const PRIMARY_BUTTON =
+  "w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 text-white disabled:opacity-40 transition active:scale-[0.98]";
+
+// Whether two room members (from different rooms) are the same person: registered players by
+// username, anonymous ones by display name.
+function sameSeatPerson(a: RoomUserResponse, b: RoomUserResponse): boolean {
+  if (a.role === "ANONYMOUS" || b.role === "ANONYMOUS") {
+    return a.role === b.role && a.displayName === b.displayName;
+  }
+  return a.user?.username === b.user?.username;
 }
 
 /**

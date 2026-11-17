@@ -13,6 +13,8 @@ interface BonusCardProps {
   eligible: boolean;
   // Why the team is ineligible, shown when eligible is false.
   ineligibleReason?: string;
+  // A made zero bid: only Loot can score, because it won no tricks to capture cards.
+  lootOnly?: boolean;
   editable: boolean;
   // Loot is an advanced card; only show its row when advanced cards are enabled.
   advancedCards?: boolean;
@@ -24,8 +26,9 @@ interface BonusCardProps {
 export function BonusCard({
   playerName,
   bonus,
-  eligible,
-  ineligibleReason,
+  eligible: eligibleProp,
+  ineligibleReason: ineligibleReasonProp,
+  lootOnly,
   editable,
   advancedCards,
   status,
@@ -33,6 +36,13 @@ export function BonusCard({
 }: BonusCardProps) {
   // Edits auto-save; only a non-editable viewer is locked out of the controls.
   const locked = !editable;
+  // Loot only exists with advanced cards, so without them a lootOnly team has nothing
+  // it can score and renders exactly like an ineligible one.
+  const lootUnavailable = !!lootOnly && !advancedCards;
+  const eligible = eligibleProp && !lootUnavailable;
+  const ineligibleReason = lootUnavailable
+    ? "No bonus points — a zero bid can only earn Loot."
+    : ineligibleReasonProp;
 
   const setCount = (key: keyof TeamBonus, delta: number, max: number): void => {
     const current = bonus[key] as number;
@@ -52,7 +62,8 @@ export function BonusCard({
         <span className="font-semibold truncate">{playerName}</span>
         {eligible ? (
           <span className="text-sm font-semibold tabular-nums px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800">
-            +{bonusTotal(bonus)}
+            {/* Only Loot scores for a zero bid, even if stray capture values are stored. */}
+            +{lootOnly ? bonus.loot * 20 : bonusTotal(bonus)}
           </span>
         ) : (
           <span className="text-xs font-medium text-amber-600 dark:text-amber-500 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/40">
@@ -67,37 +78,46 @@ export function BonusCard({
         </p>
       ) : (
         <div className="p-4 flex flex-col gap-4">
-          <Section title="Cards captured">
-            <Stepper
-              label="Standard 14s" image={plus10Img} points="+10 each" locked={locked}
-              value={bonus.standardFourteens} max={3}
-              onDec={() => setCount("standardFourteens", -1, 3)}
-              onInc={() => setCount("standardFourteens", 1, 3)}
-            />
-            <Toggle
-              label="Black 14" image={black14Img} points="+20" locked={locked}
-              active={bonus.blackFourteen} onToggle={() => toggle("blackFourteen")}
-            />
-          </Section>
+          {lootOnly && (
+            <p className="text-xs text-neutral-500">Zero bid — only Loot can score.</p>
+          )}
 
-          <Section title="Character captures">
-            <Stepper
-              label="Mermaid × Pirate" image={mermaidByPirateImg} points="+20 each" locked={locked}
-              value={bonus.mermaidsByPirate} max={2}
-              onDec={() => setCount("mermaidsByPirate", -1, 2)}
-              onInc={() => setCount("mermaidsByPirate", 1, 2)}
-            />
-            <Stepper
-              label="Pirate × Skull King" image={pirateBySkullKingImg} points="+30 each" locked={locked}
-              value={bonus.piratesBySkullKing} max={5}
-              onDec={() => setCount("piratesBySkullKing", -1, 5)}
-              onInc={() => setCount("piratesBySkullKing", 1, 5)}
-            />
-            <Toggle
-              label="Skull King × Mermaid" image={skullKingByMermaidImg} points="+40" featured locked={locked}
-              active={bonus.skullKingByMermaid} onToggle={() => toggle("skullKingByMermaid")}
-            />
-          </Section>
+          {/* A zero bid won no tricks, so it captured nothing: hide the capture bonuses. */}
+          {!lootOnly && (
+            <>
+              <Section title="Cards captured">
+                <Stepper
+                  label="Standard 14s" image={plus10Img} points="+10 each" locked={locked}
+                  value={bonus.standardFourteens} max={3}
+                  onDec={() => setCount("standardFourteens", -1, 3)}
+                  onInc={() => setCount("standardFourteens", 1, 3)}
+                />
+                <Toggle
+                  label="Black 14" image={black14Img} points="+20" locked={locked}
+                  active={bonus.blackFourteen} onToggle={() => toggle("blackFourteen")}
+                />
+              </Section>
+
+              <Section title="Character captures">
+                <Stepper
+                  label="Mermaid × Pirate" image={mermaidByPirateImg} points="+20 each" locked={locked}
+                  value={bonus.mermaidsByPirate} max={2}
+                  onDec={() => setCount("mermaidsByPirate", -1, 2)}
+                  onInc={() => setCount("mermaidsByPirate", 1, 2)}
+                />
+                <Stepper
+                  label="Pirate × Skull King" image={pirateBySkullKingImg} points="+30 each" locked={locked}
+                  value={bonus.piratesBySkullKing} max={5}
+                  onDec={() => setCount("piratesBySkullKing", -1, 5)}
+                  onInc={() => setCount("piratesBySkullKing", 1, 5)}
+                />
+                <Toggle
+                  label="Skull King × Mermaid" image={skullKingByMermaidImg} points="+40" featured locked={locked}
+                  active={bonus.skullKingByMermaid} onToggle={() => toggle("skullKingByMermaid")}
+                />
+              </Section>
+            </>
+          )}
 
           {advancedCards && (
             <Section title="Loot">

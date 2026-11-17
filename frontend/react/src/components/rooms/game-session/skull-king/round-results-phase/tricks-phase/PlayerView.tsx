@@ -13,7 +13,7 @@ export default function PlayerView() {
   const editable = canEdit(teamId);
 
   return (
-    <div className="p-4">
+    <div>
       <PlayerCounterCard
         title="Tricks won"
         value={value}

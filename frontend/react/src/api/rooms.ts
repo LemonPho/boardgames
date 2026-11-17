@@ -150,3 +150,15 @@ export const leaveRoom = async(roomName: string, setErrorMessage: (message: stri
     throw error;
   }
 }
+
+// After a finished game (admin only): opens a new waiting room with the same players, seats and
+// configuration. Idempotent: a retry returns the room already created.
+export const recreateRoom = async (roomName: string, setErrorMessage: (message: string) => void): Promise<RoomResponse> => {
+  try{
+    const response = await api.post(`/rooms/${roomName}/return-to-room`);
+    return response.data as RoomResponse;
+  } catch(error){
+    setAxiosError(error, setErrorMessage);
+    throw error;
+  }
+}

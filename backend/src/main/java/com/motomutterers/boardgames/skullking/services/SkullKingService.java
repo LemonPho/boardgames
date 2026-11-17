@@ -57,6 +57,10 @@ public class SkullKingService {
     private static final int BASE_DECK_SIZE = 70;
     private static final int ADVANCED_DECK_SIZE = 74;
 
+    // Which bonuses a team may earn for a round. LOOT_ONLY covers a made zero bid: it
+    // won no tricks so it captured nothing, but a Loot alliance needs no won trick.
+    private enum BonusEligibility { NONE, LOOT_ONLY, FULL }
+
     private final UserService userService;
     private final RoomsUtilityService roomsUtilityService;
     private final SessionUtilitysService sessionUtilitysService;
@@ -259,9 +263,10 @@ public class SkullKingService {
         }
 
         // A team that becomes ineligible keeps its stored bonus untouched; scoring
-        // already ignores bonuses unless the team makes a positive bid, so the bonus
-        // simply reappears if the team qualifies again.
-        recomputeScores(session);
+        // already ignores bonuses the team isn't eligible for (all of them on a missed
+        // bid, everything but Loot on a made zero bid), so the bonus simply reappears
+        // if the team qualifies again.
+        recomputeScores(session, false);
         publishStateChanged(room, session);
     }
 
@@ -298,7 +303,7 @@ public class SkullKingService {
 
         // Ineligible teams keep their stored bonus (see correctBids) — scoring ignores
         // it while ineligible and restores it if the team qualifies again.
-        recomputeScores(session);
+        recomputeScores(session, false);
         publishStateChanged(room, session);
     }
 
@@ -332,9 +337,12 @@ public class SkullKingService {
 
         for(CorrectBonusRequest.TeamBonusValue tv : request.getTeams()){
             validateBonusRange(tv);
-            boolean hasBonus = bonusHasAny(tv);
-            if(hasBonus && !roundEligibleForBonus(bidsEvent, tricksEvent, tv.getTeamId())){
+            BonusEligibility eligibility = roundBonusEligibility(bidsEvent, tricksEvent, tv.getTeamId());
+            if(eligibility == BonusEligibility.NONE && bonusHasAny(tv)){
                 throw new BadActionException("A team can only earn bonus points if it made a bid of one or more");
+            }
+            if(eligibility == BonusEligibility.LOOT_ONLY && bonusHasNonLoot(tv)){
+                throw new BadActionException("A zero bid can only earn Loot bonus points");
             }
         }
 
@@ -358,7 +366,7 @@ public class SkullKingService {
                     tv.getPiratesBySkullKing(), tv.getSkullKingByMermaid(), tv.getLoot()));
         }
 
-        recomputeScores(session);
+        recomputeScores(session, false);
         publishStateChanged(room, session);
     }
 
@@ -374,18 +382,32 @@ public class SkullKingService {
         return objectMapper.readValue(bidsEvent.getPayload(), SessionEventPayload.Bids.class).cardCount();
     }
 
-    private boolean roundEligibleForBonus(SessionEvent bidsEvent, SessionEvent tricksEvent, String teamId){
+    private BonusEligibility roundBonusEligibility(SessionEvent bidsEvent, SessionEvent tricksEvent, String teamId){
         Integer bid = teamValueById(bidsEvent, teamId, TeamSessionEventType.BIDS);
         Integer tricksWon = teamValueById(tricksEvent, teamId, TeamSessionEventType.TRICK_RESULTS);
-        if(bid == null || tricksWon == null) return false;
-        return bid > 0 && bid.equals(tricksWon);
+        return bonusEligibility(bid, tricksWon);
     }
 
-    // Recomputes every team's finalScore from scratch by replaying all fully-entered
-    // rounds. This is the single source of truth for scores — used after finishing a
-    // round and after any correction — so edits can never drift from the accumulator.
-    private void recomputeScores(Session session){
+    // Who may earn which bonuses. MIRRORED in frontend types/skull-king.ts bonusEligibility.
+    // A made positive bid earns everything. A made zero bid won no tricks, so it captured
+    // no cards (no 14s or capture bonuses), but it may still have played Loot into an
+    // alliance with a trick winner. A missed bid (or missing values) earns nothing.
+    private BonusEligibility bonusEligibility(Integer bid, Integer tricksWon){
+        if(bid == null || tricksWon == null || !bid.equals(tricksWon)) return BonusEligibility.NONE;
+        return bid == 0 ? BonusEligibility.LOOT_ONLY : BonusEligibility.FULL;
+    }
+
+    // Recomputes every team's finalScore from scratch over FINISHED rounds only. This is
+    // the single source of truth for scores — used after finishing a round and after any
+    // correction — so edits can never drift from the accumulator.
+    // A round is finished once its BONUS_POINTS phase has been closed by finishRound, i.e. its
+    // BONUS_POINTS event exists and isn't the current event. finishRound passes
+    // includeCurrentRound=true because it is finishing the current round in this transaction.
+    // Corrections pass false so an in-progress round is never scored early.
+    private void recomputeScores(Session session, boolean includeCurrentRound){
+        // Ordered by sequence ascending, so the current event is the last element.
         List<SessionEvent> events = sessionEventService.findAllEvents(session);
+        SessionEvent currentEvent = events.isEmpty() ? null : events.get(events.size() - 1);
 
         List<Integer> rounds = events.stream()
             .filter(e -> e.getType().equals(SessionEventType.BIDS))
@@ -399,13 +421,16 @@ public class SkullKingService {
                 SessionEvent bidsEvent = findRoundEvent(events, round, SessionEventType.BIDS);
                 SessionEvent tricksEvent = findRoundEvent(events, round, SessionEventType.TRICK_RESULTS);
                 SessionEvent bonusEvent = findRoundEvent(events, round, SessionEventType.BONUS_POINTS);
-                if(bidsEvent == null || tricksEvent == null) continue; // round not scorable yet
+                if(bidsEvent == null || tricksEvent == null || bonusEvent == null) continue; // round not finished
+                // The bonus phase is still open (not yet closed by finishRound), so the round
+                // isn't finished unless finishRound is finishing it right now.
+                if(bonusEvent == currentEvent && !includeCurrentRound) continue;
 
                 Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
                 Integer tricksWon = teamValue(tricksEvent, team, TeamSessionEventType.TRICK_RESULTS);
                 if(bid == null || tricksWon == null) continue;
 
-                TeamSessionEventPayload.BonusPoints bonus = bonusEvent == null ? null : teamBonus(bonusEvent, team);
+                TeamSessionEventPayload.BonusPoints bonus = teamBonus(bonusEvent, team);
                 total += scoreTeamRound(bid, tricksWon, roundCardCount(bidsEvent), bonus);
             }
             teamUtilityService.setScore(team, total);
@@ -644,10 +669,14 @@ public class SkullKingService {
 
         validateBonusRanges(request);
 
-        // Bonuses require making a positive bid: a missed bid earns nothing, and a
-        // zero bid means zero tricks taken, so no cards were captured to earn bonuses.
-        if(!eligibleForBonus(session, team) && hasAnyBonus(request)){
+        // Bonuses require making the bid: a missed bid earns nothing. A made zero bid
+        // took no tricks, so it captured no cards — but it can still earn Loot.
+        BonusEligibility eligibility = bonusEligibilityFor(session, team);
+        if(eligibility == BonusEligibility.NONE && hasAnyBonus(request)){
             throw new BadActionException("This team can't earn bonus points — they must make a bid of one or more");
+        }
+        if(eligibility == BonusEligibility.LOOT_ONLY && hasNonLootBonus(request)){
+            throw new BadActionException("A zero bid can only earn Loot bonus points");
         }
 
         teamSessionEventService.upsertTeamSessionEvent(
@@ -690,7 +719,7 @@ public class SkullKingService {
 
         SessionEventPayload.BonusPoints bonusPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.BonusPoints.class);
 
-        recomputeScores(session);
+        recomputeScores(session, true);
 
         if(bonusPhase.round() >= MAX_ROUNDS){
             completeSession(session, room);
@@ -719,8 +748,11 @@ public class SkullKingService {
         boolean madeBid = bid == tricksWon;
 
         if(bid == 0){
-            // A zero bid scores ±10 per card dealt; no bonuses are possible with zero tricks.
-            return madeBid ? 10L * cardCount : -10L * cardCount;
+            // A made zero bid scores 10 per card dealt, plus Loot (the only bonus a zero bid can
+            // earn: a Loot alliance doesn't require winning a trick). Missed: −10 per card.
+            // Only loot is added even if other fields are stored, as older data may hold leftovers.
+            if(!madeBid) return -10L * cardCount;
+            return 10L * cardCount + (bonus == null ? 0 : bonus.loot() * 20L);
         }
 
         if(!madeBid){
@@ -772,6 +804,15 @@ public class SkullKingService {
             || request.getPiratesBySkullKing() > 0
             || request.getSkullKingByMermaid()
             || request.getLoot() > 0;
+    }
+
+    // Everything except Loot: the capture bonuses, which need a won trick.
+    private boolean hasNonLootBonus(SubmitBonusPointsRequest request){
+        return request.getStandardFourteens() > 0
+            || request.getBlackFourteen()
+            || request.getMermaidsByPirate() > 0
+            || request.getPiratesBySkullKing() > 0
+            || request.getSkullKingByMermaid();
     }
 
     // Each bonus source is a fixed set of unique cards in the deck, so the totals
@@ -856,17 +897,20 @@ public class SkullKingService {
             || tv.getPiratesBySkullKing() > 0 || tv.getSkullKingByMermaid() || tv.getLoot() > 0;
     }
 
-    private boolean eligibleForBonus(Session session, Team team){
+    // Everything except Loot: the capture bonuses, which need a won trick.
+    private boolean bonusHasNonLoot(CorrectBonusRequest.TeamBonusValue tv){
+        return tv.getStandardFourteens() > 0 || tv.getBlackFourteen() || tv.getMermaidsByPirate() > 0
+            || tv.getPiratesBySkullKing() > 0 || tv.getSkullKingByMermaid();
+    }
+
+    private BonusEligibility bonusEligibilityFor(Session session, Team team){
         SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElse(null);
         SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElse(null);
-        if(bidsEvent == null || trickResultsEvent == null) return false;
+        if(bidsEvent == null || trickResultsEvent == null) return BonusEligibility.NONE;
 
         Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
         Integer tricksWon = teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
-        if(bid == null || tricksWon == null) return false;
-
-        // A zero bid takes no tricks, so no cards are captured — no bonuses possible.
-        return bid > 0 && bid.equals(tricksWon);
+        return bonusEligibility(bid, tricksWon);
     }
 
     // Writes `payload` for every team with no value yet on this phase event. Teams
@@ -912,6 +956,8 @@ public class SkullKingService {
 
     // A Kraken destroys one trick (won by nobody), so the teams' tricks must sum to
     // one fewer than the cards dealt.
+    // MIRRORED in the frontend: frontend/react/src/types/skull-king.ts expectedTrickTotal
+    // (gates the tricks-phase Continue button). Keep both in sync.
     private int expectedTrickTotal(SessionEventPayload.TrickResults phase){
         return phase.cardCount() - (phase.krakenPlayed() ? 1 : 0);
     }

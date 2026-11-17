@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import type { TeamResponse } from "../types/teams";
 import type { BonusEligibility, SkullKingGameState, TeamBonus } from "../types/skull-king";
-import { EMPTY_BONUS, bonusEligibility } from "../types/skull-king";
+import { EMPTY_BONUS, bonusEligibility, expectedTrickTotal } from "../types/skull-king";
 import { useSkullKingSessionContext } from "./SkullKingSessionContext";
 import { useRoomContext } from "./RoomContext";
 import { useAlertsContext } from "./AlertsContext";
@@ -14,6 +14,7 @@ import {
   startRound,
   finishRound,
   startBonusPoints,
+  startTrickResults,
   setKraken,
 } from "../api/skullKing";
 
@@ -57,7 +58,11 @@ export interface RoundData {
   // The admin action that advances past the current phase; null when there's
   // nothing to advance (e.g. a read-only past round).
   advance: (() => Promise<void>) | null;
+  // Button text. While advance is blocked it carries the reason instead (e.g. the
+  // tricks phase shows "Tricks 3 / 5" in the disabled button rather than separate text).
   advanceLabel: string | null;
+  // Admin advance is blocked (e.g. tricks don't add up). The button should render disabled.
+  advanceDisabled: boolean;
 }
 
 const RoundDataContext = createContext<RoundData | null>(null);
@@ -134,7 +139,11 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     schedule(teamId, () => submitTrickResult(room.name, teamId, value, setErrorMessage));
   };
 
-  const setBonus = (teamId: string, bonus: TeamBonus): void => {
+  const setBonus = (teamId: string, value: TeamBonus): void => {
+    // A zero bid can only earn Loot, and the backend rejects any other field. Stray
+    // non-loot values can linger (e.g. a correction changed the bid from 2 to 0), so
+    // strip them before saving.
+    const bonus = bonusEligibilityFor(teamId).lootOnly ? { ...EMPTY_BONUS, loot: value.loot } : value;
     setBonusDrafts(prev => new Map(prev).set(teamId, bonus));
     schedule(teamId, () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage));
   };
@@ -181,12 +190,19 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     await runTransition("BIDS", () => startRound(room.name, setErrorMessage));
   };
 
+  // Nothing is edited while the round is being played, so there's nothing to flush.
+  const advanceInProgress = (): Promise<void> =>
+    runTransition("IN_PROGRESS", () => startTrickResults(room.name, setErrorMessage));
+
   const advanceTricks = async (): Promise<void> => {
     await flush();
     await runTransition("TRICK_RESULTS", () => startBonusPoints(room.name, setErrorMessage));
   };
 
   const advanceBonus = async (): Promise<void> => {
+    // Teams with a draft (including a lootOnly team's Loot, saved via setBonus) aren't
+    // pending; flush() below lands their save. A lootOnly team counts as eligible, so
+    // even if it were pending its effective value would be submitted, not EMPTY_BONUS.
     const pending = state.teams.filter((t) => !(t.id in serverBonuses) && !bonusDrafts.has(t.id));
     for (const t of pending) {
       const eligible = bonusEligibility(bids[t.id], trickResults[t.id]).eligible;
@@ -202,6 +218,7 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     if (!isAdmin) return { advance: null, label: null };
     switch (state.gameState) {
       case "BIDS": return { advance: advanceBids, label: "Start round" };
+      case "IN_PROGRESS": return { advance: advanceInProgress, label: "Enter trick results" };
       case "TRICK_RESULTS": return { advance: advanceTricks, label: "Continue to bonus points" };
       case "BONUS_POINTS":
         return { advance: advanceBonus, label: state.round >= MAX_ROUNDS ? "Finish game" : "Finish round" };
@@ -209,7 +226,26 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     }
   };
 
-  const { advance, label: advanceLabel } = advanceFor();
+  const { advance, label: baseAdvanceLabel } = advanceFor();
+
+  const krakenPlayed = krakenDraft ?? state.krakenPlayed ?? false;
+
+  // Tricks gate: mirrors the server's startBonusPoints check (via expectedTrickTotal) so
+  // the admin sees the problem before a round trip. It reads the effective values, so it
+  // reacts on every tap rather than after the debounced save. Teams with no value count
+  // as 0, matching the server's prefill on transition. The server stays the authority.
+  // While blocked, the disabled button itself shows the count (e.g. "Tricks 3 / 5").
+  // Other phases never block: missing bids/bonuses are defaulted by the server.
+  const advanceGate = (): { disabled: boolean; blockedLabel: string | null } => {
+    if (state.gameState !== "TRICK_RESULTS") return { disabled: false, blockedLabel: null };
+    const expected = expectedTrickTotal(state.cardCount, krakenPlayed);
+    const total = state.teams.reduce((sum, t) => sum + (trickResults[t.id] ?? 0), 0);
+    if (total === expected) return { disabled: false, blockedLabel: null };
+    return { disabled: true, blockedLabel: `Tricks ${total} / ${expected}${krakenPlayed ? " (Kraken)" : ""}` };
+  };
+
+  const { disabled: advanceDisabled, blockedLabel } = advanceGate();
+  const advanceLabel = blockedLabel ?? baseAdvanceLabel;
 
   const value: RoundData = {
     round: state.round,
@@ -229,10 +265,11 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     setBid,
     setTricks,
     setBonus,
-    krakenPlayed: krakenDraft ?? state.krakenPlayed ?? false,
+    krakenPlayed,
     setKrakenPlayed,
     advance,
     advanceLabel,
+    advanceDisabled,
   };
 
   return <RoundDataContext.Provider value={value}>{children}</RoundDataContext.Provider>;

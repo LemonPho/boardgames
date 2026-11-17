@@ -691,4 +691,146 @@ public class RoomServiceTest {
         assertTrue(response.getPlayers().stream()
             .anyMatch(p -> p.getStatus() == RoomUserStatus.PENDING_INVITE));
     }
+
+    // --- returnToRoom ---
+
+    private User namedUser(String username) {
+        User user = userWithId(UUID.randomUUID());
+        ReflectionTestUtils.setField(user, "username", username);
+        return user;
+    }
+
+    // A finished room: admin at seat 0, then the given registered players, then one
+    // anonymous player, all ACTIVE.
+    private Room completedRoom(User admin, User... players) {
+        Room room = new Room(mockGame(), "old", new RoomConfiguration(TrackingMode.SELF, true));
+        room.setStatus(RoomStatus.COMPLETED);
+        int pos = 0;
+        room.addPlayer(new RoomUser(admin, room, RoomUserRoles.ADMIN, pos++));
+        for (User p : players) {
+            room.addPlayer(new RoomUser(p, room, RoomUserRoles.PLAYER, pos++));
+        }
+        room.addPlayer(new RoomUser("Guest", room, pos));
+        return room;
+    }
+
+    @Test
+    void returnToRoom_copiesPlayersSeatsAndConfig() {
+        User admin = namedUser("admin");
+        User bob = namedUser("bob");
+        Room old = completedRoom(admin, bob);
+        when(userService.getUserById(admin.getId())).thenReturn(admin);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+
+        RoomResponse response = roomService.returnToRoom("old", admin.getId());
+
+        Room next = old.getNextRoom();
+        assertNotNull(next);
+        assertEquals(response.getName(), next.getName());
+        assertEquals(RoomStatus.WAITING, next.getStatus());
+        assertNotSame(old.getConfiguration(), next.getConfiguration());
+        assertEquals(TrackingMode.SELF, next.getConfiguration().getTrackingMode());
+        assertTrue(next.getConfiguration().getAdvancedCards());
+
+        List<RoomUser> players = next.getPlayers();
+        assertEquals(3, players.size());
+        assertEquals(RoomUserRoles.ADMIN, players.get(0).getRole());
+        assertEquals(admin, players.get(0).getUser());
+        assertEquals(RoomUserRoles.PLAYER, players.get(1).getRole());
+        assertEquals(bob, players.get(1).getUser());
+        assertEquals(RoomUserRoles.ANONYMOUS, players.get(2).getRole());
+        assertEquals("Guest", players.get(2).getDisplayName());
+        for (int i = 0; i < players.size(); i++) {
+            assertEquals(i, players.get(i).getPlayingPosition());
+            assertEquals(RoomUserStatus.ACTIVE, players.get(i).getStatus());
+            assertSame(next, players.get(i).getRoom());
+        }
+        verify(roomUserRepository, times(3)).save(any(RoomUser.class));
+        verify(roomRepository).save(old);
+        verify(eventPublisher).publishEvent(argThat((Object e) ->
+            e instanceof RoomUpdatedEvent ru && ru.getRoomName().equals("old")));
+    }
+
+    @Test
+    void returnToRoom_skipsPlayerInAnotherRoom_keepsPositionsContiguous() {
+        User admin = namedUser("admin");
+        User busy = namedUser("busy");
+        User carol = namedUser("carol");
+        Room old = completedRoom(admin, busy, carol);
+        when(userService.getUserById(admin.getId())).thenReturn(admin);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+        when(roomsUtilityService.getIsUserInActiveRoom(busy)).thenReturn(true);
+
+        roomService.returnToRoom("old", admin.getId());
+
+        List<RoomUser> players = old.getNextRoom().getPlayers();
+        assertEquals(3, players.size());
+        assertTrue(players.stream().noneMatch(p -> busy.equals(p.getUser())));
+        assertEquals(carol, players.get(1).getUser());
+        for (int i = 0; i < players.size(); i++) {
+            assertEquals(i, players.get(i).getPlayingPosition());
+        }
+    }
+
+    @Test
+    void returnToRoom_liveNextRoom_returnsItWithoutCreating() {
+        User admin = namedUser("admin");
+        Room old = completedRoom(admin);
+        Room existing = new Room(mockGame(), "existing", new RoomConfiguration());
+        existing.setStatus(RoomStatus.WAITING);
+        old.setNextRoom(existing);
+        when(userService.getUserById(admin.getId())).thenReturn(admin);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+
+        RoomResponse response = roomService.returnToRoom("old", admin.getId());
+
+        assertEquals("existing", response.getName());
+        verify(roomRepository, never()).save(any());
+        verify(roomUserRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void returnToRoom_cancelledNextRoom_createsNewRoom() {
+        User admin = namedUser("admin");
+        Room old = completedRoom(admin);
+        Room stale = new Room(mockGame(), "stale", new RoomConfiguration());
+        stale.setStatus(RoomStatus.CANCELLED);
+        old.setNextRoom(stale);
+        when(userService.getUserById(admin.getId())).thenReturn(admin);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+
+        RoomResponse response = roomService.returnToRoom("old", admin.getId());
+
+        assertNotSame(stale, old.getNextRoom());
+        assertEquals(old.getNextRoom().getName(), response.getName());
+        assertEquals(RoomStatus.WAITING, old.getNextRoom().getStatus());
+    }
+
+    @Test
+    void returnToRoom_notCompleted_throws() {
+        User admin = namedUser("admin");
+        Room old = completedRoom(admin);
+        old.setStatus(RoomStatus.IN_PROGRESS);
+        when(userService.getUserById(admin.getId())).thenReturn(admin);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+
+        assertThrows(BadActionException.class, () -> roomService.returnToRoom("old", admin.getId()));
+        verify(roomRepository, never()).save(any());
+    }
+
+    @Test
+    void returnToRoom_nonAdmin_throws() {
+        User admin = namedUser("admin");
+        User bob = namedUser("bob");
+        Room old = completedRoom(admin, bob);
+        when(userService.getUserById(bob.getId())).thenReturn(bob);
+        when(roomsUtilityService.getRoomByName("old")).thenReturn(old);
+        doThrow(new BadActionException("not admin"))
+            .when(roomsUtilityService).throwIfUserIsNotRoomAdmin(old, bob);
+
+        assertThrows(BadActionException.class, () -> roomService.returnToRoom("old", bob.getId()));
+        verify(roomRepository, never()).save(any());
+        assertNull(old.getNextRoom());
+    }
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Trophy, XCircle } from "lucide-react";
 import { useSkullKingSessionContext } from "../../../../context/SkullKingSessionContext";
 import { LiveRoundDataProvider } from "../../../../context/RoundDataContext";
 import { useUIContext } from "../../../../context/UIContext";
@@ -12,9 +13,11 @@ import BonusPointsPhase from "./round-results-phase/bonus-points-phase/BonusPoin
 import TricksPhase from "./round-results-phase/tricks-phase/TricksPhase";
 import ScoreboardModal from "./ScoreboardModal";
 import PastRoundView from "./PastRoundView";
-import SubmitButton from "../../../util/SubmitButton";
+import AdminActionBar from "./AdminActionBar";
+import SessionAdminMenu, { type AdminMenuItem } from "./SessionAdminMenu";
 
 const SCOREBOARD_PANEL = "skull-king-scoreboard";
+const ADMIN_MENU_PANEL = "skull-king-admin-menu";
 
 export default function SkullKingSession() {
   const { state } = useSkullKingSessionContext();
@@ -24,7 +27,6 @@ export default function SkullKingSession() {
   const navigate = useNavigate();
 
   const [viewingRound, setViewingRound] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
 
   if (!state) return null;
 
@@ -49,6 +51,18 @@ export default function SkullKingSession() {
     navigate("/");
   };
 
+  // Admin menu items are added here (later: "Player view", "Reset round").
+  // Destructive ones render last, below a divider.
+  const adminMenuItems: AdminMenuItem[] = [
+    {
+      key: "cancel-game",
+      label: "Cancel game",
+      icon: <XCircle size={16} />,
+      destructive: true,
+      onSelect: handleCancelGame,
+    },
+  ];
+
   const renderPhase = () => {
     switch (state.gameState) {
       case "BIDS": return <BidPhase />;
@@ -64,33 +78,30 @@ export default function SkullKingSession() {
   // little content (e.g. the in-progress bid card) on narrow screens.
   return (
     <div className="w-full">
+      {/* Icon-only actions keep the header to one row at 360 px, leaving room for
+          the round info (and for future admin controls). */}
       <header className="flex items-center justify-between gap-2 px-4 h-12 border-b border-neutral-200 dark:border-neutral-800">
-        <span className="text-sm text-neutral-500 dark:text-neutral-400">
+        <span className="min-w-0 text-sm text-neutral-500 dark:text-neutral-400 truncate">
           Round {state.round} · {state.cardCount} cards
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            aria-label="Scoreboard"
             onClick={(event) => { event.stopPropagation(); togglePanel(SCOREBOARD_PANEL); }}
-            className="text-sm font-medium px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 transition"
+            className="h-9 w-9 flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 transition"
           >
-            Scoreboard
+            <Trophy size={18} />
           </button>
-          {isAdmin && (
-            <SubmitButton
-              text="Cancel game"
-              loading={loading}
-              setLoading={setLoading}
-              onSubmit={handleCancelGame}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:border-red-400 transition disabled:opacity-40"
-            />
-          )}
+          {isAdmin && <SessionAdminMenu id={ADMIN_MENU_PANEL} items={adminMenuItems} />}
         </div>
       </header>
 
-      {/* Key on the round so drafts and card state fully reset when a new round starts. */}
+      {/* Key on the round so drafts and card state fully reset when a new round starts.
+          The action bar sits inside so it reads the same RoundData as the phase. */}
       <LiveRoundDataProvider key={state.round}>
         {renderPhase()}
+        <AdminActionBar />
       </LiveRoundDataProvider>
 
       <ScoreboardModal id={SCOREBOARD_PANEL} onOpenRound={setViewingRound} />

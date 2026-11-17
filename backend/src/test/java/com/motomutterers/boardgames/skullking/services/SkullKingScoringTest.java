@@ -42,10 +42,22 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
     }
 
     @Test
-    void zeroBid_hit_ignoresBonus() {
-        // A zero bid takes no tricks, so no cards are captured -> bonus can't apply.
-        // Still just +10 * 5 even with a fat bonus attached.
-        assertEquals(50, score(0, 0, 5, bonus(3, true, 2, 5, true, 2)));
+    void zeroBid_hit_addsLoot() {
+        // A made zero bid can still earn Loot: +10 * 5 + 20 * 1.
+        assertEquals(70, score(0, 0, 5, bonus(0, false, 0, 0, false, 1)));
+    }
+
+    @Test
+    void zeroBid_hit_countsOnlyLoot() {
+        // A zero bid takes no tricks, so no cards are captured -> capture bonuses can't
+        // apply even if stray values were stored. Only loot: +10 * 5 + 20 * 2.
+        assertEquals(90, score(0, 0, 5, bonus(3, true, 2, 5, true, 2)));
+    }
+
+    @Test
+    void zeroBid_miss_ignoresLoot() {
+        // A failed zero bid loses 10 per card; its loot is ignored.
+        assertEquals(-50, score(0, 1, 5, bonus(0, false, 0, 0, false, 1)));
     }
 
     // --- scoreTeamRound: positive bid ---
@@ -204,6 +216,8 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
     }
 
     // --- recomputeScores: full replay through the event graph ---
+    // Single-round replays below end on the round's (still current) bonus event, which is
+    // the finishRound situation, so they pass includeCurrentRound=true to score it.
 
     @Test
     void recomputeScores_singleRound_positiveBidHitWithBonus() {
@@ -219,7 +233,7 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         stubTeamEvents(tricks, teamTricks(team, 2));
         stubTeamEvents(bonus, teamBonus(team, bonus(1, false, 0, 0, false, 0)));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
 
         // 20*2 + 10 (one standard 14) = 50.
         verify(teamUtilityService).setScore(team, 50L);
@@ -242,7 +256,7 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         stubTeamEvents(tricks, teamTricks(team, 2));
         stubTeamEvents(bonus, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
 
         // Bid 2, won 2 -> 20 * 2 = 40. The kraken changes the trick-total rule, not the score.
         verify(teamUtilityService).setScore(team, 40L);
@@ -264,7 +278,7 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         stubTeamEvents(tricks, teamTricks(team, 0));
         stubTeamEvents(bonus, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
 
         verify(teamUtilityService).setScore(team, 50L);
     }
@@ -290,7 +304,7 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         stubTeamEvents(tricks2, teamTricks(team, 0));
         stubTeamEvents(bonus2, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
 
         verify(teamUtilityService).setScore(team, 40L);
     }
@@ -300,20 +314,81 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         Team team = team();
         Session session = session(false, team);
 
-        // Round 1 complete; round 2 has bids only (not scorable yet).
+        // Round 1 finished; round 2 has bids only (not scorable yet). Round 1 now carries
+        // its bonus event, since a round without one is never finished and never scores.
         SessionEvent bids1 = bidsEvent(1, 1, id(team));
         SessionEvent tricks1 = tricksEvent(1, 1, id(team), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(team));
         SessionEvent bids2 = bidsEvent(2, 2, id(team));
-        stubAllEvents(session, bids1, tricks1, bids2);
+        stubAllEvents(session, bids1, tricks1, bonus1, bids2);
 
         stubTeamEvents(bids1, teamBid(team, 1));
         stubTeamEvents(tricks1, teamTricks(team, 1));
+        stubTeamEvents(bonus1, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
         stubTeamEvents(bids2, teamBid(team, 2));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, false);
 
         // Only round 1 scores: bid 1, won 1 -> +20. Round 2 skipped (no tricks).
         verify(teamUtilityService).setScore(team, 20L);
+    }
+
+    @Test
+    void recomputeScores_skipsRoundInTrickResultsEvenWithValues() {
+        Team team = team();
+        Session session = session(false, team);
+
+        // Round 1 finished; round 2 is in TRICK_RESULTS with values entered, but its
+        // bonus phase hasn't happened yet, so it isn't finished.
+        SessionEvent bids1 = bidsEvent(1, 1, id(team));
+        SessionEvent tricks1 = tricksEvent(1, 1, id(team), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(team));
+        SessionEvent bids2 = bidsEvent(2, 2, id(team));
+        SessionEvent inProgress2 = inProgressEvent(2, 2, id(team));
+        SessionEvent tricks2 = tricksEvent(2, 2, id(team), false);
+        stubAllEvents(session, bids1, tricks1, bonus1, bids2, inProgress2, tricks2);
+
+        stubTeamEvents(bids1, teamBid(team, 1));
+        stubTeamEvents(tricks1, teamTricks(team, 1));
+        stubTeamEvents(bonus1, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
+        stubTeamEvents(bids2, teamBid(team, 2));
+        stubTeamEvents(tricks2, teamTricks(team, 2));
+
+        // Even includeCurrentRound=true can't score a round with no bonus event.
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
+
+        verify(teamUtilityService).setScore(team, 20L);
+    }
+
+    @Test
+    void recomputeScores_openBonusPhase_skippedUnlessIncludingCurrentRound() {
+        Team team = team();
+        Session session = session(false, team);
+
+        // Round 1 finished; round 2's BONUS_POINTS is the latest (current) event.
+        SessionEvent bids1 = bidsEvent(1, 1, id(team));
+        SessionEvent tricks1 = tricksEvent(1, 1, id(team), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(team));
+        SessionEvent bids2 = bidsEvent(2, 2, id(team));
+        SessionEvent tricks2 = tricksEvent(2, 2, id(team), false);
+        SessionEvent bonus2 = bonusEvent(2, 2, id(team));
+        stubAllEvents(session, bids1, tricks1, bonus1, bids2, tricks2, bonus2);
+
+        // Round 1: bid 1, won 1 -> +20. Round 2: bid 2, won 2 -> +40.
+        stubTeamEvents(bids1, teamBid(team, 1));
+        stubTeamEvents(tricks1, teamTricks(team, 1));
+        stubTeamEvents(bonus1, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
+        stubTeamEvents(bids2, teamBid(team, 2));
+        stubTeamEvents(tricks2, teamTricks(team, 2));
+        stubTeamEvents(bonus2, teamBonus(team, bonus(0, false, 0, 0, false, 0)));
+
+        // A correction: round 2 is still open, so only round 1 counts.
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, false);
+        verify(teamUtilityService).setScore(team, 20L);
+
+        // finishRound: it is closing round 2 right now, so it counts.
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
+        verify(teamUtilityService).setScore(team, 60L);
     }
 
     @Test
@@ -331,7 +406,7 @@ public class SkullKingScoringTest extends SkullKingTestSupport {
         stubTeamEvents(tricks, teamTricks(team, 1));
         stubTeamEvents(bonus, teamBonus(team, bonus(3, true, 0, 0, false, 0)));
 
-        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session);
+        ReflectionTestUtils.invokeMethod(service, "recomputeScores", session, true);
 
         verify(teamUtilityService).setScore(team, -20L);
     }

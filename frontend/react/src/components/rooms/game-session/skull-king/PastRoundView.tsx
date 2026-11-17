@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getRoundHistory, correctBids, correctTricks, correctBonus, setKraken } from "../../../../api/skullKing";
 import { useAlertsContext } from "../../../../context/AlertsContext";
 import { useRoomContext } from "../../../../context/RoomContext";
-import { EMPTY_BONUS, bonusEligibility, type RoundHistory, type TeamBonus } from "../../../../types/skull-king";
+import { EMPTY_BONUS, bonusEligibility, expectedTrickTotal, type RoundHistory, type TeamBonus } from "../../../../types/skull-king";
 import { AdminCounterCard } from "./shared/AdminCounterCard";
 import { BonusCard } from "./shared/BonusCard";
 import { KrakenToggle } from "./shared/KrakenToggle";
@@ -93,7 +93,13 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
   };
 
   const saveBonus = async (): Promise<void> => {
-    await correctBonus(roomName, round, teams.map((t) => ({ teamId: t.teamId, ...(bonusDrafts.get(t.teamId) ?? EMPTY_BONUS) })), setErrorMessage);
+    await correctBonus(roomName, round, teams.map((t) => {
+      const draft = bonusDrafts.get(t.teamId) ?? EMPTY_BONUS;
+      // A zero bid can only earn Loot and the backend rejects anything else, so drop any
+      // stray capture values left over from before the bid was corrected to 0.
+      const lootOnly = bonusEligibility(bidValue(t.teamId), trickValue(t.teamId)).lootOnly;
+      return { teamId: t.teamId, ...(lootOnly ? { ...EMPTY_BONUS, loot: draft.loot } : draft) };
+    }), setErrorMessage);
     setEditing(null);
     await load();
   };
@@ -101,6 +107,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
   // Values shown: drafts while editing that section, otherwise the loaded round.
   const bidValue = (id: string) => editing === "bids" ? (bidDrafts.get(id) ?? 0) : (teams.find(t => t.teamId === id)?.bid ?? 0);
   const trickValue = (id: string) => editing === "tricks" ? (trickDrafts.get(id) ?? 0) : (teams.find(t => t.teamId === id)?.tricksWon ?? 0);
+  const trickDraftTotal = teams.reduce((sum, t) => sum + (trickDrafts.get(t.teamId) ?? 0), 0);
   const bonusValue = (id: string): TeamBonus => editing === "bonus" ? (bonusDrafts.get(id) ?? EMPTY_BONUS) : (teams.find(t => t.teamId === id)?.bonus ?? EMPTY_BONUS);
 
   const pseudoTeam = (t: RoundHistory["teams"][number]): TeamResponse => ({
@@ -147,6 +154,8 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
           onEdit={() => startEdit("tricks")}
           onCancel={cancelEdit}
           onSave={saveTricks}
+          // Same gate as the live tricks phase; the server still validates on save.
+          saveDisabled={editing === "tricks" && trickDraftTotal !== expectedTrickTotal(cardCount, krakenDraft)}
         >
           {advancedCards && (
             <div className="mb-3">
@@ -185,7 +194,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
         >
           <div className="flex flex-col gap-3">
             {teams.map((t) => {
-              const { eligible, reason } = bonusEligibility(bidValue(t.teamId), trickValue(t.teamId));
+              const { eligible, reason, lootOnly } = bonusEligibility(bidValue(t.teamId), trickValue(t.teamId));
               return (
                 <BonusCard
                   key={t.teamId}
@@ -193,6 +202,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                   bonus={bonusValue(t.teamId)}
                   eligible={eligible}
                   ineligibleReason={reason}
+                  lootOnly={lootOnly}
                   editable={editing === "bonus"}
                   advancedCards={advancedCards}
                   onChange={(next) => setBonusDrafts((prev) => new Map(prev).set(t.teamId, next))}
@@ -223,7 +233,7 @@ function Frame({ round, cardCount, onBack, children }: { round: number; cardCoun
 }
 
 function Section({
-  title, canEdit, editing, disabled, onEdit, onCancel, onSave, children,
+  title, canEdit, editing, disabled, onEdit, onCancel, onSave, saveDisabled = false, children,
 }: {
   title: string;
   canEdit: boolean;
@@ -232,6 +242,8 @@ function Section({
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => Promise<void>;
+  // Blocks Save while the drafts are known to be invalid (e.g. tricks don't add up).
+  saveDisabled?: boolean;
   children: React.ReactNode;
 }) {
   // Each section owns its save loading; SubmitButton clears alerts + guards spam.
@@ -252,6 +264,7 @@ function Section({
                 loading={loading}
                 setLoading={setLoading}
                 onSubmit={onSave}
+                disabled={saveDisabled}
                 className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-800 text-white disabled:opacity-40"
               />
             </div>

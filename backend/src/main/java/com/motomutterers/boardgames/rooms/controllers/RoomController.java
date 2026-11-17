@@ -140,6 +140,17 @@ public class RoomController {
         return ResponseEntity.ok().build();
     }
 
+    // Admin-only (checked in the service): open a fresh waiting room for the same
+    // table after a finished game.
+    @PostMapping("/{roomName}/return-to-room")
+    public ResponseEntity<RoomResponse> returnToRoom(
+        @PathVariable String roomName,
+        Authentication authentication
+    ) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(roomService.returnToRoom(roomName, userId));
+    }
+
     @PutMapping("/accept")
     public ResponseEntity<RoomResponse> acceptInvite(
         @RequestParam String token,
