@@ -265,10 +265,19 @@ public class SkullKingProgressionTest extends SkullKingTestSupport {
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
         when(teamSessionEventRepository.countBySessionEvent(bonus)).thenReturn(2);
         stubTeamEvents(bonus, teamBonus(a, bonus(0, false, 0, 0, false, 0)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
-        // recomputeScores reads all events; give it just this round's bids+tricks.
-        stubAllEvents(session, bidsEvent(1, 1, id(a)), tricksEvent(1, 1, id(a), false));
+        // recomputeScores reads all events; the open bonus phase is the latest event,
+        // and finishRound must still score it because it is finishing that round now.
+        SessionEvent bids = bidsEvent(1, 1, id(a));
+        SessionEvent tricks = tricksEvent(1, 1, id(a), false);
+        stubAllEvents(session, bids, tricks, bonus);
+        stubTeamEvents(bids, teamBid(a, 1), teamBid(b, 0));
+        stubTeamEvents(tricks, teamTricks(a, 1), teamTricks(b, 0));
 
         service.finishRound("room", authentication);
+
+        // a: bid 1, won 1 -> +20. b: bid 0, won 0 over 1 card -> +10.
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
 
         ArgumentCaptor<SessionEventPayload> captor = ArgumentCaptor.forClass(SessionEventPayload.class);
         verify(sessionEventService).createSessionEvent(eq(session), eq(SessionEventType.BIDS), captor.capture());
@@ -290,10 +299,16 @@ public class SkullKingProgressionTest extends SkullKingTestSupport {
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
         when(teamSessionEventRepository.countBySessionEvent(bonus)).thenReturn(1);
         stubTeamEvents(bonus, teamBonus(a, bonus(0, false, 0, 0, false, 0)));
-        stubAllEvents(session, bidsEvent(10, 8, id(a)), tricksEvent(10, 8, id(a), false));
+        SessionEvent bids = bidsEvent(10, 8, id(a));
+        SessionEvent tricks = tricksEvent(10, 8, id(a), false);
+        stubAllEvents(session, bids, tricks, bonus);
+        stubTeamEvents(bids, teamBid(a, 0));
+        stubTeamEvents(tricks, teamTricks(a, 0));
 
         service.finishRound("room", authentication);
 
+        // The final round is scored before the session completes: bid 0, won 0 over 8 cards -> +80.
+        verify(teamUtilityService).setScore(a, 80L);
         verify(sessionUtilitysService).completeSession(session);
         verify(roomsUtilityService).changeRoomStatus(session.getRoom(), RoomStatus.COMPLETED);
         verify(sessionEventService, never()).createSessionEvent(any(), eq(SessionEventType.BIDS), any());

@@ -34,6 +34,7 @@ import com.motomutterers.boardgames.rooms.exceptions.RoomInvitationTokenUsedExce
 import com.motomutterers.boardgames.rooms.model.Invitation.RoomInvitationToken;
 import com.motomutterers.boardgames.rooms.model.Room.Room;
 import com.motomutterers.boardgames.rooms.model.Room.RoomConfiguration;
+import com.motomutterers.boardgames.rooms.model.Room.RoomStatus;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUser;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserRoles;
 import com.motomutterers.boardgames.rooms.model.Room.RoomUserStatus;
@@ -136,6 +137,81 @@ public class RoomService {
         response = new RoomResponse(room);
 
         return response;
+    }
+
+    // "Return to room": after a finished game, open a fresh WAITING room for the same table,
+    // with the same players (ACTIVE, same seats), same configuration, same admin. Idempotent: a
+    // repeated call (double tap, lost response on a poor connection) returns the room already
+    // created, as long as it's still live.
+    @Transactional
+    public RoomResponse returnToRoom(String roomName, UUID adminId){
+        logger.info("Return to room {} requested by {}", roomName, adminId);
+
+        User admin = userService.getUserById(adminId);
+        Room old = roomsUtilityService.getRoomByName(roomName);
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(old, admin);
+
+        if(old.getStatus() != RoomStatus.COMPLETED){
+            throw new BadActionException("You can only return to the room after the game has finished");
+        }
+
+        // A live next room means this is a retry: hand back the same room. A cancelled or
+        // expired one is stale, so fall through and replace the pointer with a fresh room.
+        Room existing = old.getNextRoom();
+        if(existing != null
+            && (existing.getStatus() == RoomStatus.WAITING || existing.getStatus() == RoomStatus.IN_PROGRESS)){
+            return new RoomResponse(existing);
+        }
+
+        // The admin may have joined another room since the game ended.
+        roomsUtilityService.throwIsUserInActiveRoom(admin);
+
+        String name = generateRoomName(admin.getUsername(), old.getGame().getName());
+        // Copy the configuration rather than sharing the instance, so the two rooms' JSONB
+        // values can never alias each other.
+        RoomConfiguration oldConfig = old.getConfiguration();
+        RoomConfiguration configCopy = oldConfig == null
+            ? new RoomConfiguration()
+            : new RoomConfiguration(oldConfig.getTrackingMode(), oldConfig.getAdvancedCards());
+        Room next = new Room(old.getGame(), name, configCopy);
+        roomRepository.save(next);
+
+        // Re-seat the table in the same order. Positions come from a running counter so they
+        // stay contiguous (0..n-1) even when someone is skipped.
+        List<RoomUser> seated = old.getPlayers().stream()
+            .filter(p -> p.getStatus() == RoomUserStatus.ACTIVE)
+            .sorted(Comparator.comparingInt(RoomUser::getPlayingPosition))
+            .toList();
+        int position = 0;
+        for(RoomUser p : seated){
+            RoomUser ru;
+            switch(p.getRole()){
+                case ADMIN -> ru = new RoomUser(admin, next, RoomUserRoles.ADMIN, position++);
+                case ANONYMOUS -> ru = new RoomUser(p.getDisplayName(), next, position++);
+                default -> {
+                    User user = p.getUser();
+                    // Players who deleted their account or are already in another live
+                    // room can't be seated (one active room per user); the client tells
+                    // the admin who was left out.
+                    if(user == null || user.isDeleted() || roomsUtilityService.getIsUserInActiveRoom(user)){
+                        continue;
+                    }
+                    ru = new RoomUser(user, next, RoomUserRoles.PLAYER, position++);
+                }
+            }
+            next.addPlayer(ru);
+            roomUserRepository.save(ru);
+        }
+
+        old.setNextRoom(next);
+        roomRepository.save(old);
+        roomsUtilityService.updateRoomLastUpdated(next);
+
+        // Clients still on the old room's final scoreboard get its RoomResponse, now with
+        // nextRoomName, and can follow the table into the new room.
+        eventPublisher.publishEvent(new RoomUpdatedEvent(old.getName()));
+
+        return new RoomResponse(next);
     }
 
     @Transactional

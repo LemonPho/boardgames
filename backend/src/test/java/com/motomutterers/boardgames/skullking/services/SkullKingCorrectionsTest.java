@@ -160,6 +160,41 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
             () -> service.correctBids("room", 2, bidsReq(bidVal(a, 1)), authentication));
     }
 
+    @Test
+    void correctBids_duringUnfinishedRound_scoresFinishedRoundsOnly() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+
+        // Round 1 finished (bonus followed by round 2 BIDS); round 2 is in TRICK_RESULTS
+        // with values already entered.
+        SessionEvent bids1 = bidsEvent(1, 1, id(a));
+        SessionEvent tricks1 = tricksEvent(1, 1, id(a), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(a));
+        SessionEvent bids2 = bidsEvent(2, 2, id(b));
+        SessionEvent inProgress2 = inProgressEvent(2, 2, id(b));
+        SessionEvent tricks2 = tricksEvent(2, 2, id(b), false);
+        stubAllEvents(session, bids1, tricks1, bonus1, bids2, inProgress2, tricks2);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(teamUtilityService.getOrThrowTeamById(id(b))).thenReturn(b);
+
+        // The mocked upsert doesn't persist, so stub the corrected round-1 values directly.
+        stubTeamEvents(bids1, teamBid(a, 1), teamBid(b, 0));
+        stubTeamEvents(tricks1, teamTricks(a, 1), teamTricks(b, 0));
+        stubTeamEvents(bonus1, teamBonus(a, bonus(0, false, 0, 0, false, 0)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+        stubTeamEvents(bids2, teamBid(a, 2), teamBid(b, 0));
+        stubTeamEvents(tricks2, teamTricks(a, 2), teamTricks(b, 0));
+
+        service.correctBids("room", 1, bidsReq(bidVal(a, 1), bidVal(b, 0)), authentication);
+
+        // Round 1 only: a bid 1 won 1 -> +20; b bid 0 won 0 over 1 card -> +10.
+        // Round 2 (a +40, b +20 if it counted) is excluded.
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+    }
+
     // --- correctTricks ---
 
     @Test
@@ -311,6 +346,73 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
     }
 
     @Test
+    void correctBonus_madeZeroBidWithLoot_upserts() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = correctionSession(admin, authentication, a, b);
+
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        stubAllEvents(session, bids, tricks, bonus);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(teamUtilityService.getOrThrowTeamById(id(b))).thenReturn(b);
+        // a made a zero bid (LOOT_ONLY) and allied with b, who made 5. Loot pairs up (1 + 1).
+        stubTeamEvents(bids, teamBid(a, 0), teamBid(b, 5));
+        stubTeamEvents(tricks, teamTricks(a, 0), teamTricks(b, 5));
+
+        service.correctBonus("room", 1,
+            bonusReq(bonusVal(a, 0, false, 0, 0, false, 1), bonusVal(b, 0, false, 0, 0, false, 1)),
+            authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any());
+    }
+
+    @Test
+    void correctBonus_madeZeroBidWithNonLootBonus_throws() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = correctionSession(admin, authentication, a);
+
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        stubAllEvents(session, bids, tricks, bonus);
+        stubTeamEvents(bids, teamBid(a, 0));
+        stubTeamEvents(tricks, teamTricks(a, 0));
+
+        // A zero bid captured nothing, so the black 14 is impossible -> reject.
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.correctBonus("room", 1, bonusReq(bonusVal(a, 0, true, 0, 0, false, 0)), authentication));
+        assertEquals("A zero bid can only earn Loot bonus points", ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void correctBonus_missedBidWithLoot_throws() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = correctionSession(admin, authentication, a);
+
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        stubAllEvents(session, bids, tricks, bonus);
+        // Missed zero bid (0 != 2): NONE, so even Loot is rejected.
+        stubTeamEvents(bids, teamBid(a, 0));
+        stubTeamEvents(tricks, teamTricks(a, 2));
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.correctBonus("room", 1, bonusReq(bonusVal(a, 0, false, 0, 0, false, 1)), authentication));
+        assertEquals("A team can only earn bonus points if it made a bid of one or more", ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void correctBonus_oddLootTotal_throws() {
         User admin = user();
         Authentication authentication = auth();
@@ -353,5 +455,36 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
                 bonusReq(bonusVal(a, 0, true, 0, 0, false, 0), bonusVal(b, 0, true, 0, 0, false, 0)),
                 authentication));
         verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void correctBonus_whileLaterBonusPhaseOpen_doesNotScoreOpenRound() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = correctionSession(admin, authentication, a);
+
+        // Round 1 finished; round 2's BONUS_POINTS is the latest (current) event.
+        SessionEvent bids1 = bidsEvent(1, 1, id(a));
+        SessionEvent tricks1 = tricksEvent(1, 1, id(a), false);
+        SessionEvent bonus1 = bonusEvent(1, 1, id(a));
+        SessionEvent bids2 = bidsEvent(2, 2, id(a));
+        SessionEvent tricks2 = tricksEvent(2, 2, id(a), false);
+        SessionEvent bonus2 = bonusEvent(2, 2, id(a));
+        stubAllEvents(session, bids1, tricks1, bonus1, bids2, tricks2, bonus2);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+
+        stubTeamEvents(bids1, teamBid(a, 1));
+        stubTeamEvents(tricks1, teamTricks(a, 1));
+        // Mocked upsert doesn't persist; stub round 1's corrected bonus (one standard 14).
+        stubTeamEvents(bonus1, teamBonus(a, bonus(1, false, 0, 0, false, 0)));
+        stubTeamEvents(bids2, teamBid(a, 2));
+        stubTeamEvents(tricks2, teamTricks(a, 2));
+        stubTeamEvents(bonus2, teamBonus(a, bonus(0, false, 0, 0, false, 0)));
+
+        service.correctBonus("room", 1, bonusReq(bonusVal(a, 1, false, 0, 0, false, 0)), authentication);
+
+        // Round 1 only: 20 * 1 + 10 = 30. Round 2 (+40) isn't finished yet.
+        verify(teamUtilityService).setScore(a, 30L);
     }
 }

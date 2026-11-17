@@ -320,6 +320,78 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
     }
 
     @Test
+    void submitBonusPoints_madeZeroBidWithLoot_upserts() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a);
+
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        // Made zero bid (0 == 0): LOOT_ONLY, so a Loot alliance is accepted.
+        stubTeamEvents(bids, teamBid(a, 0));
+        stubTeamEvents(tricks, teamTricks(a, 0));
+
+        service.submitBonusPoints("room", bonusReq(a, 0, false, 0, 0, false, 1), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any());
+    }
+
+    @Test
+    void submitBonusPoints_madeZeroBidWithNonLootBonus_throws() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a);
+
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubTeamEvents(bids, teamBid(a, 0));
+        stubTeamEvents(tricks, teamTricks(a, 0));
+
+        // A zero bid captured nothing, so a 14 is impossible -> reject.
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBonusPoints("room", bonusReq(a, 1, false, 0, 0, false, 0), authentication));
+        assertEquals("A zero bid can only earn Loot bonus points", ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitBonusPoints_missedBidWithLoot_throws() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a);
+
+        SessionEvent bonus = bonusEvent(1, 5, id(a));
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        SessionEvent tricks = tricksEvent(1, 5, id(a), false);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        // Missed bid (2 != 1): NONE, so even Loot is rejected with the existing message.
+        stubTeamEvents(bids, teamBid(a, 2));
+        stubTeamEvents(tricks, teamTricks(a, 1));
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBonusPoints("room", bonusReq(a, 0, false, 0, 0, false, 1), authentication));
+        assertEquals("This team can't earn bonus points — they must make a bid of one or more", ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
     void submitBonusPoints_ineligibleTeamWithNoBonus_allowed() {
         User user = user();
         Authentication authentication = auth();

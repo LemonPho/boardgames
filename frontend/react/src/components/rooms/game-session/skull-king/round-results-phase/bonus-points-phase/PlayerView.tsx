@@ -10,10 +10,10 @@ export default function PlayerView() {
   if (!currentPlayer || !currentPlayer.team) return null;
 
   const teamId = currentPlayer.team.id;
-  const { eligible, reason } = bonusEligibilityFor(teamId);
+  const { eligible, reason, lootOnly } = bonusEligibilityFor(teamId);
 
   return (
-    <div className="p-4">
+    <div>
       <div className="text-center mb-1">
         <span className="text-sm text-neutral-500 dark:text-neutral-400">
           Round {round} · {cardCount} cards
@@ -26,6 +26,7 @@ export default function PlayerView() {
         bonus={bonuses[teamId] ?? EMPTY_BONUS}
         eligible={eligible}
         ineligibleReason={reason}
+        lootOnly={lootOnly}
         editable={canEdit(teamId)}
         advancedCards={advancedCards}
         status={bonusStatus(teamId)}

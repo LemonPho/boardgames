@@ -1,19 +1,16 @@
-import { useState } from "react";
 import { useRoundData } from "../../../../../../context/RoundDataContext";
 import { AdminCounterCard } from "../../shared/AdminCounterCard";
 import { KrakenToggle } from "../../shared/KrakenToggle";
-import SubmitButton from "../../../../../util/SubmitButton";
 
 export default function AdminView() {
-  const { teams, trickResults, cardCount, canEdit, trickStatus, setTricks, advance, advanceLabel, krakenPlayed, setKrakenPlayed, startingTeamId, advancedCards } = useRoundData();
-  const [loading, setLoading] = useState(false);
+  const { teams, trickResults, cardCount, canEdit, trickStatus, setTricks, advance, krakenPlayed, setKrakenPlayed, startingTeamId, advancedCards } = useRoundData();
 
   // The Kraken is a round-level fact registered by the admin; `advance` is the
   // admin-only signal for the live round.
   const isAdmin = advance !== null;
 
   return (
-    <div className="p-4">
+    <div>
       <h2 className="text-lg font-medium text-center mb-6">Tricks won</h2>
 
       {advancedCards && (
@@ -37,16 +34,6 @@ export default function AdminView() {
           />
         ))}
       </div>
-
-      {advance && (
-        <SubmitButton
-          text={advanceLabel ?? "Continue"}
-          loading={loading}
-          setLoading={setLoading}
-          onSubmit={advance}
-          className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
-        />
-      )}
     </div>
   );
 }

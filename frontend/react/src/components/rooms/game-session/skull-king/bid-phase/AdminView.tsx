@@ -1,14 +1,11 @@
-import { useState } from "react";
 import { useRoundData } from "../../../../../context/RoundDataContext";
 import { AdminCounterCard } from "../shared/AdminCounterCard";
-import SubmitButton from "../../../../util/SubmitButton";
 
 export default function AdminView() {
-  const { teams, bids, cardCount, canEdit, bidStatus, setBid, advance, advanceLabel, startingTeamId } = useRoundData();
-  const [loading, setLoading] = useState(false);
+  const { teams, bids, cardCount, canEdit, bidStatus, setBid, startingTeamId } = useRoundData();
 
   return (
-    <div className="p-4">
+    <div>
       <h2 className="text-lg font-medium text-center mb-6">Bids</h2>
       <div className="grid grid-cols-2 gap-3 mb-4">
         {teams.map((team) => (
@@ -25,16 +22,6 @@ export default function AdminView() {
           />
         ))}
       </div>
-
-      {advance && (
-        <SubmitButton
-          text={advanceLabel ?? "Continue"}
-          loading={loading}
-          setLoading={setLoading}
-          onSubmit={advance}
-          className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
-        />
-      )}
     </div>
   );
 }

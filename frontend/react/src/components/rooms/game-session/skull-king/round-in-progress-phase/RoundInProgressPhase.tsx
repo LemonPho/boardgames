@@ -1,59 +1,26 @@
-import { useState } from "react";
 import { useRoomContext } from "../../../../../context/RoomContext";
 import { useSkullKingSessionContext } from "../../../../../context/SkullKingSessionContext";
-import { useAlertsContext } from "../../../../../context/AlertsContext";
-import { startTrickResults } from "../../../../../api/skullKing";
 import { MyBidCard } from "../shared/MyBidCard";
-import SubmitButton from "../../../../util/SubmitButton";
 
+// The admin's "Enter trick results" lives in the session's AdminActionBar
+// (RoundData.advance), so this phase only shows the player's own bid.
 export default function RoundInProgressPhase() {
   const { room, currentPlayer } = useRoomContext();
-  const { state, refreshState } = useSkullKingSessionContext();
-  const { setErrorMessage, clearAlerts } = useAlertsContext();
-  const [loading, setLoading] = useState(false);
+  const { state } = useSkullKingSessionContext();
 
   if (!room || !currentPlayer || !state) return null;
 
-  const isAdmin = currentPlayer.role === "ADMIN";
   const bids = state.bids ?? {};
   const myBid = currentPlayer.team ? bids[currentPlayer.team.id] ?? null : null;
 
-  const handleStartTrickResults = async (): Promise<void> => {
-    try {
-      await startTrickResults(room.name, setErrorMessage);
-    } catch (error) {
-      // On a flaky connection the server may have advanced while the response was
-      // lost, so a retry errors with "wrong phase". Re-sync: if we've moved past
-      // IN_PROGRESS the transition already worked, so drop the error.
-      const fresh = await refreshState();
-      if (fresh && fresh.gameState !== "IN_PROGRESS") {
-        clearAlerts();
-        return;
-      }
-      throw error;
-    }
-  }
-
   return (
     <div className="p-4 max-w-md mx-auto">
-      <div className="mb-4">
-        <MyBidCard
-          round={state.round}
-          cardCount={state.cardCount}
-          bid={myBid}
-          leads={currentPlayer.team ? currentPlayer.team.id === state.startingTeamId : false}
-        />
-      </div>
-
-      {isAdmin && (
-        <SubmitButton
-          text="Enter trick results"
-          loading={loading}
-          setLoading={setLoading}
-          onSubmit={handleStartTrickResults}
-          className="w-full h-11 rounded-lg text-sm font-medium bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 disabled:opacity-40 transition active:scale-[0.98]"
-        />
-      )}
+      <MyBidCard
+        round={state.round}
+        cardCount={state.cardCount}
+        bid={myBid}
+        leads={currentPlayer.team ? currentPlayer.team.id === state.startingTeamId : false}
+      />
     </div>
   );
 }

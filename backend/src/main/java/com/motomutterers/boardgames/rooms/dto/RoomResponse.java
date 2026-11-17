@@ -24,6 +24,9 @@ public class RoomResponse {
     private LocalDateTime startedAt;
     private LocalDateTime endedAt;
     private LocalDateTime createdAt;
+    // Set once the admin pressed "Return to room" on this finished room: the room the
+    // table continued in, so players still on the final scoreboard can follow.
+    private String nextRoomName;
 
     public RoomResponse(){}
 
@@ -44,6 +47,7 @@ public class RoomResponse {
         this.startedAt = room.getStartedAt();
         this.endedAt = room.getEndedAt();
         this.createdAt = room.getCreatedAt();
+        this.nextRoomName = room.getNextRoom() == null ? null : room.getNextRoom().getName();
     }
 
     public String getName(){
@@ -80,6 +84,10 @@ public class RoomResponse {
 
     public LocalDateTime getCreatedAt(){
         return createdAt;
+    }
+
+    public String getNextRoomName(){
+        return nextRoomName;
     }
 
     public void setName(String name){

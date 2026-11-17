@@ -101,9 +101,10 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
       p.role != "ANONYMOUS" && p.user?.username === user.username
     );
 
-    if (me) {
-      setCurrentPlayer(me);
-    }
+    // Clear when the user isn't in this room (e.g. after navigating to a recreated room
+    // they were skipped from, or being removed) so a stale membership from the
+    // previous room is never shown.
+    setCurrentPlayer(me ?? null);
   }, [room, user])
 
   return (
@@ -117,4 +118,10 @@ export function useRoomContext() {
   const ctx = useContext(RoomContext);
   if (!ctx) throw new Error("Room context failed");
   return ctx;
+}
+
+// For components rendered both inside and outside a room (e.g. FinalScoreboard): null when
+// there's no RoomContextProvider above.
+export function useOptionalRoomContext() {
+  return useContext(RoomContext);
 }

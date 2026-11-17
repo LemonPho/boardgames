@@ -56,6 +56,11 @@ public class Room {
     @Column(insertable = false, updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
+    // The room this one's table continued in via "Return to room" (null if none).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "next_room_id")
+    private Room nextRoom;
+
     public Room(){}
 
     public Room(
@@ -115,6 +120,10 @@ public class Room {
         return createdAt;
     }
 
+    public Room getNextRoom(){
+        return nextRoom;
+    }
+
     public void setGame(Game game){
         this.game = game;
     }
@@ -145,5 +154,9 @@ public class Room {
 
     public void setLastUpdated(LocalDateTime lastUpdated){
         this.lastUpdated = lastUpdated;
+    }
+
+    public void setNextRoom(Room nextRoom){
+        this.nextRoom = nextRoom;
     }
 }
