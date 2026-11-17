@@ -94,27 +94,27 @@ public class SkullKingStateBuilder {
         SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElse(null);
         Map<UUID, Integer> bids = buildBidsMap(bidsEvent, roomUser, isAdmin);
 
-        switch(currentEvent.getType()){
-            case BIDS:
-                return new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
-            case IN_PROGRESS:
-                return new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
-            case TRICK_RESULTS: {
+        SkullKingStateResponse response = switch(currentEvent.getType()){
+            case BIDS, IN_PROGRESS -> new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
+            case TRICK_RESULTS -> {
                 Map<UUID, Integer> trickResults = buildTrickResultsMap(currentEvent, roomUser, isAdmin);
                 boolean krakenPlayed = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
-                return new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, krakenPlayed);
+                yield new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, krakenPlayed);
             }
-            case BONUS_POINTS: {
+            case BONUS_POINTS -> {
                 SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElse(null);
                 Map<UUID, Integer> trickResults = trickResultsEvent == null
                     ? Map.of()
                     : buildTrickResultsMap(trickResultsEvent, roomUser, isAdmin);
                 Map<UUID, TeamBonusResponse> bonuses = buildBonusMap(currentEvent, roomUser, isAdmin);
-                return new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses);
+                yield new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses);
             }
-            default:
-                return new SkullKingStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams);
-        }
+        };
+
+        // The BIDS event id changes on a new round and on a reset (which recreates it), so
+        // clients key round-local drafts on it rather than on the round number.
+        response.setRoundKey(bidsEvent == null ? null : bidsEvent.getId().toString());
+        return response;
     }
 
     private Map<UUID, Integer> buildBidsMap(SessionEvent bidsEvent, RoomUser roomUser, boolean isAdmin){

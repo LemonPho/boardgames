@@ -21,6 +21,9 @@ export interface SkullKingState {
   trickResults?: Record<string, number>;
   bonuses?: Record<string, TeamBonus>;
   krakenPlayed?: boolean;
+  // Identity of the current round's BIDS event: changes on a new round AND on a reset, so
+  // clients can drop round-local drafts.
+  roundKey?: string | null;
 }
 
 export const EMPTY_BONUS: TeamBonus = {

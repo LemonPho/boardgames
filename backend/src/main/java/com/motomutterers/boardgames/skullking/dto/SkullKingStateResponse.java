@@ -11,6 +11,9 @@ public class SkullKingStateResponse {
     private int cardCount;
     private String startingTeamId;
     private List<TeamResponse> teams;
+    // Identity of the current round's BIDS event: changes on a new round AND on a reset, so
+    // clients can drop round-local drafts.
+    private String roundKey;
 
     public SkullKingStateResponse(
         SessionEventType gameState,
@@ -31,4 +34,7 @@ public class SkullKingStateResponse {
     public int getCardCount(){return this.cardCount;}
     public String getStartingTeamId(){return this.startingTeamId;}
     public List<TeamResponse> getTeams(){return this.teams;}
+    public String getRoundKey(){return this.roundKey;}
+
+    public void setRoundKey(String roundKey){this.roundKey = roundKey;}
 }

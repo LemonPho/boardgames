@@ -736,6 +736,49 @@ public class SkullKingService {
         publishStateChanged(room, session);
     }
 
+    // Discards everything entered for the CURRENT round and restarts it at BIDS with the same
+    // round number, card count and leader: for a misdeal that was played through. Finished
+    // rounds can't be reset (they're corrected via the corrections endpoints instead).
+    @Transactional
+    public void resetRound(String roomName, Authentication authentication){
+        User user = userService.getAuthenticatedUser(authentication);
+        Room room = roomsUtilityService.getRoomByName(roomName);
+
+        roomsUtilityService.throwIfUserIsNotRoomAdmin(room, user);
+
+        // In-progress sessions only, so a completed game's last round can't be reset.
+        Session session = sessionUtilitysService.getOrThrowSessionByRoom(room);
+
+        SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
+        int round = eventRound(currentEvent);
+
+        List<SessionEvent> events = sessionEventService.findAllEvents(session);
+        List<SessionEvent> roundEvents = events.stream()
+            .filter(event -> eventRound(event) == round)
+            .toList();
+
+        // The round's BIDS event carries the card count and leader to restart with. Taking
+        // them from it (rather than recomputing) keeps the restarted round identical.
+        SessionEvent bidsEvent = findRoundEvent(events, round, SessionEventType.BIDS);
+        if(bidsEvent == null){
+            throw new BadActionException("The current round has no bidding phase to reset to");
+        }
+        SessionEventPayload.Bids bidsPhase = objectMapper.readValue(bidsEvent.getPayload(), SessionEventPayload.Bids.class);
+
+        // Flushed inside deleteEvents, so the new event's max(sequence)+1 continues from the
+        // previous round's last event and ordering stays correct.
+        sessionEventService.deleteEvents(roundEvents);
+        sessionEventService.createSessionEvent(
+            session,
+            SessionEventType.BIDS,
+            new SessionEventPayload.Bids(round, bidsPhase.cardCount(), bidsPhase.startingTeamId()));
+
+        // The current round was never scored (only finished rounds are), so this is defensive.
+        recomputeScores(session, false);
+
+        publishStateChanged(room, session);
+    }
+
     private void completeSession(Session session, Room room){
         sessionUtilitysService.completeSession(session);
         roomsUtilityService.changeRoomStatus(room, RoomStatus.COMPLETED);

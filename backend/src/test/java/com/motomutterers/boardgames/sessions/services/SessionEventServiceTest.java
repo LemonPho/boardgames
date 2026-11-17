@@ -11,9 +11,11 @@ import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventPayload;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.motomutterers.boardgames.sessions.repositories.SessionEventRepository;
+import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.*;
 public class SessionEventServiceTest {
 
     @Mock private SessionEventRepository sessionEventRepository;
+    @Mock private TeamSessionEventRepository teamSessionEventRepository;
     @Mock private RoomsUtilityService roomsUtilityService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -38,7 +41,7 @@ public class SessionEventServiceTest {
     @BeforeEach
     void setUp() {
         // Real ObjectMapper so JSON (de)serialization is exercised, not mocked.
-        sessionEventService = new SessionEventService(sessionEventRepository, roomsUtilityService, objectMapper);
+        sessionEventService = new SessionEventService(sessionEventRepository, teamSessionEventRepository, roomsUtilityService, objectMapper);
     }
 
     // helpers
@@ -152,5 +155,25 @@ public class SessionEventServiceTest {
         assertTrue(event.getPayload().contains("\"startingTeamId\":\"team-9\""));
         verify(sessionEventRepository).save(event);
         verify(roomsUtilityService).updateRoomLastUpdated(session.getRoom());
+    }
+
+    // --- deleteEvents ---
+
+    @Test
+    void deleteEvents_deletesTeamRowsPerEvent_thenEvents_thenFlushes() {
+        Session session = session();
+        SessionEvent bids = new SessionEvent(session, SessionEventType.BIDS, 4, "{}");
+        SessionEvent inProgress = new SessionEvent(session, SessionEventType.IN_PROGRESS, 5, "{}");
+        List<SessionEvent> events = List.of(bids, inProgress);
+
+        sessionEventService.deleteEvents(events);
+
+        // The flush must come last: the next createSessionEvent computes max(sequence)+1 with
+        // a query, which has to see the deletions.
+        InOrder inOrder = inOrder(teamSessionEventRepository, sessionEventRepository);
+        inOrder.verify(teamSessionEventRepository).deleteBySessionEvent(bids);
+        inOrder.verify(teamSessionEventRepository).deleteBySessionEvent(inProgress);
+        inOrder.verify(sessionEventRepository).deleteAll(events);
+        inOrder.verify(sessionEventRepository).flush();
     }
 }

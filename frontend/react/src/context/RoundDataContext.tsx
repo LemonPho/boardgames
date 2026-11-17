@@ -63,6 +63,10 @@ export interface RoundData {
   advanceLabel: string | null;
   // Admin advance is blocked (e.g. tricks don't add up). The button should render disabled.
   advanceDisabled: boolean;
+
+  // Render the admin-style (all teams) phase UI. False for players, and for an admin who
+  // switched to Player view in a SELF room.
+  showAdminView: boolean;
 }
 
 const RoundDataContext = createContext<RoundData | null>(null);
@@ -76,7 +80,15 @@ const MAX_ROUNDS = 10;
  * Feeds RoundData from the live session: reshapes SkullKingSessionContext.state,
  * owns the drafts + debounced saves, and wires the phase-advance action.
  */
-export function LiveRoundDataProvider({ children }: { children: React.ReactNode }) {
+export function LiveRoundDataProvider({
+  children,
+  viewAsPlayer = false,
+}: {
+  children: React.ReactNode;
+  // Admin's Player view (SELF rooms): only changes what's rendered; editing rights,
+  // the advance action and the received state stay the admin's.
+  viewAsPlayer?: boolean;
+}) {
   const { state, refreshState } = useSkullKingSessionContext();
   const { room, currentPlayer } = useRoomContext();
   const { setErrorMessage, clearAlerts } = useAlertsContext();
@@ -270,6 +282,7 @@ export function LiveRoundDataProvider({ children }: { children: React.ReactNode 
     advance,
     advanceLabel,
     advanceDisabled,
+    showAdminView: isAdmin && !viewAsPlayer,
   };
 
   return <RoundDataContext.Provider value={value}>{children}</RoundDataContext.Provider>;

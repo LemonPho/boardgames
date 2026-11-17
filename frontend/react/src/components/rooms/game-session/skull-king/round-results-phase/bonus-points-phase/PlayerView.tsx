@@ -2,6 +2,7 @@ import { useRoomContext } from "../../../../../../context/RoomContext";
 import { useRoundData } from "../../../../../../context/RoundDataContext";
 import { EMPTY_BONUS } from "../../../../../../types/skull-king";
 import { BonusCard } from "../../shared/BonusCard";
+import AnonymousTeamsSection from "../../shared/AnonymousTeamsSection";
 
 export default function PlayerView() {
   const { currentPlayer } = useRoomContext();
@@ -11,6 +12,8 @@ export default function PlayerView() {
 
   const teamId = currentPlayer.team.id;
   const { eligible, reason, lootOnly } = bonusEligibilityFor(teamId);
+  // An admin here is in Player view (SELF room); they still enter anonymous players' values.
+  const isAdmin = currentPlayer.role === "ADMIN";
 
   return (
     <div>
@@ -32,6 +35,7 @@ export default function PlayerView() {
         status={bonusStatus(teamId)}
         onChange={(next) => setBonus(teamId, next)}
       />
+      {isAdmin && <AnonymousTeamsSection phase="bonus" />}
     </div>
   );
 }
