@@ -24,6 +24,9 @@ export interface SkullKingState {
   // Identity of the current round's BIDS event: changes on a new round AND on a reset, so
   // clients can drop round-local drafts.
   roundKey?: string | null;
+  // Id of the current phase event. Saves send the id they were made in, so the server can
+  // accept a change for the phase that just closed within its 1 s grace window.
+  phaseEventId?: string;
 }
 
 export const EMPTY_BONUS: TeamBonus = {

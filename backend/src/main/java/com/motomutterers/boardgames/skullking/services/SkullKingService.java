@@ -1,5 +1,7 @@
 package com.motomutterers.boardgames.skullking.services;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -56,6 +58,11 @@ public class SkullKingService {
     // and White Whale (+4). Deck size caps how many cards each player can be dealt.
     private static final int BASE_DECK_SIZE = 70;
     private static final int ADVANCED_DECK_SIZE = 74;
+
+    // How long after a transition a submit for the phase that just closed is still accepted.
+    // Measured on the server (the next phase event's createdAt), never from client clocks.
+    private static final Duration PHASE_GRACE = Duration.ofSeconds(1);
+    private static final String PHASE_MOVED_ON_MESSAGE = "The phase moved on — your change wasn't saved";
 
     // Which bonuses a team may earn for a round. LOOT_ONLY covers a made zero bid: it
     // won no tricks so it captured nothing, but a Loot alliance needs no won trick.
@@ -489,6 +496,33 @@ public class SkullKingService {
         };
     }
 
+    // The phase event a submit writes to: the live phase, or (within PHASE_GRACE of the
+    // transition) the phase that just closed. Never older phases. A player's save can leave
+    // their device before the admin advances yet arrive after it; this keeps that tap.
+    // A null phaseEventId is the legacy contract: the live phase only.
+    private SessionEvent resolveSubmitTarget(Session session, SessionEventType expectedType, String phaseEventId, String wrongPhaseMessage){
+        SessionEvent current = sessionEventService.getOrThrowCurrentEvent(session);
+        if(phaseEventId == null || phaseEventId.equals(String.valueOf(current.getId()))){
+            if(!current.getType().equals(expectedType)){
+                throw new BadActionException(wrongPhaseMessage);
+            }
+            return current;
+        }
+
+        SessionEvent target = sessionEventService.findAllEvents(session).stream()
+            .filter(event -> event.getId() != null && event.getId().toString().equals(phaseEventId))
+            .findFirst()
+            .orElseThrow(() -> new BadActionException(PHASE_MOVED_ON_MESSAGE));
+
+        boolean withinGrace = !LocalDateTime.now().isAfter(current.getCreatedAt().plus(PHASE_GRACE));
+        if(!target.getType().equals(expectedType)
+            || target.getSequence() != current.getSequence() - 1
+            || !withinGrace){
+            throw new BadActionException(PHASE_MOVED_ON_MESSAGE);
+        }
+        return target;
+    }
+
     @Transactional
     public void submitBid(String roomName, SubmitBidRequest request, Authentication authentication){
         User user = userService.getAuthenticatedUser(authentication);
@@ -499,19 +533,19 @@ public class SkullKingService {
 
         throwIfUserCantSubmitForTeam(room, roomUser, team);
 
-        SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
-        if(!currentEvent.getType().equals(SessionEventType.BIDS)){
-            throw new BadActionException("Bids can only be submitted during the bidding phase");
-        }
+        // A late bid (within the grace window) only overwrites the server-prefilled 0 or the
+        // team's earlier bid; nothing about the closed phase depends on the bid values.
+        SessionEvent targetEvent = resolveSubmitTarget(session, SessionEventType.BIDS, request.getPhaseEventId(),
+            "Bids can only be submitted during the bidding phase");
 
-        SessionEventPayload.Bids bidsPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.Bids.class);
+        SessionEventPayload.Bids bidsPhase = objectMapper.readValue(targetEvent.getPayload(), SessionEventPayload.Bids.class);
         if(request.getBid() < 0 || request.getBid() > bidsPhase.cardCount()){
             throw new BadActionException("Bid must be between 0 and " + bidsPhase.cardCount());
         }
 
         teamSessionEventService.upsertTeamSessionEvent(
             session,
-            currentEvent,
+            targetEvent,
             team,
             TeamSessionEventType.BIDS,
             new TeamSessionEventPayload.Bids(request.getBid()));
@@ -530,11 +564,11 @@ public class SkullKingService {
         throwIfUserCantSubmitForTeam(room, roomUser, team);
 
         SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
-        if(!currentEvent.getType().equals(SessionEventType.TRICK_RESULTS)){
-            throw new BadActionException("Trick results can only be submitted during the trick results phase");
-        }
+        SessionEvent targetEvent = resolveSubmitTarget(session, SessionEventType.TRICK_RESULTS, request.getPhaseEventId(),
+            "Trick results can only be submitted during the trick results phase");
+        boolean late = targetEvent != currentEvent;
 
-        SessionEventPayload.TrickResults trickResultsPhase = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class);
+        SessionEventPayload.TrickResults trickResultsPhase = objectMapper.readValue(targetEvent.getPayload(), SessionEventPayload.TrickResults.class);
         int cardCount = trickResultsPhase.cardCount();
         if(request.getTricksWon() < 0 || request.getTricksWon() > cardCount){
             throw new BadActionException("Tricks won must be between 0 and " + cardCount);
@@ -542,17 +576,24 @@ public class SkullKingService {
 
         // Exclude this team's own existing value: a correction replaces it rather
         // than adding to the running total.
-        int tricksByOthers = sumTricksWon(currentEvent) - teamTricksWon(currentEvent, team);
+        // MIRRORED in the frontend: RoundDataContext.setTricks refuses admin taps past this cap; keep both in sync.
+        int tricksByOthers = sumTricksWon(targetEvent) - teamTricksWon(targetEvent, team);
         if(tricksByOthers + request.getTricksWon() > cardCount){
             throw new BadActionException("Total tricks won cannot exceed the " + cardCount + " cards dealt this round");
         }
 
         teamSessionEventService.upsertTeamSessionEvent(
             session,
-            currentEvent,
+            targetEvent,
             team,
             TeamSessionEventType.TRICK_RESULTS,
             new TeamSessionEventPayload.TrickResults(request.getTricksWon()));
+
+        // The admin could only close the phase with a valid trick total, so a late write must
+        // keep it valid. Throwing rolls the upsert back.
+        if(late && sumTricksWon(targetEvent) != expectedTrickTotal(trickResultsPhase)){
+            throw new BadActionException(PHASE_MOVED_ON_MESSAGE);
+        }
 
         publishStateChanged(room, session);
     }
@@ -663,15 +704,22 @@ public class SkullKingService {
         throwIfUserCantSubmitForTeam(room, roomUser, team);
 
         SessionEvent currentEvent = sessionEventService.getOrThrowCurrentEvent(session);
-        if(!currentEvent.getType().equals(SessionEventType.BONUS_POINTS)){
-            throw new BadActionException("Bonus points can only be submitted during the bonus points phase");
-        }
+        SessionEvent targetEvent = resolveSubmitTarget(session, SessionEventType.BONUS_POINTS, request.getPhaseEventId(),
+            "Bonus points can only be submitted during the bonus points phase");
+        boolean late = targetEvent != currentEvent;
 
         validateBonusRanges(request);
 
         // Bonuses require making the bid: a missed bid earns nothing. A made zero bid
         // took no tricks, so it captured no cards — but it can still earn Loot.
-        BonusEligibility eligibility = bonusEligibilityFor(session, team);
+        // Evaluated against the target's own round: for a late write the latest BIDS event
+        // already belongs to the next round.
+        List<SessionEvent> events = sessionEventService.findAllEvents(session);
+        int round = eventRound(targetEvent);
+        BonusEligibility eligibility = roundBonusEligibility(
+            findRoundEvent(events, round, SessionEventType.BIDS),
+            findRoundEvent(events, round, SessionEventType.TRICK_RESULTS),
+            team.getId().toString());
         if(eligibility == BonusEligibility.NONE && hasAnyBonus(request)){
             throw new BadActionException("This team can't earn bonus points — they must make a bid of one or more");
         }
@@ -681,7 +729,7 @@ public class SkullKingService {
 
         teamSessionEventService.upsertTeamSessionEvent(
             session,
-            currentEvent,
+            targetEvent,
             team,
             TeamSessionEventType.BONUS_POINTS,
             new TeamSessionEventPayload.BonusPoints(
@@ -691,6 +739,14 @@ public class SkullKingService {
                 request.getPiratesBySkullKing(),
                 request.getSkullKingByMermaid(),
                 request.getLoot()));
+
+        if(late){
+            // finishRound already validated this round; a late write must keep it valid
+            // (throwing rolls the upsert back), and the round is scored, so rescore it.
+            validateLootTotals(targetEvent, session.getTeams().size());
+            validateBonusTotals(targetEvent);
+            recomputeScores(session, false);
+        }
 
         publishStateChanged(room, session);
     }
@@ -949,16 +1005,6 @@ public class SkullKingService {
     private boolean bonusHasNonLoot(CorrectBonusRequest.TeamBonusValue tv){
         return tv.getStandardFourteens() > 0 || tv.getBlackFourteen() || tv.getMermaidsByPirate() > 0
             || tv.getPiratesBySkullKing() > 0 || tv.getSkullKingByMermaid();
-    }
-
-    private BonusEligibility bonusEligibilityFor(Session session, Team team){
-        SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElse(null);
-        SessionEvent trickResultsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS).orElse(null);
-        if(bidsEvent == null || trickResultsEvent == null) return BonusEligibility.NONE;
-
-        Integer bid = teamValue(bidsEvent, team, TeamSessionEventType.BIDS);
-        Integer tricksWon = teamValue(trickResultsEvent, team, TeamSessionEventType.TRICK_RESULTS);
-        return bonusEligibility(bid, tricksWon);
     }
 
     // Writes `payload` for every team with no value yet on this phase event. Teams
