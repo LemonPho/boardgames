@@ -709,6 +709,11 @@ public class SkullKingService {
             throw new BadActionException("A round can only be finished from the bonus points phase");
         }
 
+        // Users that didn't submit bonus points get treated with 0 bonus points 
+        prefillMissingValues(session, currentEvent, TeamSessionEventType.BONUS_POINTS,
+            new TeamSessionEventPayload.BonusPoints(0, false, 0, 0, false, 0));
+
+        // Only fails if the prefill above somehow didn't write a row for every team.
         int submittedBonuses = teamSessionEventRepository.countBySessionEvent(currentEvent);
         if(submittedBonuses < session.getTeams().size()){
             throw new BadActionException("All teams must have their bonus points recorded before finishing the round");

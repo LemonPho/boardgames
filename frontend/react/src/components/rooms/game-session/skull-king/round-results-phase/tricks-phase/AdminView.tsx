@@ -26,7 +26,7 @@ export default function AdminView() {
             playerName={team.player.displayName}
             editable={canEdit(team.id)}
             team={team}
-            serverValue={trickResults[team.id] ?? 0}
+            value={trickResults[team.id] ?? 0}
             max={cardCount}
             status={trickStatus(team.id)}
             leads={team.id === startingTeamId}

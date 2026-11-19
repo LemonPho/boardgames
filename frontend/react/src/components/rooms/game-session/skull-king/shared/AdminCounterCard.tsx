@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react";
 import type { TeamResponse } from "../../../../../types/teams";
 
 interface AdminCounterCardProps {
   playerName: string;
   editable: boolean;
   team: TeamResponse;
-  // The team's value from the server: seeds an editable card and is shown live
-  // on read-only cards (so other teams' updates appear).
-  serverValue: number;
+  // The value to display (the effective value from the parent: draft or server).
+  value: number;
   max: number;
   status?: "saving" | "saved" | null;
   // This team leads (goes first) this round.
@@ -20,32 +18,18 @@ export function AdminCounterCard({
   playerName,
   editable,
   team,
-  serverValue,
+  value,
   max,
   status,
   leads,
   change,
 }: AdminCounterCardProps) {
-  const [value, setValue] = useState<number>(serverValue);
-
-  // Adopt a genuinely new server value (e.g. a correction from another device),
-  // but don't clobber a local edit the admin hasn't reconciled with the server yet.
-  const lastServer = useRef<number>(serverValue);
-  useEffect(() => {
-    if (serverValue !== lastServer.current) {
-      lastServer.current = serverValue;
-      if (serverValue !== value) setValue(serverValue);
-    }
-  }, [serverValue, value]);
-
   const update = (next: number): void => {
     if (next < 0 || next > max) return;
-    setValue(next);
+    // No local copy: the parent owns the draft and passes it back as `value`,
+    // so the card can never show a number the parent didn't accept.
     change(team.id, next);
   };
-
-  // Editable cards own their value; read-only cards mirror the live server value.
-  const displayValue = editable ? value : serverValue;
 
   return (
     <div
@@ -76,7 +60,7 @@ export function AdminCounterCard({
           </button>
         )}
         <span className="text-xl font-medium min-w-[28px] text-center tabular-nums">
-          {displayValue}
+          {value}
         </span>
         {editable && (
           <button

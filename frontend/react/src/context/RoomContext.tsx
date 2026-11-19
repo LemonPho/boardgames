@@ -7,14 +7,19 @@ import { getRoom } from "../api/rooms";
 import { useAlertsContext } from "./AlertsContext";
 import { useUserContext } from "./UserContext";
 import { useAuthenticationContext } from "./AuthenticationContext";
+import { createUpdateWaiter } from "../util/expectUpdate";
 
 interface RoomContextType {
   room: RoomResponse | null;
   currentPlayer: RoomUserResponse | null;
   loading: boolean;
-  // Re-fetch the room over REST. Used after admin mutations so the UI doesn't
-  // depend solely on the WebSocket push (which a poor connection can drop).
+  // Re-fetch the room over REST now. Used after a failed mutation, where our view may be
+  // stale (e.g. the player was already removed).
   refreshRoom: () => Promise<void>;
+  // Runs a room mutation with expect-or-refresh: on success, rely on the room push
+  // (REST-refresh if none arrives in 2 s, counting a push that raced ahead of the
+  // response); on failure, resync now since our view may be stale. Rethrows failures.
+  syncRoomMutation: (action: () => Promise<void>) => Promise<void>;
 }
 
 const RoomContext = createContext<RoomContextType | null>(null);
@@ -33,6 +38,8 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
   // reconnect with the token captured at first connect would be rejected.
   const tokenRef = useRef(accessToken);
   tokenRef.current = accessToken;
+  // One waiter per provider: every room push satisfies all pending expectations.
+  const waiter = useRef(createUpdateWaiter());
 
   const handleRoomUpdate = (updatedRoom: RoomResponse) => {
     setRoom(updatedRoom);
@@ -48,6 +55,17 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
     }
   };
 
+  const syncRoomMutation = async (action: () => Promise<void>): Promise<void> => {
+    const since = waiter.current.mark();
+    try {
+      await action();
+      waiter.current.expect(refreshRoom, since);
+    } catch (error) {
+      await refreshRoom();
+      throw error;
+    }
+  };
+
   const connectWebSocket = (roomName: string) => {
     const client = new Client({
       webSocketFactory: () => new SockJS("/ws"),
@@ -58,6 +76,7 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
         client.subscribe(`/topic/rooms/${roomName}`, (message) => {
           const updatedRoom = JSON.parse(message.body) as RoomResponse;
           handleRoomUpdate(updatedRoom);
+          waiter.current.notify();
         });
         // Pushes sent while disconnected are lost, so resync on every (re)connect.
         refreshRoom();
@@ -73,6 +92,7 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!name) return;
+    const roomWaiter = waiter.current;
 
     const fetchData = async () => {
       setLoading(true);
@@ -91,6 +111,8 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
 
     return () => {
       stompClientRef.current?.deactivate();
+      // Drop pending fallbacks so a left room isn't re-fetched after the fact.
+      roomWaiter.notify();
     };
   }, [name]);
 
@@ -108,7 +130,7 @@ export function RoomContextProvider({ children }: { children: React.ReactNode })
   }, [room, user])
 
   return (
-    <RoomContext.Provider value={{ room, currentPlayer, loading, refreshRoom }}>
+    <RoomContext.Provider value={{ room, currentPlayer, loading, refreshRoom, syncRoomMutation }}>
       {children}
     </RoomContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 /**
  * Debounces per-key save calls so rapid edits (e.g. tapping +/- several times)
@@ -11,15 +11,23 @@ import { useEffect, useRef } from "react";
  * Saves for the same key are chained so they commit in the order they were made:
  * submits send absolute values, so an out-of-order commit would leave a stale one
  * as the winner. Different keys still save in parallel.
+ *
+ * The 150 ms default is long enough to coalesce a burst of taps, short enough that the
+ * value reaches the server (and other clients) almost immediately after the last one.
+ *
+ * Each save owns its outcome: it handles its own success and failure (status, reverting
+ * a draft) and rethrows, so flush() still sees it as rejected. Pending saves are sent,
+ * not dropped, when the component unmounts.
  */
-export function useDebouncedSave(delayMs: number = 500) {
+export function useDebouncedSave(delayMs: number = 150) {
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pending = useRef(new Map<string, () => Promise<void>>());
   const inFlight = useRef(new Set<Promise<void>>());
   // Tail of each key's save chain, so that key's next save can await it.
   const chains = useRef(new Map<string, Promise<void>>());
 
-  const run = (key: string, save: () => Promise<void>): void => {
+  // Stable (it only touches refs), so the unmount effect below can depend on it.
+  const run = useCallback((key: string, save: () => Promise<void>): void => {
     // Cancel the debounce timer: when flush() runs a save early, the original
     // timer would otherwise still fire and re-send the value after the phase
     // has advanced — which the server then rejects as the wrong phase.
@@ -36,9 +44,13 @@ export function useDebouncedSave(delayMs: number = 500) {
         inFlight.current.delete(promise);
         if (chains.current.get(key) === promise) chains.current.delete(key);
       });
+    // The save already handled its own failure; this only stops a timer-fired (or
+    // unmount-flushed) save that nobody awaits from surfacing as an unhandled rejection.
+    // flush() still sees the rejection through allSettled.
+    promise.catch(() => {});
     chains.current.set(key, promise);
     inFlight.current.add(promise);
-  };
+  }, []);
 
   const schedule = (key: string, save: () => Promise<void>): void => {
     const existing = timers.current.get(key);
@@ -55,9 +67,13 @@ export function useDebouncedSave(delayMs: number = 500) {
   };
 
   useEffect(() => {
-    const active = timers.current;
-    return () => { active.forEach((timer) => clearTimeout(timer)); };
-  }, []);
+    const queued = pending.current;
+    // On unmount (the live provider remounts every round) send pending saves instead of
+    // dropping them: a tap made just before the admin finished the round must still reach
+    // the server. Their results land on an unmounted provider (setState is then a no-op).
+    // run() clears each key's timer and keeps the per-key chaining, as flush() does.
+    return () => { queued.forEach((save, key) => run(key, save)); };
+  }, [run]);
 
   return { schedule, flush };
 }

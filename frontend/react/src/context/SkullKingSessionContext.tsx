@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client";
 import { useRoomContext } from "./RoomContext";
@@ -25,6 +25,15 @@ export function SkullKingContextProvider({ children }: { children: React.ReactNo
 
   const [state, setState] = useState<SkullKingState | null>(null);
   const [loading, setLoading] = useState(true);
+  // Latest token, read on every (re)connect: the access token is short-lived, so a
+  // reconnect with the token captured at first connect would be rejected. Reading it
+  // through a ref also keeps a token refresh from tearing the socket down (and losing
+  // the pushes sent during the gap).
+  // (Updated in an effect rather than during render; reconnects always happen later.)
+  const tokenRef = useRef(accessToken);
+  useEffect(() => {
+    tokenRef.current = accessToken;
+  }, [accessToken]);
 
   const roomName = room?.name;
   const role = currentPlayer?.role;
@@ -70,13 +79,17 @@ export function SkullKingContextProvider({ children }: { children: React.ReactNo
 
     const client = new Client({
       webSocketFactory: () => new SockJS("/ws"),
-      connectHeaders: {
-        Authorization: `Bearer ${accessToken}`
+      beforeConnect: () => {
+        client.connectHeaders = { Authorization: `Bearer ${tokenRef.current}` };
       },
       onConnect: () => {
         client.subscribe(topic, (message) => {
           setState(JSON.parse(message.body) as SkullKingState);
         });
+        // Pushes sent while disconnected are lost, so resync on every (re)connect. Same as
+        // refreshState(), inlined so this closure reads the effect's own roomName and the
+        // effect doesn't depend on a function that's recreated every render.
+        getSkullKingState(roomName, () => {}).then(setState).catch(() => {});
       }
     });
 
@@ -85,7 +98,8 @@ export function SkullKingContextProvider({ children }: { children: React.ReactNo
     return () => {
       client.deactivate();
     };
-  }, [roomName, role, teamId, accessToken]);
+  // accessToken is deliberately absent: tokenRef supplies a fresh one on each reconnect.
+  }, [roomName, role, teamId]);
 
   return (
     <SkullKingContext.Provider value={{ state, loading, refreshState }}>

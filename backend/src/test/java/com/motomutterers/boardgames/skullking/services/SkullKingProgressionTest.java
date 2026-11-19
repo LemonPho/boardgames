@@ -7,6 +7,8 @@ import com.motomutterers.boardgames.sessions.models.session.Session;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEvent;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventPayload;
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
+import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEvent;
+import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEventType;
 import com.motomutterers.boardgames.teams.models.Team;
 import com.motomutterers.boardgames.user.model.User;
 import org.junit.jupiter.api.Test;
@@ -15,6 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -314,20 +317,68 @@ public class SkullKingProgressionTest extends SkullKingTestSupport {
         verify(sessionEventService, never()).createSessionEvent(any(), eq(SessionEventType.BIDS), any());
     }
 
+    // Replaces finishRound_notAllBonusesIn_throws: missing bonuses are now prefilled, not rejected.
     @Test
-    void finishRound_notAllBonusesIn_throws() {
+    void finishRound_prefillsMissingBonusesAsEmpty() {
         User admin = user();
         Authentication authentication = auth();
-        Team a = team();
-        Team b = team();
+        Team a = team(LocalDateTime.now().minusMinutes(2));
+        Team b = team(LocalDateTime.now().minusMinutes(1));
         Session session = adminSession(null, admin, authentication, a, b);
 
         SessionEvent bonus = bonusEvent(1, 1, id(a));
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(teamSessionEventRepository.countBySessionEvent(bonus)).thenReturn(1);  // 1 of 2
+        // a recorded a bonus; b has none, so the prefill must write one for b only.
+        TeamSessionEvent aBonus = teamBonus(a, bonus(1, false, 0, 0, false, 0));
+        when(teamSessionEventRepository.findBySessionEventAndTeam(bonus, a)).thenReturn(Optional.of(aBonus));
+        when(teamSessionEventRepository.findBySessionEventAndTeam(bonus, b)).thenReturn(Optional.empty());
+        // The count runs after the prefill, so both rows exist by then.
+        when(teamSessionEventRepository.countBySessionEvent(bonus)).thenReturn(2);
+        stubTeamEvents(bonus, aBonus, teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+        SessionEvent bids = bidsEvent(1, 1, id(a));
+        SessionEvent tricks = tricksEvent(1, 1, id(a), false);
+        stubAllEvents(session, bids, tricks, bonus);
+        stubTeamEvents(bids, teamBid(a, 1), teamBid(b, 0));
+        stubTeamEvents(tricks, teamTricks(a, 1), teamTricks(b, 0));
 
-        assertThrows(BadActionException.class, () -> service.finishRound("room", authentication));
-        verify(sessionUtilitysService, never()).completeSession(any());
+        service.finishRound("room", authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            session, bonus, b, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0));
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), eq(a), any(), any());
+        verify(sessionEventService).createSessionEvent(eq(session), eq(SessionEventType.BIDS), any());
+    }
+
+    @Test
+    void finishRound_withNoBonusRows_succeeds() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team(LocalDateTime.now().minusMinutes(2));
+        Team b = team(LocalDateTime.now().minusMinutes(1));
+        Session session = adminSession(null, admin, authentication, a, b);
+
+        SessionEvent bonus = bonusEvent(1, 1, id(a));
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        when(teamSessionEventRepository.findBySessionEventAndTeam(eq(bonus), any())).thenReturn(Optional.empty());
+        when(teamSessionEventRepository.countBySessionEvent(bonus)).thenReturn(2);
+        // Every team gets the empty prefill; it carries no bonus, so scoring is bids/tricks only.
+        stubTeamEvents(bonus, teamBonus(a, bonus(0, false, 0, 0, false, 0)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+        SessionEvent bids = bidsEvent(1, 1, id(a));
+        SessionEvent tricks = tricksEvent(1, 1, id(a), false);
+        stubAllEvents(session, bids, tricks, bonus);
+        stubTeamEvents(bids, teamBid(a, 1), teamBid(b, 0));
+        stubTeamEvents(tricks, teamTricks(a, 1), teamTricks(b, 0));
+
+        service.finishRound("room", authentication);
+
+        for (Team team : new Team[]{a, b}) {
+            verify(teamSessionEventService).upsertTeamSessionEvent(
+                session, bonus, team, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0));
+        }
+        // a: bid 1, won 1 -> +20. b: bid 0, won 0 over 1 card -> +10.
+        verify(teamUtilityService).setScore(a, 20L);
+        verify(teamUtilityService).setScore(b, 10L);
+        verify(sessionEventService).createSessionEvent(eq(session), eq(SessionEventType.BIDS), any());
     }
 
     @Test
