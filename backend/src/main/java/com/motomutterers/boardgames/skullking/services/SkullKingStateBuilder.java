@@ -116,6 +116,8 @@ public class SkullKingStateBuilder {
         // The BIDS event id changes on a new round and on a reset (which recreates it), so
         // clients key round-local drafts on it rather than on the round number.
         response.setRoundKey(bidsEvent == null ? null : bidsEvent.getId().toString());
+        // Echoed back on submits so the server can honour the grace window for this phase.
+        response.setPhaseEventId(currentEvent.getId().toString());
         return response;
     }
 

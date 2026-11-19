@@ -175,6 +175,19 @@ export function LiveRoundDataProvider({
     };
   }, []);
 
+  // The admin advanced: send any pending (debounced) saves right away, tagged with the
+  // phase they were made in, so they reach the server inside its 1 s grace window. The ref
+  // holds the phase last seen, so the first state (and every re-render with an unchanged
+  // phase) doesn't flush. flush isn't stable across renders, hence the explicit comparison.
+  const seenPhaseEventId = useRef(state?.phaseEventId);
+  useEffect(() => {
+    const phaseEventId = state?.phaseEventId;
+    if (phaseEventId === seenPhaseEventId.current) return;
+    const isFirst = seenPhaseEventId.current === undefined;
+    seenPhaseEventId.current = phaseEventId;
+    if (!isFirst) void flush();
+  }, [state?.phaseEventId, flush]);
+
   const latestGen = (key: string): number => gens.current.get(key) ?? 0;
 
   const markDone = (key: string): void => setSavingKeys(prev => withoutItem(prev, key));
@@ -279,12 +292,14 @@ export function LiveRoundDataProvider({
 
   const setBid = (teamId: string, value: number): void => {
     if (value < 0 || value > state.cardCount) return;
+    // Captured at tap time: the save may run after the phase has moved on.
+    const phaseEventId = state.phaseEventId;
     const gen = beginEdit(teamId);
     setBidDrafts(prev => new Map(prev).set(teamId, value));
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitBid(room.name, teamId, value, setErrorMessage),
+      () => submitBid(room.name, teamId, value, setErrorMessage, phaseEventId),
       s => s.bids?.[teamId] === value,
       () => setBidDrafts(prev => withoutKey(prev, teamId)),
     ));
@@ -298,12 +313,14 @@ export function LiveRoundDataProvider({
       const others = state.teams.reduce((sum, t) => t.id === teamId ? sum : sum + (trickResults[t.id] ?? 0), 0);
       if (others + value > state.cardCount) return;
     }
+    // Captured at tap time: the save may run after the phase has moved on.
+    const phaseEventId = state.phaseEventId;
     const gen = beginEdit(teamId);
     setTrickDrafts(prev => new Map(prev).set(teamId, value));
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitTrickResult(room.name, teamId, value, setErrorMessage),
+      () => submitTrickResult(room.name, teamId, value, setErrorMessage, phaseEventId),
       s => s.trickResults?.[teamId] === value,
       () => setTrickDrafts(prev => withoutKey(prev, teamId)),
     ));
@@ -314,12 +331,14 @@ export function LiveRoundDataProvider({
     // non-loot values can linger (e.g. a correction changed the bid from 2 to 0), so
     // strip them before saving.
     const bonus = bonusEligibilityFor(teamId).lootOnly ? { ...EMPTY_BONUS, loot: value.loot } : value;
+    // Captured at tap time: the save may run after the phase has moved on.
+    const phaseEventId = state.phaseEventId;
     const gen = beginEdit(teamId);
     setBonusDrafts(prev => new Map(prev).set(teamId, bonus));
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage),
+      () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage, phaseEventId),
       s => sameBonus(s.bonuses?.[teamId], bonus),
       () => setBonusDrafts(prev => withoutKey(prev, teamId)),
     ));

@@ -105,10 +105,12 @@ export const submitBid = async (
   roomName: string,
   teamId: string,
   bid: number,
-  setErrorMessage: (message: string) => void
+  setErrorMessage: (message: string) => void,
+  // The phase the edit was made in (see SkullKingState.phaseEventId).
+  phaseEventId?: string
 ): Promise<void> => {
   try {
-    await api.post(`/skull-king/${roomName}/bids`, { teamId, bid });
+    await api.post(`/skull-king/${roomName}/bids`, { teamId, bid, phaseEventId });
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;
@@ -119,10 +121,12 @@ export const submitTrickResult = async (
   roomName: string,
   teamId: string,
   tricksWon: number,
-  setErrorMessage: (message: string) => void
+  setErrorMessage: (message: string) => void,
+  // The phase the edit was made in (see SkullKingState.phaseEventId).
+  phaseEventId?: string
 ): Promise<void> => {
   try {
-    await api.post(`/skull-king/${roomName}/trick-results`, { teamId, tricksWon });
+    await api.post(`/skull-king/${roomName}/trick-results`, { teamId, tricksWon, phaseEventId });
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;
@@ -169,10 +173,12 @@ export const submitBonusPoints = async (
   roomName: string,
   teamId: string,
   bonus: TeamBonus,
-  setErrorMessage: (message: string) => void
+  setErrorMessage: (message: string) => void,
+  // The phase the edit was made in (see SkullKingState.phaseEventId).
+  phaseEventId?: string
 ): Promise<void> => {
   try {
-    await api.post(`/skull-king/${roomName}/bonus-points`, { teamId, ...bonus });
+    await api.post(`/skull-king/${roomName}/bonus-points`, { teamId, ...bonus, phaseEventId });
   } catch (error) {
     setAxiosError(error, setErrorMessage);
     throw error;

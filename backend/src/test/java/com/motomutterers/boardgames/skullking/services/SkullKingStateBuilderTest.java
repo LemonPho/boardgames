@@ -191,6 +191,30 @@ public class SkullKingStateBuilderTest {
         assertEquals(bidsEvent.getId().toString(), state.getRoundKey());
     }
 
+    @Test
+    void phaseEventId_isTheCurrentEventId_inEveryPhase() {
+        Team a = team(0);
+        Session session = session(a);
+        String starter = a.getId().toString();
+
+        SessionEvent bidsEvent = bids(1, 5, starter);
+        SessionEvent inProgressEvent = event(SessionEventType.IN_PROGRESS, new SessionEventPayload.InProgress(1, 5, starter));
+        SessionEvent tricksEvent = tricks(1, 5, starter, false);
+        SessionEvent bonusEvent = bonus(1, 5, starter);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        lenient().when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricksEvent));
+        for (SessionEvent e : List.of(bidsEvent, tricksEvent, bonusEvent)) {
+            lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(e)).thenReturn(List.of());
+        }
+
+        // Clients echo this id on submits, so it must name the live phase, not the round.
+        for (SessionEvent current : List.of(bidsEvent, inProgressEvent, tricksEvent, bonusEvent)) {
+            when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(current);
+            SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, a), true);
+            assertEquals(current.getId().toString(), state.getPhaseEventId(), current.getType().toString());
+        }
+    }
+
     // --- TRICK_RESULTS phase ---
 
     @Test

@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -284,9 +285,8 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        // Eligibility: latest BIDS + TRICK_RESULTS, bid > 0 and bid == tricksWon.
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        // Eligibility: this round's BIDS + TRICK_RESULTS, bid > 0 and bid == tricksWon.
+        stubAllEvents(session, bids, tricks, bonus);
         stubTeamEvents(bids, teamBid(a, 2));
         stubTeamEvents(tricks, teamTricks(a, 2));
 
@@ -308,8 +308,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubAllEvents(session, bids, tricks, bonus);
         // Missed bid (3 != 1): ineligible, but a bonus is submitted -> reject.
         stubTeamEvents(bids, teamBid(a, 3));
         stubTeamEvents(tricks, teamTricks(a, 1));
@@ -331,8 +330,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubAllEvents(session, bids, tricks, bonus);
         // Made zero bid (0 == 0): LOOT_ONLY, so a Loot alliance is accepted.
         stubTeamEvents(bids, teamBid(a, 0));
         stubTeamEvents(tricks, teamTricks(a, 0));
@@ -355,8 +353,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubAllEvents(session, bids, tricks, bonus);
         stubTeamEvents(bids, teamBid(a, 0));
         stubTeamEvents(tricks, teamTricks(a, 0));
 
@@ -379,8 +376,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubAllEvents(session, bids, tricks, bonus);
         // Missed bid (2 != 1): NONE, so even Loot is rejected with the existing message.
         stubTeamEvents(bids, teamBid(a, 2));
         stubTeamEvents(tricks, teamTricks(a, 1));
@@ -403,8 +399,7 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         SessionEvent tricks = tricksEvent(1, 5, id(a), false);
         when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
         when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bids));
-        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricks));
+        stubAllEvents(session, bids, tricks, bonus);
         stubTeamEvents(bids, teamBid(a, 3));
         stubTeamEvents(tricks, teamTricks(a, 1));
 
@@ -441,5 +436,286 @@ public class SkullKingSubmissionTest extends SkullKingTestSupport {
         // 4 standard 14s exceeds the per-team max of 3.
         assertThrows(BadActionException.class,
             () -> service.submitBonusPoints("room", bonusReq(a, 4, false, 0, 0, false, 0), authentication));
+    }
+
+    // --- grace window (phaseEventId) ---
+
+    private static final String MOVED_ON = "The phase moved on — your change wasn't saved";
+
+    /** Gives a builder-made event the id and sequence a persisted one would have. */
+    private SessionEvent persisted(SessionEvent event, int sequence) {
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
+        event.setSequence(sequence);
+        return event;
+    }
+
+    /** Places the event's server-side creation (the transition) `millis` before now. */
+    private SessionEvent createdAgo(SessionEvent event, long millis) {
+        event.setCreatedAt(LocalDateTime.now().minusNanos(millis * 1_000_000));
+        return event;
+    }
+
+    private com.motomutterers.boardgames.skullking.dto.SubmitBidRequest bidReq(Team team, int bid, SessionEvent phase) {
+        var r = bidReq(team, bid);
+        r.setPhaseEventId(phase.getId().toString());
+        return r;
+    }
+
+    private com.motomutterers.boardgames.skullking.dto.SubmitTrickResultRequest trickReq(Team team, int tricksWon, SessionEvent phase) {
+        var r = trickReq(team, tricksWon);
+        r.setPhaseEventId(phase.getId().toString());
+        return r;
+    }
+
+    @Test
+    void submitBid_phaseEventIdOfCurrentPhase_upserts() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(team)), 0);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bids);
+
+        service.submitBid("room", bidReq(team, 3, bids), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            eq(session), eq(bids), eq(team), eq(TeamSessionEventType.BIDS), any());
+    }
+
+    @Test
+    void submitBid_currentPhaseIdButWrongPhase_throwsWrongPhaseMessage() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        SessionEvent inProgress = persisted(inProgressEvent(1, 5, id(team)), 1);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(inProgress);
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", bidReq(team, 3, inProgress), authentication));
+        assertEquals("Bids can only be submitted during the bidding phase", ex.getMessage());
+    }
+
+    @Test
+    void submitBid_lateWithinGrace_upsertsIntoClosedBidsPhase() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(team)), 0);
+        SessionEvent inProgress = createdAgo(persisted(inProgressEvent(1, 5, id(team)), 1), 500);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(inProgress);
+        stubAllEvents(session, bids, inProgress);
+
+        service.submitBid("room", bidReq(team, 3, bids), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            eq(session), eq(bids), eq(team), eq(TeamSessionEventType.BIDS), any());
+        verify(eventPublisher).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void submitBid_latePastGrace_throwsMovedOn() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(team)), 0);
+        SessionEvent inProgress = createdAgo(persisted(inProgressEvent(1, 5, id(team)), 1), 1100);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(inProgress);
+        stubAllEvents(session, bids, inProgress);
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", bidReq(team, 3, bids), authentication));
+        assertEquals(MOVED_ON, ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitBid_notImmediatelyPreviousPhase_throwsMovedOn() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        // Two transitions since the bid phase closed: even inside the window it's too old.
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(team)), 0);
+        SessionEvent inProgress = persisted(inProgressEvent(1, 5, id(team)), 1);
+        SessionEvent tricks = createdAgo(persisted(tricksEvent(1, 5, id(team), false), 2), 100);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(tricks);
+        stubAllEvents(session, bids, inProgress, tricks);
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", bidReq(team, 3, bids), authentication));
+        assertEquals(MOVED_ON, ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitBid_previousPhaseOfWrongType_throwsMovedOn() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        // The previous phase is IN_PROGRESS, which a bid can never target.
+        SessionEvent inProgress = persisted(inProgressEvent(1, 5, id(team)), 1);
+        SessionEvent tricks = createdAgo(persisted(tricksEvent(1, 5, id(team), false), 2), 100);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(tricks);
+        stubAllEvents(session, inProgress, tricks);
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", bidReq(team, 3, inProgress), authentication));
+        assertEquals(MOVED_ON, ex.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitBid_unknownOrForeignPhaseEventId_throwsMovedOn() {
+        User user = user();
+        Authentication authentication = auth();
+        Team team = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, team, team);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(team)), 0);
+        SessionEvent inProgress = createdAgo(persisted(inProgressEvent(1, 5, id(team)), 1), 100);
+        // A BIDS event from some other session: not in this session's event list.
+        SessionEvent foreignBids = persisted(bidsEvent(1, 5, id(team)), 0);
+        when(teamUtilityService.getOrThrowTeamById(id(team))).thenReturn(team);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(inProgress);
+        stubAllEvents(session, bids, inProgress);
+
+        BadActionException foreign = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", bidReq(team, 3, foreignBids), authentication));
+        assertEquals(MOVED_ON, foreign.getMessage());
+
+        var unknown = bidReq(team, 3);
+        unknown.setPhaseEventId("not-a-real-id");
+        BadActionException unknownEx = assertThrows(BadActionException.class,
+            () -> service.submitBid("room", unknown, authentication));
+        assertEquals(MOVED_ON, unknownEx.getMessage());
+        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void submitTrickResult_lateKeepingTotalValid_upserts() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a, b);
+
+        SessionEvent tricks = persisted(tricksEvent(1, 5, id(a), false), 2);
+        SessionEvent bonus = createdAgo(persisted(bonusEvent(1, 5, id(a)), 3), 500);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        stubAllEvents(session, tricks, bonus);
+        // a re-sends the 3 it already has: the total stays at 5 == cardCount.
+        stubTeamEvents(tricks, teamTricks(a, 3), teamTricks(b, 2));
+
+        service.submitTrickResult("room", trickReq(a, 3, tricks), authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            eq(session), eq(tricks), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
+    }
+
+    @Test
+    void submitTrickResult_lateBreakingTotal_throwsMovedOn() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a, b);
+
+        SessionEvent tricks = persisted(tricksEvent(1, 5, id(a), false), 2);
+        SessionEvent bonus = createdAgo(persisted(bonusEvent(1, 5, id(a)), 3), 500);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonus);
+        stubAllEvents(session, tricks, bonus);
+        // Before the upsert (cap check: sum, then a's own value) the total is 3 + 2 = 5; after
+        // a's late 2 it is 4, which no longer matches the 5 the admin advanced with.
+        List<com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEvent> before =
+            List.of(teamTricks(a, 3), teamTricks(b, 2));
+        List<com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEvent> after =
+            List.of(teamTricks(a, 2), teamTricks(b, 2));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricks)).thenReturn(before, before, after);
+
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitTrickResult("room", trickReq(a, 2, tricks), authentication));
+        assertEquals(MOVED_ON, ex.getMessage());
+        // The upsert happened, but the exception rolls the @Transactional write back, and
+        // nothing is broadcast.
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void submitBonusPoints_lateValid_upsertsAndRecomputesScores() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(a)), 0);
+        SessionEvent inProgress = persisted(inProgressEvent(1, 5, id(a)), 1);
+        SessionEvent tricks = persisted(tricksEvent(1, 5, id(a), false), 2);
+        SessionEvent bonus = persisted(bonusEvent(1, 5, id(a)), 3);
+        // finishRound just opened round 2: the latest BIDS is no longer this round's.
+        SessionEvent nextBids = createdAgo(persisted(bidsEvent(2, 5, id(a)), 4), 500);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(nextBids);
+        stubAllEvents(session, bids, inProgress, tricks, bonus, nextBids);
+        stubTeamEvents(bids, teamBid(a, 2));
+        stubTeamEvents(tricks, teamTricks(a, 2));
+        stubTeamEvents(nextBids);
+        // The repo as it reads after the upsert: a's late standard 14.
+        stubTeamEvents(bonus, teamBonus(a, bonus(1, false, 0, 0, false, 0)));
+
+        var request = bonusReq(a, 1, false, 0, 0, false, 0);
+        request.setPhaseEventId(bonus.getId().toString());
+        service.submitBonusPoints("room", request, authentication);
+
+        verify(teamSessionEventService).upsertTeamSessionEvent(
+            eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any());
+        // Made bid of 2 (40) + one standard 14 (10).
+        verify(teamUtilityService).setScore(a, 50L);
+    }
+
+    @Test
+    void submitBonusPoints_lateBreakingLootParity_throwsLootMessage() {
+        User user = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Team b = team();
+        Session session = submitSession(user, authentication, RoomUserRoles.ADMIN, a, a, b);
+
+        SessionEvent bids = persisted(bidsEvent(1, 5, id(a)), 0);
+        SessionEvent tricks = persisted(tricksEvent(1, 5, id(a), false), 2);
+        SessionEvent bonus = persisted(bonusEvent(1, 5, id(a)), 3);
+        SessionEvent nextBids = createdAgo(persisted(bidsEvent(2, 5, id(a)), 4), 500);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(nextBids);
+        stubAllEvents(session, bids, tricks, bonus, nextBids);
+        stubTeamEvents(bids, teamBid(a, 2), teamBid(b, 3));
+        stubTeamEvents(tricks, teamTricks(a, 2), teamTricks(b, 3));
+        // a claims one loot coin, but no partner holds the other: an odd total.
+        stubTeamEvents(bonus, teamBonus(a, bonus(0, false, 0, 0, false, 1)), teamBonus(b, bonus(0, false, 0, 0, false, 0)));
+
+        var request = bonusReq(a, 0, false, 0, 0, false, 1);
+        request.setPhaseEventId(bonus.getId().toString());
+        BadActionException ex = assertThrows(BadActionException.class,
+            () -> service.submitBonusPoints("room", request, authentication));
+        assertEquals("Loot coins must total an even number — every alliance pays two teams", ex.getMessage());
+        verify(teamUtilityService, never()).setScore(any(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 }
