@@ -1,6 +1,6 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { TeamResponse } from "../types/teams";
-import type { BonusEligibility, SkullKingGameState, TeamBonus } from "../types/skull-king";
+import type { BonusEligibility, SkullKingGameState, SkullKingState, TeamBonus } from "../types/skull-king";
 import { EMPTY_BONUS, bonusEligibility, expectedTrickTotal } from "../types/skull-king";
 import { useSkullKingSessionContext } from "./SkullKingSessionContext";
 import { useRoomContext } from "./RoomContext";
@@ -76,6 +76,37 @@ const sameBonus = (a: TeamBonus | undefined, b: TeamBonus | undefined): boolean 
 
 const MAX_ROUNDS = 10;
 
+// How long a successful save waits for the WebSocket push carrying its value before
+// falling back to a REST re-fetch. A push that disagrees (another client's write won) or
+// one that was lost would otherwise leave "Saving…" up forever.
+const CONFIRM_TIMEOUT_MS = 2000;
+
+const KRAKEN_KEY = "__kraken__";
+
+// A save that reached the server, waiting for the state to show its value.
+interface AwaitingConfirm {
+  gen: number;
+  confirmed: (s: SkullKingState) => boolean;
+  // Drops the draft and clears "Saving…": the server value is shown from then on.
+  settle: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+// Map/Set copies with one entry removed, returning the same instance when there's
+// nothing to remove so React can skip the re-render.
+const withoutKey = <T,>(map: Map<string, T>, key: string): Map<string, T> => {
+  if (!map.has(key)) return map;
+  const next = new Map(map);
+  next.delete(key);
+  return next;
+};
+const withoutItem = (set: Set<string>, key: string): Set<string> => {
+  if (!set.has(key)) return set;
+  const next = new Set(set);
+  next.delete(key);
+  return next;
+};
+
 /**
  * Feeds RoundData from the live session: reshapes SkullKingSessionContext.state,
  * owns the drafts + debounced saves, and wires the phase-advance action.
@@ -100,6 +131,118 @@ export function LiveRoundDataProvider({
   // Optimistic Kraken value: the toggle reflects the tap immediately instead of
   // waiting for debounce + POST + WebSocket push. null = no local edit, use server.
   const [krakenDraft, setKrakenDraft] = useState<boolean | null>(null);
+  // Keys (team ids / "__kraken__") with a save scheduled, in flight, or awaiting the
+  // server's confirmation. "Saving…" is shown only for these.
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+
+  // Save lifecycle bookkeeping lives in refs, not state: scheduled saves run long after
+  // the render that created them, so they must read the *current* values, not the ones
+  // their closure captured.
+  // - gens: per-key edit counter. A save captures its generation when scheduled and only
+  //   touches the draft/status if it's still the latest, so a stale save's completion
+  //   never clears a newer edit.
+  // - awaiting: saves that succeeded and wait for the state to confirm their value.
+  // - latestState: the newest server state. A push can arrive before the POST response,
+  //   so a save checks it as soon as the request resolves.
+  // - mounted: saves flushed on unmount still complete; they mustn't start new timers.
+  const gens = useRef(new Map<string, number>());
+  const awaiting = useRef(new Map<string, AwaitingConfirm>());
+  const latestState = useRef<SkullKingState | null>(state);
+  const mounted = useRef(false);
+
+  // Every new state (push or REST refresh) settles the saves whose value it confirms.
+  // Unconfirmed ones keep waiting for their timeout, which re-fetches.
+  useEffect(() => {
+    latestState.current = state;
+    if (!state) return;
+    awaiting.current.forEach((entry, key) => {
+      if (!entry.confirmed(state)) return;
+      clearTimeout(entry.timer);
+      awaiting.current.delete(key);
+      entry.settle();
+    });
+  }, [state]);
+
+  // Sets mounted in the body too, not just at init: StrictMode runs this cleanup and then
+  // the effect again on the same refs.
+  useEffect(() => {
+    mounted.current = true;
+    const entries = awaiting.current;
+    return () => {
+      mounted.current = false;
+      entries.forEach((entry) => clearTimeout(entry.timer));
+      entries.clear();
+    };
+  }, []);
+
+  const latestGen = (key: string): number => gens.current.get(key) ?? 0;
+
+  const markDone = (key: string): void => setSavingKeys(prev => withoutItem(prev, key));
+
+  // Called synchronously by every setter, before scheduling: a new generation, and
+  // "Saving…" right away, which covers the debounce window. The key's previous save, if
+  // still awaiting confirmation, is superseded, so its timer goes.
+  const beginEdit = (key: string): number => {
+    const gen = latestGen(key) + 1;
+    gens.current.set(key, gen);
+    const previous = awaiting.current.get(key);
+    if (previous) {
+      clearTimeout(previous.timer);
+      awaiting.current.delete(key);
+    }
+    setSavingKeys(prev => (prev.has(key) ? prev : new Set(prev).add(key)));
+    return gen;
+  };
+
+  // The save reached the server. Settle now if the state already shows its value;
+  // otherwise wait for a push that does, or time out, re-fetch, and take the server's
+  // value either way. The server always wins in the end, which resolves collisions.
+  const awaitConfirm = (
+    key: string,
+    gen: number,
+    confirmed: (s: SkullKingState) => boolean,
+    dropDraft: () => void,
+  ): void => {
+    if (!mounted.current) return;
+    const settle = () => { dropDraft(); markDone(key); };
+    const current = latestState.current;
+    if (current && confirmed(current)) {
+      settle();
+      return;
+    }
+    const timer = setTimeout(async () => {
+      await refreshState();
+      // A push (or the refresh itself) may have confirmed it, or a new edit superseded it,
+      // while the request was out.
+      if (awaiting.current.get(key)?.gen !== gen) return;
+      awaiting.current.delete(key);
+      settle();
+    }, CONFIRM_TIMEOUT_MS);
+    awaiting.current.set(key, { gen, confirmed, settle, timer });
+  };
+
+  // Wraps a scheduled save with the lifecycle above. On rejection (wrong phase, out of
+  // range, the trick cap) the draft is dropped at once, so the control reverts to the
+  // server value next to the server's toast. The error is rethrown for flush().
+  const trackedSave = (
+    key: string,
+    gen: number,
+    send: () => Promise<void>,
+    confirmed: (s: SkullKingState) => boolean,
+    dropDraft: () => void,
+  ) => async (): Promise<void> => {
+    try {
+      await send();
+      if (latestGen(key) !== gen) return; // a newer edit owns this key now
+      awaitConfirm(key, gen, confirmed, dropDraft);
+    } catch (error) {
+      if (latestGen(key) === gen) {
+        dropDraft();
+        markDone(key);
+      }
+      throw error;
+    }
+  };
 
   if (!state || !room || !currentPlayer) return null;
 
@@ -121,34 +264,49 @@ export function LiveRoundDataProvider({
 
   const bonusEligibilityFor = (teamId: string) => bonusEligibility(bids[teamId], trickResults[teamId]);
 
-  const numericStatus = (
-    teamId: string,
-    server: Record<string, number>,
-    drafts: Map<string, number>,
-  ): SaveStatus => {
-    if (drafts.has(teamId) && drafts.get(teamId) !== server[teamId]) return "saving";
+  // "Saving…" comes from the explicit lifecycle, not from comparing draft and server:
+  // that comparison stuck forever whenever the server's final value differed from the
+  // draft (a collision, a rejected save, a lost push).
+  const statusFor = (teamId: string, server: Record<string, unknown>): SaveStatus => {
+    if (savingKeys.has(teamId)) return "saving";
     if (teamId in server) return "saved";
     return null;
   };
 
-  const bidStatus = (teamId: string) => numericStatus(teamId, serverBids, bidDrafts);
-  const trickStatus = (teamId: string) => numericStatus(teamId, serverTricks, trickDrafts);
-  const bonusStatus = (teamId: string): SaveStatus => {
-    if (bonusDrafts.has(teamId) && !sameBonus(bonusDrafts.get(teamId), serverBonuses[teamId])) return "saving";
-    if (teamId in serverBonuses) return "saved";
-    return null;
-  };
+  const bidStatus = (teamId: string) => statusFor(teamId, serverBids);
+  const trickStatus = (teamId: string) => statusFor(teamId, serverTricks);
+  const bonusStatus = (teamId: string) => statusFor(teamId, serverBonuses);
 
   const setBid = (teamId: string, value: number): void => {
     if (value < 0 || value > state.cardCount) return;
+    const gen = beginEdit(teamId);
     setBidDrafts(prev => new Map(prev).set(teamId, value));
-    schedule(teamId, () => submitBid(room.name, teamId, value, setErrorMessage));
+    schedule(teamId, trackedSave(
+      teamId,
+      gen,
+      () => submitBid(room.name, teamId, value, setErrorMessage),
+      s => s.bids?.[teamId] === value,
+      () => setBidDrafts(prev => withoutKey(prev, teamId)),
+    ));
   };
 
   const setTricks = (teamId: string, value: number): void => {
     if (value < 0 || value > state.cardCount) return;
+    if (currentPlayer.role === "ADMIN") {
+      // Mirrors the backend's running cap in submitTrickResult (sum of all teams ≤ cardCount):
+      // refuse the tap instead of sending a save the server will reject.
+      const others = state.teams.reduce((sum, t) => t.id === teamId ? sum : sum + (trickResults[t.id] ?? 0), 0);
+      if (others + value > state.cardCount) return;
+    }
+    const gen = beginEdit(teamId);
     setTrickDrafts(prev => new Map(prev).set(teamId, value));
-    schedule(teamId, () => submitTrickResult(room.name, teamId, value, setErrorMessage));
+    schedule(teamId, trackedSave(
+      teamId,
+      gen,
+      () => submitTrickResult(room.name, teamId, value, setErrorMessage),
+      s => s.trickResults?.[teamId] === value,
+      () => setTrickDrafts(prev => withoutKey(prev, teamId)),
+    ));
   };
 
   const setBonus = (teamId: string, value: TeamBonus): void => {
@@ -156,21 +314,29 @@ export function LiveRoundDataProvider({
     // non-loot values can linger (e.g. a correction changed the bid from 2 to 0), so
     // strip them before saving.
     const bonus = bonusEligibilityFor(teamId).lootOnly ? { ...EMPTY_BONUS, loot: value.loot } : value;
+    const gen = beginEdit(teamId);
     setBonusDrafts(prev => new Map(prev).set(teamId, bonus));
-    schedule(teamId, () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage));
+    schedule(teamId, trackedSave(
+      teamId,
+      gen,
+      () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage),
+      s => sameBonus(s.bonuses?.[teamId], bonus),
+      () => setBonusDrafts(prev => withoutKey(prev, teamId)),
+    ));
   };
 
+  // The toggle is optimistic; on failure, or once the server confirms (or a re-fetch
+  // settles it), the draft is dropped and the server's value shows.
   const setKrakenPlayed = (value: boolean): void => {
+    const gen = beginEdit(KRAKEN_KEY);
     setKrakenDraft(value);
-    schedule("__kraken__", async () => {
-      try {
-        await setKraken(room.name, state.round, value, setErrorMessage);
-      } catch (error) {
-        // Save failed: drop the optimistic value so the toggle shows the server's.
-        setKrakenDraft(null);
-        throw error;
-      }
-    });
+    schedule(KRAKEN_KEY, trackedSave(
+      KRAKEN_KEY,
+      gen,
+      () => setKraken(room.name, state.round, value, setErrorMessage),
+      s => (s.krakenPlayed ?? false) === value,
+      () => setKrakenDraft(null),
+    ));
   };
 
   // --- Phase advance (admin only; each phase submits any stragglers, flushes, then transitions) ---
@@ -212,14 +378,8 @@ export function LiveRoundDataProvider({
   };
 
   const advanceBonus = async (): Promise<void> => {
-    // Teams with a draft (including a lootOnly team's Loot, saved via setBonus) aren't
-    // pending; flush() below lands their save. A lootOnly team counts as eligible, so
-    // even if it were pending its effective value would be submitted, not EMPTY_BONUS.
-    const pending = state.teams.filter((t) => !(t.id in serverBonuses) && !bonusDrafts.has(t.id));
-    for (const t of pending) {
-      const eligible = bonusEligibility(bids[t.id], trickResults[t.id]).eligible;
-      await submitBonusPoints(room.name, t.id, eligible ? (bonuses[t.id] ?? EMPTY_BONUS) : EMPTY_BONUS, setErrorMessage);
-    }
+    // Teams without a bonus are defaulted to empty by the server inside finishRound (like
+    // bids/tricks), so advancing is a flush plus one request.
     await flush();
     await runTransition("BONUS_POINTS", () => finishRound(room.name, setErrorMessage));
   };

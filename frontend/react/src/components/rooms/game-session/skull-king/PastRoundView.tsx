@@ -136,7 +136,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                 playerName={t.playerName ?? "—"}
                 editable={editing === "bids"}
                 team={pseudoTeam(t)}
-                serverValue={bidValue(t.teamId)}
+                value={bidValue(t.teamId)}
                 max={cardCount}
                 leads={t.teamId === history.startingTeamId}
                 change={(id, v) => setBidDrafts((prev) => new Map(prev).set(id, v))}
@@ -173,7 +173,7 @@ export default function PastRoundView({ roomName, round, onBack }: PastRoundView
                 playerName={t.playerName ?? "—"}
                 editable={editing === "tricks"}
                 team={pseudoTeam(t)}
-                serverValue={trickValue(t.teamId)}
+                value={trickValue(t.teamId)}
                 max={cardCount}
                 leads={t.teamId === history.startingTeamId}
                 change={(id, v) => setTrickDrafts((prev) => new Map(prev).set(id, v))}

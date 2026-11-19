@@ -22,7 +22,7 @@ interface SearchResults {
 const NO_RESULTS: SearchResults = { term: "", matches: [] };
 
 export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYERS_PANEL: string}) {
-  const { room, refreshRoom } = useRoomContext();
+  const { room, syncRoomMutation } = useRoomContext();
   const { setSuccessMessage, setErrorMessage } = useAlertsContext();
   const { user } = useUserContext();
 
@@ -56,11 +56,9 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
       return;
     }
 
-    try {
-      await invitePlayerToRoom(username, room.name, setErrorMessage);
-    } finally {
-      await refreshRoom();
-    }
+    // Success: the room push shows the invite (REST-refreshed if it's lost). Failure: our
+    // view may be stale, so resync now.
+    await syncRoomMutation(() => invitePlayerToRoom(username, room.name, setErrorMessage));
     setSuccessMessage("User invited");
     // Re-run the current search so the invited user's row flips to "Invited".
     await runSearch(query);
@@ -77,12 +75,8 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
       return;
     }
 
-    try {
-      await createAnonymousPlayer(displayNameInput, room.name, setErrorMessage);
-    } finally {
-      // Don't rely only on the WebSocket push to show the new player (see PlayersList).
-      await refreshRoom();
-    }
+    // Same expect-or-refresh as PlayersList: wait for the push on success, resync on failure.
+    await syncRoomMutation(() => createAnonymousPlayer(displayNameInput, room.name, setErrorMessage));
   }
 
   const runSearch = async (term: string): Promise<void> => {
@@ -225,15 +219,12 @@ export default function AddPlayersModal({ INVITE_PLAYERS_PANEL }: { INVITE_PLAYE
 // Own loading state per row, so removing one anonymous player only loads its button.
 function AnonymousPlayerRow({ player, roomName }: { player: RoomUserResponse; roomName: string }) {
   const { setErrorMessage } = useAlertsContext();
-  const { refreshRoom } = useRoomContext();
+  const { syncRoomMutation } = useRoomContext();
   const [loading, setLoading] = useState(false);
 
+  // Expect-or-refresh, as in PlayersList.
   const handleRemove = async (): Promise<void> => {
-    try {
-      await removePlayer(player.id, roomName, setErrorMessage);
-    } finally {
-      await refreshRoom();
-    }
+    await syncRoomMutation(() => removePlayer(player.id, roomName, setErrorMessage));
   };
 
   return (

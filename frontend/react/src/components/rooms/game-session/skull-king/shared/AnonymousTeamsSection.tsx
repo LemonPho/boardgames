@@ -51,7 +51,7 @@ export default function AnonymousTeamsSection({ phase }: { phase: "bids" | "tric
               playerName={team.player.displayName}
               editable={canEdit(team.id)}
               team={team}
-              serverValue={(phase === "bids" ? bids : trickResults)[team.id] ?? 0}
+              value={(phase === "bids" ? bids : trickResults)[team.id] ?? 0}
               max={cardCount}
               status={phase === "bids" ? bidStatus(team.id) : trickStatus(team.id)}
               leads={team.id === startingTeamId}
