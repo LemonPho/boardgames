@@ -18,6 +18,7 @@ import com.motomutterers.boardgames.skullking.dto.SetKrakenRequest;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitBonusPointsRequest;
+import com.motomutterers.boardgames.skullking.dto.SubmitResultResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitTrickResultRequest;
 import com.motomutterers.boardgames.skullking.services.SkullKingService;
 
@@ -102,23 +103,21 @@ public class SkullKingController {
     }
 
     @PostMapping("/bids")
-    public ResponseEntity<Void> submitBid(
+    public ResponseEntity<SubmitResultResponse> submitBid(
         @PathVariable String roomName,
         @RequestBody SubmitBidRequest request,
         Authentication authentication
     ){
-        skullKingService.submitBid(roomName, request, authentication);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(skullKingService.submitBid(roomName, request, authentication));
     }
 
     @PostMapping("/trick-results")
-    public ResponseEntity<Void> submitTrickResult(
+    public ResponseEntity<SubmitResultResponse> submitTrickResult(
         @PathVariable String roomName,
         @RequestBody SubmitTrickResultRequest request,
         Authentication authentication
     ){
-        skullKingService.submitTrickResult(roomName, request, authentication);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(skullKingService.submitTrickResult(roomName, request, authentication));
     }
 
     @PostMapping("/start-round")
@@ -149,13 +148,12 @@ public class SkullKingController {
     }
 
     @PostMapping("/bonus-points")
-    public ResponseEntity<Void> submitBonusPoints(
+    public ResponseEntity<SubmitResultResponse> submitBonusPoints(
         @PathVariable String roomName,
         @RequestBody SubmitBonusPointsRequest request,
         Authentication authentication
     ){
-        skullKingService.submitBonusPoints(roomName, request, authentication);
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(skullKingService.submitBonusPoints(roomName, request, authentication));
     }
 
     @PostMapping("/finish-round")

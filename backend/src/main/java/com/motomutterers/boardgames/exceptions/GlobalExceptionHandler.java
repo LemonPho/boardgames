@@ -26,6 +26,7 @@ import com.motomutterers.boardgames.rooms.exceptions.RoomNotFoundException;
 import com.motomutterers.boardgames.rooms.exceptions.RoomUserNotFoundException;
 import com.motomutterers.boardgames.sessions.exceptions.SessionExistsException;
 import com.motomutterers.boardgames.sessions.exceptions.SessionNotFoundException;
+import com.motomutterers.boardgames.skullking.dto.VersionConflictResponse;
 import com.motomutterers.boardgames.user.exceptions.UserInActiveRoomException;
 import com.motomutterers.boardgames.user.exceptions.UserNotFoundException;
 
@@ -69,6 +70,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadActionException.class)
     public ResponseEntity<String> handleBadAction(BadActionException e){
         return ResponseEntity.status(400).body(e.getMessage());
+    }
+
+    // A stale live save: a normal outcome, not an error, so it isn't logged. The body carries
+    // the current value and version for the client to adopt silently.
+    @ExceptionHandler(VersionConflictException.class)
+    public ResponseEntity<VersionConflictResponse> handleVersionConflict(VersionConflictException e){
+        return ResponseEntity.status(409).body(VersionConflictResponse.of(
+            e.getTeamId(), e.getType(), e.getCurrentVersion(), e.getCurrentPayload()));
     }
 
     @ExceptionHandler(UserNotFoundException.class)

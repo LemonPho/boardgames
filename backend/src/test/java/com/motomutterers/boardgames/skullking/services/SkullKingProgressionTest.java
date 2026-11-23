@@ -9,6 +9,7 @@ import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventPay
 import com.motomutterers.boardgames.sessions.models.sessionevent.SessionEventType;
 import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEvent;
 import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSessionEventType;
+import com.motomutterers.boardgames.sessions.services.TeamSessionEventService.WriteMode;
 import com.motomutterers.boardgames.teams.models.Team;
 import com.motomutterers.boardgames.user.model.User;
 import org.junit.jupiter.api.Test;
@@ -343,9 +344,9 @@ public class SkullKingProgressionTest extends SkullKingTestSupport {
 
         service.finishRound("room", authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(
-            session, bonus, b, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), eq(a), any(), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(
+            session, bonus, b, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0), WriteMode.PREFILL, null);
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), eq(a), any(), any(), any(), any());
         verify(sessionEventService).createSessionEvent(eq(session), eq(SessionEventType.BIDS), any());
     }
 
@@ -372,8 +373,8 @@ public class SkullKingProgressionTest extends SkullKingTestSupport {
         service.finishRound("room", authentication);
 
         for (Team team : new Team[]{a, b}) {
-            verify(teamSessionEventService).upsertTeamSessionEvent(
-                session, bonus, team, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0));
+            verify(teamSessionEventService).writeTeamSessionEvent(
+                session, bonus, team, TeamSessionEventType.BONUS_POINTS, bonus(0, false, 0, 0, false, 0), WriteMode.PREFILL, null);
         }
         // a: bid 1, won 1 -> +20. b: bid 0, won 0 over 1 card -> +10.
         verify(teamUtilityService).setScore(a, 20L);

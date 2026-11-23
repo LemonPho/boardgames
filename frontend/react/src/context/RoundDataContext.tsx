@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { TeamResponse } from "../types/teams";
-import type { BonusEligibility, SkullKingGameState, SkullKingState, TeamBonus } from "../types/skull-king";
+import type { BonusEligibility, SkullKingGameState, SkullKingState, TeamBonus, VersionConflict } from "../types/skull-king";
 import { EMPTY_BONUS, bonusEligibility, expectedTrickTotal } from "../types/skull-king";
 import { useSkullKingSessionContext } from "./SkullKingSessionContext";
 import { useRoomContext } from "./RoomContext";
@@ -16,6 +16,7 @@ import {
   startBonusPoints,
   startTrickResults,
   setKraken,
+  VersionConflictError,
 } from "../api/skullKing";
 
 export type SaveStatus = "saving" | "saved" | null;
@@ -83,6 +84,16 @@ const CONFIRM_TIMEOUT_MS = 2000;
 
 const KRAKEN_KEY = "__kraken__";
 
+// The versioned per-team fields (the Kraken flag isn't versioned).
+type VersionedField = "bids" | "tricks" | "bonuses";
+type KnownVersions = Record<VersionedField, Map<string, number>>;
+
+const FIELD_OF_CONFLICT: Record<VersionConflict["field"], VersionedField> = {
+  BIDS: "bids",
+  TRICK_RESULTS: "tricks",
+  BONUS_POINTS: "bonuses",
+};
+
 // A save that reached the server, waiting for the state to show its value.
 interface AwaitingConfirm {
   gen: number;
@@ -120,7 +131,7 @@ export function LiveRoundDataProvider({
   // the advance action and the received state stay the admin's.
   viewAsPlayer?: boolean;
 }) {
-  const { state, refreshState } = useSkullKingSessionContext();
+  const { state, refreshState, applyServerValue } = useSkullKingSessionContext();
   const { room, currentPlayer } = useRoomContext();
   const { setErrorMessage, clearAlerts } = useAlertsContext();
   const { schedule, flush } = useDebouncedSave();
@@ -146,6 +157,10 @@ export function LiveRoundDataProvider({
   //   so a save checks it as soon as the request resolves.
   // - mounted: saves flushed on unmount still complete; they mustn't start new timers.
   const gens = useRef(new Map<string, number>());
+  // Per key, the newest generation whose save must NOT be sent: set on a version conflict.
+  // Edits queued behind the rejected one were computed from the same out-of-date value, so
+  // sending them (now with the fresh version) would overwrite the newer server value.
+  const invalidatedThrough = useRef(new Map<string, number>());
   const awaiting = useRef(new Map<string, AwaitingConfirm>());
   const latestState = useRef<SkullKingState | null>(state);
   const mounted = useRef(false);
@@ -174,6 +189,32 @@ export function LiveRoundDataProvider({
       entries.clear();
     };
   }, []);
+
+  // The newest version seen per team and field, from states and from save replies. A save
+  // reads it when it's *sent*, not when tapped: saves for one team are chained, so the reply
+  // to the previous one has already moved it on and a user's own fast taps never conflict.
+  // An out-of-date screen still sends its old version and is rejected, which is the point.
+  // Only ever moves forward, so a late push carrying an older version can't undo a reply.
+  const knownVersions = useRef<KnownVersions>({ bids: new Map(), tricks: new Map(), bonuses: new Map() });
+  const recordVersion = (field: VersionedField, teamId: string, version: number): void => {
+    const versions = knownVersions.current[field];
+    if (version > (versions.get(teamId) ?? 0)) versions.set(teamId, version);
+  };
+  const knownVersion = (field: VersionedField, teamId: string): number =>
+    knownVersions.current[field].get(teamId) ?? 0;
+
+  useEffect(() => {
+    if (!state) return;
+    const merge = (field: VersionedField, versions: Record<string, number> | undefined) => {
+      const known = knownVersions.current[field];
+      Object.entries(versions ?? {}).forEach(([teamId, version]) => {
+        if (version > (known.get(teamId) ?? 0)) known.set(teamId, version);
+      });
+    };
+    merge("bids", state.bidVersions);
+    merge("tricks", state.trickVersions);
+    merge("bonuses", state.bonusVersions);
+  }, [state]);
 
   // The admin advanced: send any pending (debounced) saves right away, tagged with the
   // phase they were made in, so they reach the server inside its 1 s grace window. The ref
@@ -237,6 +278,8 @@ export function LiveRoundDataProvider({
   // Wraps a scheduled save with the lifecycle above. On rejection (wrong phase, out of
   // range, the trick cap) the draft is dropped at once, so the control reverts to the
   // server value next to the server's toast. The error is rethrown for flush().
+  // A version conflict isn't a failure: the screen was out of date, so it silently adopts
+  // the server's value (no toast, by design) and flush() carries on.
   const trackedSave = (
     key: string,
     gen: number,
@@ -244,11 +287,27 @@ export function LiveRoundDataProvider({
     confirmed: (s: SkullKingState) => boolean,
     dropDraft: () => void,
   ) => async (): Promise<void> => {
+    // Superseded by a version conflict before it was sent: drop it (see invalidatedThrough).
+    if (gen <= (invalidatedThrough.current.get(key) ?? 0)) return;
     try {
       await send();
       if (latestGen(key) !== gen) return; // a newer edit owns this key now
       awaitConfirm(key, gen, confirmed, dropDraft);
     } catch (error) {
+      if (error instanceof VersionConflictError) {
+        const { conflict } = error;
+        // After an unmount (a save flushed as the round changed), the state belongs to the
+        // next round; patching it with this round's value would be wrong.
+        if (mounted.current) applyServerValue(conflict);
+        recordVersion(FIELD_OF_CONFLICT[conflict.field], conflict.teamId, conflict.version);
+        // Edits queued behind this one were made on the same stale value: cancel them all,
+        // so the corrected server value stands. Taps made after this point get a newer
+        // generation and are sent normally (with the fresh version).
+        invalidatedThrough.current.set(key, latestGen(key));
+        dropDraft();
+        markDone(key);
+        return;
+      }
       if (latestGen(key) === gen) {
         dropDraft();
         markDone(key);
@@ -299,7 +358,11 @@ export function LiveRoundDataProvider({
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitBid(room.name, teamId, value, setErrorMessage, phaseEventId),
+      async () => {
+        const version = await submitBid(
+          room.name, teamId, value, setErrorMessage, phaseEventId, knownVersion("bids", teamId));
+        recordVersion("bids", teamId, version);
+      },
       s => s.bids?.[teamId] === value,
       () => setBidDrafts(prev => withoutKey(prev, teamId)),
     ));
@@ -320,7 +383,11 @@ export function LiveRoundDataProvider({
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitTrickResult(room.name, teamId, value, setErrorMessage, phaseEventId),
+      async () => {
+        const version = await submitTrickResult(
+          room.name, teamId, value, setErrorMessage, phaseEventId, knownVersion("tricks", teamId));
+        recordVersion("tricks", teamId, version);
+      },
       s => s.trickResults?.[teamId] === value,
       () => setTrickDrafts(prev => withoutKey(prev, teamId)),
     ));
@@ -338,7 +405,11 @@ export function LiveRoundDataProvider({
     schedule(teamId, trackedSave(
       teamId,
       gen,
-      () => submitBonusPoints(room.name, teamId, bonus, setErrorMessage, phaseEventId),
+      async () => {
+        const version = await submitBonusPoints(
+          room.name, teamId, bonus, setErrorMessage, phaseEventId, knownVersion("bonuses", teamId));
+        recordVersion("bonuses", teamId, version);
+      },
       s => sameBonus(s.bonuses?.[teamId], bonus),
       () => setBonusDrafts(prev => withoutKey(prev, teamId)),
     ));
