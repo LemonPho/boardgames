@@ -9,6 +9,7 @@ import com.motomutterers.boardgames.sessions.models.teamsessionevent.TeamSession
 import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
+import com.motomutterers.boardgames.sessions.services.TeamSessionEventService.WriteMode;
 import com.motomutterers.boardgames.teams.models.Team;
 import com.motomutterers.boardgames.user.model.User;
 import org.junit.jupiter.api.Test;
@@ -109,10 +110,31 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         service.correctBids("room", 1, bidsReq(bidVal(a, 2), bidVal(b, 3)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids), eq(a), eq(TeamSessionEventType.BIDS), any());
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids), eq(b), eq(TeamSessionEventType.BIDS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids), eq(a), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids), eq(b), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
         // recompute runs afterwards (reads all events again).
         verify(sessionEventService, atLeastOnce()).findAllEvents(session);
+    }
+
+    @Test
+    void correctBids_writeWithAuthority_soTheyApplyRegardlessOfVersion() {
+        User admin = user();
+        Authentication authentication = auth();
+        Team a = team();
+        Session session = correctionSession(admin, authentication, a);
+
+        SessionEvent bids = bidsEvent(1, 5, id(a));
+        stubAllEvents(session, bids);
+        when(teamUtilityService.getOrThrowTeamById(id(a))).thenReturn(a);
+
+        service.correctBids("room", 1, bidsReq(bidVal(a, 2)), authentication);
+
+        // A reviewed batch save carries no expected version and is never version-checked;
+        // AUTHORITY always applies and bumps (see TeamSessionEventServiceTest).
+        verify(teamSessionEventService).writeTeamSessionEvent(
+            eq(session), eq(bids), eq(a), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(
+            any(), any(), any(), any(), any(), eq(WriteMode.CHECKED), any());
     }
 
     @Test
@@ -128,7 +150,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         assertThrows(BadActionException.class,
             () -> service.correctBids("room", 1, bidsReq(bidVal(a, 2)), authentication));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -143,7 +165,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         // Validation runs over the whole set before any upsert.
         assertThrows(BadActionException.class,
             () -> service.correctBids("room", 1, bidsReq(bidVal(a, 6)), authentication));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -239,8 +261,8 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         service.correctBids("room", 2, bidsReq(bidVal(a, 2), bidVal(b, 0)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any());
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
         // Scores stay at round 1's totals: the live round isn't finished.
         verify(teamUtilityService).setScore(a, 20L);
         verify(teamUtilityService).setScore(b, 10L);
@@ -257,8 +279,8 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         service.correctBids("room", 2, bidsReq(bidVal(a, 2), bidVal(b, 0)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any());
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids2), eq(a), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bids2), eq(b), eq(TeamSessionEventType.BIDS), any(), eq(WriteMode.AUTHORITY), isNull());
         // The open bonus phase isn't closed by a correction, so round 2 stays unscored.
         verify(teamUtilityService).setScore(a, 20L);
         verify(teamUtilityService).setScore(b, 10L);
@@ -276,8 +298,8 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         // 2 + 0 == 2 cards.
         service.correctTricks("room", 2, tricksReq(trickVal(a, 2), trickVal(b, 0)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(b), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks2), eq(b), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
         verify(teamUtilityService).setScore(a, 20L);
         verify(teamUtilityService).setScore(b, 10L);
     }
@@ -293,7 +315,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         service.correctTricks("room", 2, tricksReq(trickVal(a, 2), trickVal(b, 0)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks2), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
         verify(teamUtilityService).setScore(a, 20L);
         verify(teamUtilityService).setScore(b, 10L);
     }
@@ -317,8 +339,8 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         // 2 + 3 == 5 cards.
         service.correctTricks("room", 1, tricksReq(trickVal(a, 2), trickVal(b, 3)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks), eq(b), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks), eq(b), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
     }
 
     @Test
@@ -334,7 +356,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         // 2 + 2 == 4 != 5 cards.
         assertThrows(BadActionException.class,
             () -> service.correctTricks("room", 1, tricksReq(trickVal(a, 2), trickVal(b, 2)), authentication));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -354,7 +376,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         // Kraken destroyed a trick: total must be 5 - 1 = 4.
         service.correctTricks("room", 1, tricksReq(trickVal(a, 2), trickVal(b, 2)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(tricks), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(tricks), eq(a), eq(TeamSessionEventType.TRICK_RESULTS), any(), eq(WriteMode.AUTHORITY), isNull());
     }
 
     @Test
@@ -425,7 +447,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         service.correctBonus("room", 1, bonusReq(bonusVal(a, 1, false, 0, 0, false, 0)), authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any(), eq(WriteMode.AUTHORITY), isNull());
     }
 
     @Test
@@ -445,7 +467,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
 
         assertThrows(BadActionException.class,
             () -> service.correctBonus("room", 1, bonusReq(bonusVal(a, 1, false, 0, 0, false, 0)), authentication));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -470,7 +492,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
             bonusReq(bonusVal(a, 0, false, 0, 0, false, 1), bonusVal(b, 0, false, 0, 0, false, 1)),
             authentication);
 
-        verify(teamSessionEventService).upsertTeamSessionEvent(eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any());
+        verify(teamSessionEventService).writeTeamSessionEvent(eq(session), eq(bonus), eq(a), eq(TeamSessionEventType.BONUS_POINTS), any(), eq(WriteMode.AUTHORITY), isNull());
     }
 
     @Test
@@ -491,7 +513,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         BadActionException ex = assertThrows(BadActionException.class,
             () -> service.correctBonus("room", 1, bonusReq(bonusVal(a, 0, true, 0, 0, false, 0)), authentication));
         assertEquals("A zero bid can only earn Loot bonus points", ex.getMessage());
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -512,7 +534,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
         BadActionException ex = assertThrows(BadActionException.class,
             () -> service.correctBonus("room", 1, bonusReq(bonusVal(a, 0, false, 0, 0, false, 1)), authentication));
         assertEquals("A team can only earn bonus points if it made a bid of one or more", ex.getMessage());
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -557,7 +579,7 @@ public class SkullKingCorrectionsTest extends SkullKingTestSupport {
             () -> service.correctBonus("room", 1,
                 bonusReq(bonusVal(a, 0, true, 0, 0, false, 0), bonusVal(b, 0, true, 0, 0, false, 0)),
                 authentication));
-        verify(teamSessionEventService, never()).upsertTeamSessionEvent(any(), any(), any(), any(), any());
+        verify(teamSessionEventService, never()).writeTeamSessionEvent(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

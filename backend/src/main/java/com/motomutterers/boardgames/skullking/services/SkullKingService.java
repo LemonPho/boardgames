@@ -30,6 +30,7 @@ import com.motomutterers.boardgames.sessions.repositories.TeamSessionEventReposi
 import com.motomutterers.boardgames.sessions.services.SessionEventService;
 import com.motomutterers.boardgames.sessions.services.SessionUtilitysService;
 import com.motomutterers.boardgames.sessions.services.TeamSessionEventService;
+import com.motomutterers.boardgames.sessions.services.TeamSessionEventService.WriteMode;
 import com.motomutterers.boardgames.skullking.dto.CorrectBidsRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectBonusRequest;
 import com.motomutterers.boardgames.skullking.dto.CorrectTricksRequest;
@@ -39,6 +40,7 @@ import com.motomutterers.boardgames.skullking.dto.ScoreboardResponse;
 import com.motomutterers.boardgames.skullking.dto.RoundHistoryTeamResponse;
 import com.motomutterers.boardgames.skullking.dto.SkullKingStateResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBidRequest;
+import com.motomutterers.boardgames.skullking.dto.SubmitResultResponse;
 import com.motomutterers.boardgames.skullking.dto.SubmitBonusPointsRequest;
 import com.motomutterers.boardgames.skullking.dto.SubmitTrickResultRequest;
 import com.motomutterers.boardgames.skullking.dto.TeamBonusResponse;
@@ -264,9 +266,11 @@ public class SkullKingService {
 
         for(CorrectBidsRequest.TeamValue tv : request.getTeams()){
             Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
-            teamSessionEventService.upsertTeamSessionEvent(
+            // AUTHORITY: a reviewed batch save always applies, and its version bump makes any
+            // out-of-date live save for this phase be rejected afterwards.
+            teamSessionEventService.writeTeamSessionEvent(
                 session, bidsEvent, team, TeamSessionEventType.BIDS,
-                new TeamSessionEventPayload.Bids(tv.getValue()));
+                new TeamSessionEventPayload.Bids(tv.getValue()), WriteMode.AUTHORITY, null);
         }
 
         // A team that becomes ineligible keeps its stored bonus untouched; scoring
@@ -303,9 +307,9 @@ public class SkullKingService {
 
         for(CorrectTricksRequest.TeamValue tv : request.getTeams()){
             Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
-            teamSessionEventService.upsertTeamSessionEvent(
+            teamSessionEventService.writeTeamSessionEvent(
                 session, tricksEvent, team, TeamSessionEventType.TRICK_RESULTS,
-                new TeamSessionEventPayload.TrickResults(tv.getValue()));
+                new TeamSessionEventPayload.TrickResults(tv.getValue()), WriteMode.AUTHORITY, null);
         }
 
         // Ineligible teams keep their stored bonus (see correctBids) — scoring ignores
@@ -366,11 +370,12 @@ public class SkullKingService {
 
         for(CorrectBonusRequest.TeamBonusValue tv : request.getTeams()){
             Team team = teamUtilityService.getOrThrowTeamById(tv.getTeamId());
-            teamSessionEventService.upsertTeamSessionEvent(
+            teamSessionEventService.writeTeamSessionEvent(
                 session, bonusEvent, team, TeamSessionEventType.BONUS_POINTS,
                 new TeamSessionEventPayload.BonusPoints(
                     tv.getStandardFourteens(), tv.getBlackFourteen(), tv.getMermaidsByPirate(),
-                    tv.getPiratesBySkullKing(), tv.getSkullKingByMermaid(), tv.getLoot()));
+                    tv.getPiratesBySkullKing(), tv.getSkullKingByMermaid(), tv.getLoot()),
+                WriteMode.AUTHORITY, null);
         }
 
         recomputeScores(session, false);
@@ -524,7 +529,7 @@ public class SkullKingService {
     }
 
     @Transactional
-    public void submitBid(String roomName, SubmitBidRequest request, Authentication authentication){
+    public SubmitResultResponse submitBid(String roomName, SubmitBidRequest request, Authentication authentication){
         User user = userService.getAuthenticatedUser(authentication);
         Room room = roomsUtilityService.getRoomByName(roomName);
         RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
@@ -543,18 +548,23 @@ public class SkullKingService {
             throw new BadActionException("Bid must be between 0 and " + bidsPhase.cardCount());
         }
 
-        teamSessionEventService.upsertTeamSessionEvent(
+        // CHECKED for every caller, the admin included: a save made against a value someone
+        // has changed since is rejected (409) before anything is written or published.
+        int version = teamSessionEventService.writeTeamSessionEvent(
             session,
             targetEvent,
             team,
             TeamSessionEventType.BIDS,
-            new TeamSessionEventPayload.Bids(request.getBid()));
+            new TeamSessionEventPayload.Bids(request.getBid()),
+            WriteMode.CHECKED,
+            request.getExpectedVersion());
 
         publishStateChanged(room, session);
+        return new SubmitResultResponse(version);
     }
 
     @Transactional
-    public void submitTrickResult(String roomName, SubmitTrickResultRequest request, Authentication authentication){
+    public SubmitResultResponse submitTrickResult(String roomName, SubmitTrickResultRequest request, Authentication authentication){
         User user = userService.getAuthenticatedUser(authentication);
         Room room = roomsUtilityService.getRoomByName(roomName);
         RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
@@ -582,12 +592,15 @@ public class SkullKingService {
             throw new BadActionException("Total tricks won cannot exceed the " + cardCount + " cards dealt this round");
         }
 
-        teamSessionEventService.upsertTeamSessionEvent(
+        // CHECKED for every caller (see submitBid).
+        int version = teamSessionEventService.writeTeamSessionEvent(
             session,
             targetEvent,
             team,
             TeamSessionEventType.TRICK_RESULTS,
-            new TeamSessionEventPayload.TrickResults(request.getTricksWon()));
+            new TeamSessionEventPayload.TrickResults(request.getTricksWon()),
+            WriteMode.CHECKED,
+            request.getExpectedVersion());
 
         // The admin could only close the phase with a valid trick total, so a late write must
         // keep it valid. Throwing rolls the upsert back.
@@ -596,6 +609,7 @@ public class SkullKingService {
         }
 
         publishStateChanged(room, session);
+        return new SubmitResultResponse(version);
     }
 
     @Transactional
@@ -694,7 +708,7 @@ public class SkullKingService {
     }
 
     @Transactional
-    public void submitBonusPoints(String roomName, SubmitBonusPointsRequest request, Authentication authentication){
+    public SubmitResultResponse submitBonusPoints(String roomName, SubmitBonusPointsRequest request, Authentication authentication){
         User user = userService.getAuthenticatedUser(authentication);
         Room room = roomsUtilityService.getRoomByName(roomName);
         RoomUser roomUser = roomsUtilityService.getOrThrowRoomUserByUserAndRoom(user, room);
@@ -727,7 +741,8 @@ public class SkullKingService {
             throw new BadActionException("A zero bid can only earn Loot bonus points");
         }
 
-        teamSessionEventService.upsertTeamSessionEvent(
+        // CHECKED for every caller (see submitBid).
+        int version = teamSessionEventService.writeTeamSessionEvent(
             session,
             targetEvent,
             team,
@@ -738,7 +753,9 @@ public class SkullKingService {
                 request.getMermaidsByPirate(),
                 request.getPiratesBySkullKing(),
                 request.getSkullKingByMermaid(),
-                request.getLoot()));
+                request.getLoot()),
+            WriteMode.CHECKED,
+            request.getExpectedVersion());
 
         if(late){
             // finishRound already validated this round; a late write must keep it valid
@@ -749,6 +766,7 @@ public class SkullKingService {
         }
 
         publishStateChanged(room, session);
+        return new SubmitResultResponse(version);
     }
 
     @Transactional
@@ -1009,6 +1027,8 @@ public class SkullKingService {
 
     // Writes `payload` for every team with no value yet on this phase event. Teams
     // that already submitted are left untouched, so a real entry is never overwritten.
+    // PREFILL writes at version 0 without bumping, so a late grace-window save made against
+    // "no value yet" (expectedVersion 0) still matches.
     private void prefillMissingValues(
         Session session,
         SessionEvent phaseEvent,
@@ -1017,7 +1037,7 @@ public class SkullKingService {
     ){
         for(Team team : session.getTeams()){
             if(teamSessionEventRepository.findBySessionEventAndTeam(phaseEvent, team).isPresent()) continue;
-            teamSessionEventService.upsertTeamSessionEvent(session, phaseEvent, team, type, payload);
+            teamSessionEventService.writeTeamSessionEvent(session, phaseEvent, team, type, payload, WriteMode.PREFILL, null);
         }
     }
 

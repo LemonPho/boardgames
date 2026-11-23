@@ -1,8 +1,31 @@
-import type { RoundHistory, SkullKingState, TeamBonus } from "../types/skull-king";
+import axios from "axios";
+import type { RoundHistory, SkullKingState, TeamBonus, VersionConflict } from "../types/skull-king";
 import type { ScoreboardResponse } from "../types/scoreboard";
 import { setAxiosError } from "../util/api"
 import { reviveDates } from "../util/dates";
 import { api } from "./axiosSetup";
+
+// A submit was made against an out-of-date version (409). Not an error for the user: the
+// caller silently adopts the server's value, so no toast is shown for it.
+export class VersionConflictError extends Error {
+  conflict: VersionConflict;
+
+  constructor(conflict: VersionConflict) {
+    super("Version conflict");
+    this.name = "VersionConflictError";
+    this.conflict = conflict;
+  }
+}
+
+// Shared error path of the versioned submits: a 409 becomes a VersionConflictError with no
+// toast; everything else is toasted as usual. Always throws.
+const rethrowSubmitError = (error: unknown, setErrorMessage: (message: string) => void): never => {
+  if (axios.isAxiosError(error) && error.response?.status === 409) {
+    throw new VersionConflictError(error.response.data as VersionConflict);
+  }
+  setAxiosError(error, setErrorMessage);
+  throw error;
+};
 
 export const getScoreboard = async (
   roomName: string,
@@ -107,13 +130,17 @@ export const submitBid = async (
   bid: number,
   setErrorMessage: (message: string) => void,
   // The phase the edit was made in (see SkullKingState.phaseEventId).
-  phaseEventId?: string
-): Promise<void> => {
+  phaseEventId?: string,
+  // The version the edit was made against; omitted = no check. A mismatch is a 409, thrown
+  // as a VersionConflictError without a toast.
+  expectedVersion?: number
+): Promise<number> => {
   try {
-    await api.post(`/skull-king/${roomName}/bids`, { teamId, bid, phaseEventId });
+    const response = await api.post(`/skull-king/${roomName}/bids`, { teamId, bid, phaseEventId, expectedVersion });
+    // The row's new version.
+    return (response.data as { version: number }).version;
   } catch (error) {
-    setAxiosError(error, setErrorMessage);
-    throw error;
+    return rethrowSubmitError(error, setErrorMessage);
   }
 }
 
@@ -123,13 +150,17 @@ export const submitTrickResult = async (
   tricksWon: number,
   setErrorMessage: (message: string) => void,
   // The phase the edit was made in (see SkullKingState.phaseEventId).
-  phaseEventId?: string
-): Promise<void> => {
+  phaseEventId?: string,
+  // The version the edit was made against; omitted = no check. A mismatch is a 409, thrown
+  // as a VersionConflictError without a toast.
+  expectedVersion?: number
+): Promise<number> => {
   try {
-    await api.post(`/skull-king/${roomName}/trick-results`, { teamId, tricksWon, phaseEventId });
+    const response = await api.post(`/skull-king/${roomName}/trick-results`, { teamId, tricksWon, phaseEventId, expectedVersion });
+    // The row's new version.
+    return (response.data as { version: number }).version;
   } catch (error) {
-    setAxiosError(error, setErrorMessage);
-    throw error;
+    return rethrowSubmitError(error, setErrorMessage);
   }
 }
 
@@ -175,13 +206,17 @@ export const submitBonusPoints = async (
   bonus: TeamBonus,
   setErrorMessage: (message: string) => void,
   // The phase the edit was made in (see SkullKingState.phaseEventId).
-  phaseEventId?: string
-): Promise<void> => {
+  phaseEventId?: string,
+  // The version the edit was made against; omitted = no check. A mismatch is a 409, thrown
+  // as a VersionConflictError without a toast.
+  expectedVersion?: number
+): Promise<number> => {
   try {
-    await api.post(`/skull-king/${roomName}/bonus-points`, { teamId, ...bonus, phaseEventId });
+    const response = await api.post(`/skull-king/${roomName}/bonus-points`, { teamId, ...bonus, phaseEventId, expectedVersion });
+    // The row's new version.
+    return (response.data as { version: number }).version;
   } catch (error) {
-    setAxiosError(error, setErrorMessage);
-    throw error;
+    return rethrowSubmitError(error, setErrorMessage);
   }
 }
 

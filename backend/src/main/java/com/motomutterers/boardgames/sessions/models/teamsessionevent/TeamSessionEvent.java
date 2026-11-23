@@ -60,6 +60,11 @@ public class TeamSessionEvent {
 
     private LocalDateTime createdAt;
 
+    // Bumped on every human edit (submit or correction), not on server prefill. Compared by
+    // hand against the version the client last saw, so deliberately not JPA @Version (that
+    // checks staleness inside one transaction, not against a client-supplied value).
+    private int version;
+
     public TeamSessionEvent(){}
 
     public TeamSessionEvent(
@@ -88,6 +93,7 @@ public class TeamSessionEvent {
     public int getSequence(){return this.sequence;}
     public String getPayload(){return this.payload;}
     public LocalDateTime getCreatedAt(){return this.createdAt;}
+    public int getVersion(){return this.version;}
 
     public void setSession(Session session){this.session = session;}
     public void setSessionEvent(SessionEvent sessionEvent){this.sessionEvent = sessionEvent;}
@@ -95,4 +101,5 @@ public class TeamSessionEvent {
     public void setType(TeamSessionEventType type){this.type = type;}
     public void setSequence(int sequence){this.sequence = sequence;}
     public void setPayload(String payload){this.payload = payload;}
+    public void setVersion(int version){this.version = version;}
 }

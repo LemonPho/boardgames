@@ -313,4 +313,80 @@ public class SkullKingStateBuilderTest {
         assertEquals(first.getId(), state.getTeams().get(0).getId());
         assertEquals(second.getId(), state.getTeams().get(1).getId());
     }
+
+    // --- version maps ---
+
+    private TeamSessionEvent versioned(TeamSessionEvent row, int version) {
+        row.setVersion(version);
+        return row;
+    }
+
+    @Test
+    void versionMaps_bonusPhase_adminSeesEveryTeamFromTheSamePhaseEvents() {
+        Team a = team(0);
+        Team b = team(1);
+        Session session = session(a, b);
+
+        SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
+        SessionEvent tricksEvent = tricks(1, 5, a.getId().toString(), false);
+        SessionEvent bonusEvent = bonus(1, 5, a.getId().toString());
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bonusEvent);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricksEvent));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent))
+            .thenReturn(List.of(versioned(teamBid(a, 2), 3), versioned(teamBid(b, 1), 0)));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricksEvent))
+            .thenReturn(List.of(versioned(teamTricks(a, 2), 1), versioned(teamTricks(b, 3), 2)));
+        // Only a has a bonus row: b has no entry, which clients read as version 0.
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bonusEvent))
+            .thenReturn(List.of(versioned(teamEvent(a, TeamSessionEventType.BONUS_POINTS,
+                new TeamSessionEventPayload.BonusPoints(1, false, 0, 0, false, 0)), 4)));
+
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, a), true);
+
+        assertEquals(java.util.Map.of(a.getId(), 3, b.getId(), 0), state.getBidVersions());
+        assertEquals(java.util.Map.of(a.getId(), 1, b.getId(), 2), state.getTrickVersions());
+        assertEquals(java.util.Map.of(a.getId(), 4), state.getBonusVersions());
+    }
+
+    @Test
+    void versionMaps_trickPhase_playerSeesOnlyOwnTeam() {
+        Team a = team(0);
+        Team b = team(1);
+        Session session = session(a, b);
+
+        SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
+        SessionEvent tricksEvent = tricks(1, 5, a.getId().toString(), false);
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(tricksEvent);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent))
+            .thenReturn(List.of(versioned(teamBid(a, 2), 3), versioned(teamBid(b, 1), 5)));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricksEvent))
+            .thenReturn(List.of(versioned(teamTricks(a, 2), 1), versioned(teamTricks(b, 3), 2)));
+
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.PLAYER, b), false);
+
+        assertEquals(java.util.Map.of(b.getId(), 5), state.getBidVersions());
+        assertEquals(java.util.Map.of(b.getId(), 2), state.getTrickVersions());
+        // No bonus phase yet: an empty map, not null.
+        assertEquals(java.util.Map.of(), state.getBonusVersions());
+    }
+
+    @Test
+    void versionMaps_bidsPhase_onlyBidVersions() {
+        Team a = team(0);
+        Session session = session(a);
+
+        SessionEvent bidsEvent = bids(1, 5, a.getId().toString());
+        when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(bidsEvent);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent))
+            .thenReturn(List.of(versioned(teamBid(a, 2), 2)));
+
+        SkullKingStateResponse state = builder.buildState(session, roomUser(RoomUserRoles.PLAYER, a), false);
+
+        assertEquals(java.util.Map.of(a.getId(), 2), state.getBidVersions());
+        assertEquals(java.util.Map.of(), state.getTrickVersions());
+        assertEquals(java.util.Map.of(), state.getBonusVersions());
+    }
 }

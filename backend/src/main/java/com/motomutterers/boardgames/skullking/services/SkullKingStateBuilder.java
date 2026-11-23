@@ -93,11 +93,17 @@ public class SkullKingStateBuilder {
 
         SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElse(null);
         Map<UUID, Integer> bids = buildBidsMap(bidsEvent, roomUser, isAdmin);
+        // Each version map comes from the same phase event as its value map, with the same
+        // visibility. Phases that don't apply keep the response's empty defaults.
+        Map<UUID, Integer> bidVersions = buildVersionsMap(bidsEvent, TeamSessionEventType.BIDS, roomUser, isAdmin);
+        Map<UUID, Integer> trickVersions = Map.of();
+        Map<UUID, Integer> bonusVersions = Map.of();
 
         SkullKingStateResponse response = switch(currentEvent.getType()){
             case BIDS, IN_PROGRESS -> new BidsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids);
             case TRICK_RESULTS -> {
                 Map<UUID, Integer> trickResults = buildTrickResultsMap(currentEvent, roomUser, isAdmin);
+                trickVersions = buildVersionsMap(currentEvent, TeamSessionEventType.TRICK_RESULTS, roomUser, isAdmin);
                 boolean krakenPlayed = objectMapper.readValue(currentEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
                 yield new TrickResultsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, krakenPlayed);
             }
@@ -107,6 +113,8 @@ public class SkullKingStateBuilder {
                     ? Map.of()
                     : buildTrickResultsMap(trickResultsEvent, roomUser, isAdmin);
                 Map<UUID, TeamBonusResponse> bonuses = buildBonusMap(currentEvent, roomUser, isAdmin);
+                trickVersions = buildVersionsMap(trickResultsEvent, TeamSessionEventType.TRICK_RESULTS, roomUser, isAdmin);
+                bonusVersions = buildVersionsMap(currentEvent, TeamSessionEventType.BONUS_POINTS, roomUser, isAdmin);
                 boolean krakenPlayed = trickResultsEvent != null
                     && objectMapper.readValue(trickResultsEvent.getPayload(), SessionEventPayload.TrickResults.class).krakenPlayed();
                 yield new BonusPointsStateResponse(currentEvent.getType(), round, cardCount, startingTeamId, teams, bids, trickResults, bonuses, krakenPlayed);
@@ -118,7 +126,27 @@ public class SkullKingStateBuilder {
         response.setRoundKey(bidsEvent == null ? null : bidsEvent.getId().toString());
         // Echoed back on submits so the server can honour the grace window for this phase.
         response.setPhaseEventId(currentEvent.getId().toString());
+        // Clients echo these as expectedVersion so a save made on an out-of-date screen is
+        // rejected instead of silently overwriting a newer value.
+        response.setBidVersions(bidVersions);
+        response.setTrickVersions(trickVersions);
+        response.setBonusVersions(bonusVersions);
         return response;
+    }
+
+    // Same rows and admin-or-own-team filter as the matching value map, mapped to versions.
+    private Map<UUID, Integer> buildVersionsMap(SessionEvent phaseEvent, TeamSessionEventType type, RoomUser roomUser, boolean isAdmin){
+        if(phaseEvent == null) return Map.of();
+
+        return teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(phaseEvent).stream()
+            .filter(event -> event.getType().equals(type))
+            .filter(event -> isAdmin || (roomUser.getTeam() != null && event.getTeam().getId().equals(roomUser.getTeam().getId())))
+            .collect(Collectors.toMap(
+                event -> event.getTeam().getId(),
+                TeamSessionEvent::getVersion,
+                (a, b) -> b,
+                LinkedHashMap::new
+            ));
     }
 
     private Map<UUID, Integer> buildBidsMap(SessionEvent bidsEvent, RoomUser roomUser, boolean isAdmin){

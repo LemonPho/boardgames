@@ -27,7 +27,21 @@ export interface SkullKingState {
   // Id of the current phase event. Saves send the id they were made in, so the server can
   // accept a change for the phase that just closed within its 1 s grace window.
   phaseEventId?: string;
+  // Version of each team's value per field (bumped by every human edit). A save sends the
+  // version it was made against, so the server can reject a save from an out-of-date screen.
+  // A team missing from a map is at version 0. Players only get their own team's entry.
+  bidVersions?: Record<string, number>;
+  trickVersions?: Record<string, number>;
+  bonusVersions?: Record<string, number>;
 }
+
+// Body of a 409 from a submit: the save was made against an older version, nothing was
+// written, and this is the team's current value and version. The value fields are absent
+// when the server has no row for the team yet (version 0, e.g. after a round reset).
+export type VersionConflict =
+  | { teamId: string; field: "BIDS"; version: number; bid?: number }
+  | { teamId: string; field: "TRICK_RESULTS"; version: number; tricksWon?: number }
+  | ({ teamId: string; field: "BONUS_POINTS"; version: number } & Partial<TeamBonus>);
 
 export const EMPTY_BONUS: TeamBonus = {
   standardFourteens: 0,
