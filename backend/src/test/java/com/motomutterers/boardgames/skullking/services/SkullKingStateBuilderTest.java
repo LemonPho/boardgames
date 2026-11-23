@@ -170,6 +170,51 @@ public class SkullKingStateBuilderTest {
         assertNull(bidsState.getBids().get(a.getId()));
     }
 
+    // Each phase response type declares its own bids map; there's no shared getter.
+    private java.util.Map<UUID, Integer> bidsOf(SkullKingStateResponse state) {
+        if (state instanceof BidsStateResponse s) return s.getBids();
+        if (state instanceof TrickResultsStateResponse s) return s.getBids();
+        if (state instanceof BonusPointsStateResponse s) return s.getBids();
+        throw new AssertionError("unexpected state type " + state.getClass());
+    }
+
+    @Test
+    void bidVisibility_playerSeesAllBidsOnceBiddingEnds_versionsStayOwnTeam() {
+        Team a = team(0);
+        Team b = team(1);
+        Session session = session(a, b);
+        String starter = a.getId().toString();
+
+        SessionEvent bidsEvent = bids(1, 5, starter);
+        SessionEvent inProgressEvent = event(SessionEventType.IN_PROGRESS, new SessionEventPayload.InProgress(1, 5, starter));
+        SessionEvent tricksEvent = tricks(1, 5, starter, false);
+        SessionEvent bonusEvent = bonus(1, 5, starter);
+        when(sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS)).thenReturn(Optional.of(bidsEvent));
+        lenient().when(sessionEventService.findLatestEventOfType(session, SessionEventType.TRICK_RESULTS)).thenReturn(Optional.of(tricksEvent));
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent))
+            .thenReturn(List.of(versioned(teamBid(a, 2), 3), versioned(teamBid(b, 1), 5)));
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(tricksEvent)).thenReturn(List.of());
+        lenient().when(teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bonusEvent)).thenReturn(List.of());
+
+        for (SessionEvent current : List.of(bidsEvent, inProgressEvent, tricksEvent, bonusEvent)) {
+            when(sessionEventService.getOrThrowCurrentEvent(session)).thenReturn(current);
+            String phase = current.getType().toString();
+
+            SkullKingStateResponse player = builder.buildState(session, roomUser(RoomUserRoles.PLAYER, b), false);
+            // Bids are secret while bidding and public from IN_PROGRESS onward.
+            java.util.Map<UUID, Integer> expectedPlayerBids = current == bidsEvent
+                ? java.util.Map.of(b.getId(), 1)
+                : java.util.Map.of(a.getId(), 2, b.getId(), 1);
+            assertEquals(expectedPlayerBids, bidsOf(player), phase);
+            // Players only ever save their own bid, so they only get its version.
+            assertEquals(java.util.Map.of(b.getId(), 5), player.getBidVersions(), phase);
+
+            SkullKingStateResponse admin = builder.buildState(session, roomUser(RoomUserRoles.ADMIN, a), true);
+            assertEquals(java.util.Map.of(a.getId(), 2, b.getId(), 1), bidsOf(admin), phase);
+            assertEquals(java.util.Map.of(a.getId(), 3, b.getId(), 5), admin.getBidVersions(), phase);
+        }
+    }
+
     // --- roundKey ---
 
     @Test

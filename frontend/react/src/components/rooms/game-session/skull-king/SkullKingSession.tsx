@@ -47,6 +47,9 @@ export default function SkullKingSession() {
   // (round finished or reset, phase advanced from another device) rather than via an
   // effect resetting it.
   const [review, setReview] = useState<{ phase: ReviewPhase; liveKey: string } | null>(null);
+  // In-progress "all bids" grid, tagged with the round it was opened in so it closes by
+  // itself when the next round starts (the button only exists during IN_PROGRESS).
+  const [allBidsRound, setAllBidsRound] = useState<number | null>(null);
 
   if (!state) return null;
 
@@ -138,7 +141,7 @@ export default function SkullKingSession() {
   const renderPhase = () => {
     switch (state.gameState) {
       case "BIDS": return <BidPhase />;
-      case "IN_PROGRESS": return <RoundInProgressPhase />;
+      case "IN_PROGRESS": return <RoundInProgressPhase showAllBids={allBidsRound === state.round} />;
       case "TRICK_RESULTS": return <TricksPhase />;
       case "BONUS_POINTS": return <BonusPointsPhase />;
       default: return <div className="p-4 text-center text-sm text-neutral-500">Unknown state</div>;
@@ -165,6 +168,23 @@ export default function SkullKingSession() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* The server reveals every team's bid once bidding ends; the button is offered
+              while the round is being played, when knowing them matters. */}
+          {state.gameState === "IN_PROGRESS" && (
+            <button
+              type="button"
+              aria-label={allBidsRound === state.round ? "My bid" : "All bids"}
+              aria-pressed={allBidsRound === state.round}
+              onClick={(event) => {
+                event.stopPropagation();
+                setAllBidsRound(allBidsRound === state.round ? null : state.round);
+              }}
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-500 transition"
+            >
+              {/* Same icons as the admin's Player view toggle: Users = see everyone. */}
+              {allBidsRound === state.round ? <User size={18} /> : <Users size={18} />}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Scoreboard"

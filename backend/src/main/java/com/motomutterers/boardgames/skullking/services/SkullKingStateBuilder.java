@@ -92,9 +92,13 @@ public class SkullKingStateBuilder {
         }
 
         SessionEvent bidsEvent = sessionEventService.findLatestEventOfType(session, SessionEventType.BIDS).orElse(null);
-        Map<UUID, Integer> bids = buildBidsMap(bidsEvent, roomUser, isAdmin);
-        // Each version map comes from the same phase event as its value map, with the same
-        // visibility. Phases that don't apply keep the response's empty defaults.
+        // Bids are secret while bidding; once the round starts they're public (revealed together,
+        // as at the table), so every player receives all teams' bids from IN_PROGRESS onward.
+        boolean revealBids = isAdmin || currentEvent.getType() != SessionEventType.BIDS;
+        Map<UUID, Integer> bids = buildBidsMap(bidsEvent, roomUser, revealBids);
+        // Each version map comes from the same phase event as its value map. Versions stay
+        // admin-or-own-team even once bids are revealed: players only ever save their own bid.
+        // Phases that don't apply keep the response's empty defaults.
         Map<UUID, Integer> bidVersions = buildVersionsMap(bidsEvent, TeamSessionEventType.BIDS, roomUser, isAdmin);
         Map<UUID, Integer> trickVersions = Map.of();
         Map<UUID, Integer> bonusVersions = Map.of();
@@ -149,14 +153,14 @@ public class SkullKingStateBuilder {
             ));
     }
 
-    private Map<UUID, Integer> buildBidsMap(SessionEvent bidsEvent, RoomUser roomUser, boolean isAdmin){
+    private Map<UUID, Integer> buildBidsMap(SessionEvent bidsEvent, RoomUser roomUser, boolean showAllTeams){
         if(bidsEvent == null) return Map.of();
 
         List<TeamSessionEvent> teamEvents = teamSessionEventRepository.findBySessionEventOrderBySequenceAsc(bidsEvent);
 
         return teamEvents.stream()
             .filter(event -> event.getType().equals(TeamSessionEventType.BIDS))
-            .filter(event -> isAdmin || (roomUser.getTeam() != null && event.getTeam().getId().equals(roomUser.getTeam().getId())))
+            .filter(event -> showAllTeams || (roomUser.getTeam() != null && event.getTeam().getId().equals(roomUser.getTeam().getId())))
             .collect(Collectors.toMap(
                 event -> event.getTeam().getId(),
                 event -> objectMapper.readValue(event.getPayload(), TeamSessionEventPayload.Bids.class).bid(),

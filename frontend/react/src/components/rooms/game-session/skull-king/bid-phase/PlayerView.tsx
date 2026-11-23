@@ -1,11 +1,12 @@
 import { useRoomContext } from "../../../../../context/RoomContext";
 import { useRoundData } from "../../../../../context/RoundDataContext";
 import { PlayerCounterCard } from "../shared/PlayerCounterCard";
+import { LeaderNotice } from "../shared/LeaderNotice";
 import AnonymousTeamsSection from "../shared/AnonymousTeamsSection";
 
 export default function PlayerView() {
   const { currentPlayer } = useRoomContext();
-  const { round, cardCount, bids, canEdit, bidStatus, setBid, startingTeamId } = useRoundData();
+  const { round, cardCount, bids, canEdit, bidStatus, setBid, startingTeamId, teams } = useRoundData();
 
   if (!currentPlayer || !currentPlayer.team) return null;
 
@@ -17,6 +18,7 @@ export default function PlayerView() {
 
   return (
     <div>
+      <LeaderNotice teams={teams} startingTeamId={startingTeamId} myTeamId={teamId} />
       <PlayerCounterCard
         title="Bids"
         value={value}
